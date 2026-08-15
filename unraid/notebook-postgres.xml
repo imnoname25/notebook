@@ -1,0 +1,30 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<Container version="2">
+  <Name>notebook-postgres</Name>
+  <Repository>postgres:17-alpine</Repository>
+  <Registry>https://hub.docker.com/_/postgres</Registry>
+  <Network>notebook-net</Network>
+  <MyIP/>
+  <Shell>sh</Shell>
+  <Privileged>false</Privileged>
+  <Support>https://github.com/docker-library/postgres/issues</Support>
+  <Project>https://www.postgresql.org/</Project>
+  <Overview>Dedicated PostgreSQL 17 database for Notebook. The database port is intentionally not published to the Unraid host; Notebook connects by container hostname on `notebook-net`.</Overview>
+  <Description>Official PostgreSQL 17 image with persistent PGDATA and a container-local healthcheck.</Description>
+  <Category>Tools:Other</Category>
+  <WebUI/>
+  <TemplateURL>https://raw.githubusercontent.com/metroom/notebook/main/unraid/notebook-postgres.xml</TemplateURL>
+  <Icon>https://raw.githubusercontent.com/metroom/notebook/main/public/icons/icon-512.png</Icon>
+  <ExtraParams>--restart=unless-stopped --health-cmd=&quot;pg_isready -U notebook -d notebook&quot; --health-interval=10s --health-timeout=5s --health-start-period=30s --health-retries=10</ExtraParams>
+  <PostArgs/>
+  <CPUset/>
+  <DonateText/>
+  <DonateLink/>
+  <Requires>Create the custom Docker network `notebook-net` before installing this container. Keep POSTGRES_DB and POSTGRES_USER at their defaults unless you also update the healthcheck Extra Parameters.</Requires>
+
+  <Config Name="Storage: PostgreSQL Data" Target="/var/lib/postgresql/data" Default="/mnt/user/appdata/notebook/postgres" Mode="rw" Description="Persistent PostgreSQL data directory. Prefer an SSD/NVMe appdata pool." Type="Path" Display="always" Required="true" Mask="false">/mnt/user/appdata/notebook/postgres</Config>
+  <Config Name="Basic: Database Name" Target="POSTGRES_DB" Default="notebook" Mode="" Description="Database created on the first startup." Type="Variable" Display="always" Required="true" Mask="false">notebook</Config>
+  <Config Name="Basic: Database User" Target="POSTGRES_USER" Default="notebook" Mode="" Description="Database superuser created on the first startup." Type="Variable" Display="always" Required="true" Mask="false">notebook</Config>
+  <Config Name="Security: Database Password" Target="POSTGRES_PASSWORD" Default="" Mode="" Description="Required strong password. Generate with openssl rand -hex 32 and use the same password inside Notebook DATABASE_URL." Type="Variable" Display="always" Required="true" Mask="true"></Config>
+  <Config Name="Basic: Timezone" Target="TZ" Default="Etc/UTC" Mode="" Description="IANA timezone. Example for Perm/Yekaterinburg: Asia/Yekaterinburg." Type="Variable" Display="always" Required="true" Mask="false">Etc/UTC</Config>
+</Container>

@@ -1,0 +1,122 @@
+@import "tailwindcss";
+@source "../../node_modules/@blocknote/shadcn";
+
+@custom-variant dark (&:is(.dark *));
+
+:root {
+  --radius: 0.75rem;
+  --background: oklch(0.985 0.002 247);
+  --foreground: oklch(0.2 0.01 260);
+  --card: oklch(1 0 0);
+  --card-foreground: var(--foreground);
+  --popover: oklch(1 0 0);
+  --popover-foreground: var(--foreground);
+  --primary: oklch(0.38 0.08 258);
+  --primary-foreground: oklch(0.99 0 0);
+  --secondary: oklch(0.95 0.005 250);
+  --secondary-foreground: var(--foreground);
+  --muted: oklch(0.95 0.004 250);
+  --muted-foreground: oklch(0.53 0.015 255);
+  --accent: oklch(0.93 0.018 252);
+  --accent-foreground: oklch(0.25 0.03 258);
+  --destructive: oklch(0.58 0.22 27);
+  --border: oklch(0.9 0.006 250);
+  --input: oklch(0.88 0.008 250);
+  --ring: oklch(0.56 0.08 258);
+  --sidebar: oklch(0.97 0.004 250);
+  --sidebar-accent: oklch(0.925 0.018 252);
+}
+
+.dark {
+  --background: oklch(0.16 0.008 260);
+  --foreground: oklch(0.94 0.004 250);
+  --card: oklch(0.19 0.009 260);
+  --card-foreground: var(--foreground);
+  --popover: oklch(0.21 0.01 260);
+  --popover-foreground: var(--foreground);
+  --primary: oklch(0.72 0.1 255);
+  --primary-foreground: oklch(0.16 0.015 260);
+  --secondary: oklch(0.25 0.01 260);
+  --secondary-foreground: var(--foreground);
+  --muted: oklch(0.24 0.009 260);
+  --muted-foreground: oklch(0.68 0.01 250);
+  --accent: oklch(0.28 0.025 257);
+  --accent-foreground: oklch(0.95 0.004 250);
+  --destructive: oklch(0.65 0.2 25);
+  --border: oklch(1 0 0 / 10%);
+  --input: oklch(1 0 0 / 14%);
+  --ring: oklch(0.68 0.07 255);
+  --sidebar: oklch(0.175 0.009 260);
+  --sidebar-accent: oklch(0.25 0.025 257);
+}
+
+@theme inline {
+  --color-background: var(--background); --color-foreground: var(--foreground);
+  --color-card: var(--card); --color-card-foreground: var(--card-foreground);
+  --color-popover: var(--popover); --color-popover-foreground: var(--popover-foreground);
+  --color-primary: var(--primary); --color-primary-foreground: var(--primary-foreground);
+  --color-secondary: var(--secondary); --color-secondary-foreground: var(--secondary-foreground);
+  --color-muted: var(--muted); --color-muted-foreground: var(--muted-foreground);
+  --color-accent: var(--accent); --color-accent-foreground: var(--accent-foreground);
+  --color-destructive: var(--destructive); --color-border: var(--border); --color-input: var(--input); --color-ring: var(--ring);
+  --color-sidebar: var(--sidebar); --color-sidebar-accent: var(--sidebar-accent);
+  --radius-sm: calc(var(--radius) - 4px); --radius-md: calc(var(--radius) - 2px); --radius-lg: var(--radius); --radius-xl: calc(var(--radius) + 4px);
+  --font-sans: ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif;
+}
+
+* { border-color: var(--border); }
+html, body { min-height: 100%; }
+body { margin: 0; background: var(--background); color: var(--foreground); font-family: var(--font-sans); }
+button, [role="button"] { cursor: pointer; }
+.input { min-height: 2.75rem; width: 100%; border-radius: 0.5rem; background: var(--background); padding: 0.5rem 0.75rem; color: var(--foreground); box-shadow: inset 0 0 0 1px var(--border); outline: none; }
+.input:focus { box-shadow: inset 0 0 0 1px var(--ring), 0 0 0 2px color-mix(in oklab, var(--ring) 20%, transparent); }
+.notebook-editor .bn-container, .notebook-editor .bn-editor { background: transparent; }
+.notebook-editor .bn-editor { padding-inline: 1.25rem; }
+@media (min-width: 768px) { .notebook-editor .bn-editor { padding-inline: 2rem; } }
+
+.notebook-editor a[data-broken="true"] { color: var(--muted-foreground); text-decoration: line-through; pointer-events: none; }
+.notebook-editor-compact .bn-block-content { margin-block: -0.15rem; }
+.notebook-callout { display: flex; gap: 0.75rem; border-radius: 0.75rem; padding: 0.8rem 0.9rem; background: color-mix(in oklab, var(--accent) 55%, transparent); border-left: 3px solid var(--primary); }
+.notebook-callout-warning { border-left-color: #d97706; background: color-mix(in oklab, #f59e0b 12%, var(--card)); }
+.notebook-callout-success { border-left-color: #16a34a; background: color-mix(in oklab, #22c55e 10%, var(--card)); }
+.notebook-callout-error { border-left-color: var(--destructive); background: color-mix(in oklab, var(--destructive) 10%, var(--card)); }
+.notebook-callout-icon { padding-top: 0.25rem; color: var(--muted-foreground); }
+.notebook-callout-title { display: block; width: 100%; background: transparent; font-weight: 600; outline: none; }
+.notebook-callout-title:placeholder-shown { font-weight: 400; color: var(--muted-foreground); }
+.notebook-callout-kind { align-self: flex-start; max-width: 5.5rem; background: transparent; color: var(--muted-foreground); font-size: 0.7rem; }
+.notebook-toggle { display: flex; min-height: 2rem; align-items: flex-start; gap: 0.35rem; }
+.notebook-toggle > button { display: flex; width: 1.75rem; height: 1.75rem; align-items: center; justify-content: center; border-radius: 0.4rem; }
+.notebook-toggle > button:hover { background: var(--accent); }
+.bn-block-outer:has(.notebook-toggle[data-open="false"]) > .bn-block-group { display: none; }
+.notebook-editor [data-content-type="codeBlock"] { position: relative; overflow-x: auto; border-radius: 0.65rem; }
+.notebook-editor [data-content-type="codeBlock"] pre { min-width: max-content; padding-top: 2.35rem; }
+.notebook-code-copy { position: absolute; right: 0.55rem; top: 0.45rem; z-index: 2; border-radius: 0.4rem; background: var(--card); padding: 0.3rem 0.5rem; color: var(--muted-foreground); font-size: 0.7rem; box-shadow: 0 0 0 1px var(--border); }
+.notebook-code-lines [data-content-type="codeBlock"] code { counter-reset: notebook-line; white-space: pre; }
+.notebook-code-lines [data-content-type="codeBlock"] code > div { counter-increment: notebook-line; }
+.notebook-code-lines [data-content-type="codeBlock"] code > div::before { content: counter(notebook-line); display: inline-block; width: 2.5rem; margin-right: 0.75rem; color: var(--muted-foreground); text-align: right; user-select: none; }
+@media (max-width: 767px) {
+  .notebook-editor .bn-toolbar { max-width: calc(100vw - 1rem); overflow-x: auto; overscroll-behavior-x: contain; }
+  .notebook-editor .bn-editor { padding-inline: 1rem; }
+}
+
+@media print {
+  @page { margin: 18mm; }
+  :root, .dark { --background: #fff; --foreground: #18181b; --card: #fff; --muted: #f4f4f5; --muted-foreground: #52525b; --border: #d4d4d8; }
+  html, body { height: auto !important; min-height: 0; overflow: visible !important; background: #fff !important; color: #18181b !important; }
+  .notebook-no-print, .bn-toolbar, .notebook-code-copy, .notebook-page-title-input, [role="dialog"] { display: none !important; }
+  body > div, main, .notebook-editor, .notebook-editor .bn-container, .notebook-editor .bn-editor { height: auto !important; min-height: 0 !important; max-width: none !important; overflow: visible !important; background: #fff !important; color: #18181b !important; }
+  .notebook-print-title { display: block !important; margin: 0; font-size: 28pt; line-height: 1.2; }
+  .notebook-print-date { display: block !important; margin-top: 4mm; color: #52525b; font-size: 9pt; }
+  html[data-print-date="false"] .notebook-print-date, html[data-print-breadcrumbs="false"] .notebook-breadcrumbs { display: none !important; }
+  .notebook-breadcrumbs { padding-inline: 0 !important; border: 0 !important; }
+  .notebook-editor { padding: 4mm 0 0 !important; }
+  html[data-print-margins="compact"] .notebook-editor { padding-top: 2mm !important; }
+  .notebook-editor .bn-editor { padding: 0 !important; }
+  .bn-block-outer:has(.notebook-toggle[data-open="false"]) > .bn-block-group { display: block !important; }
+  .notebook-callout, .notebook-toggle, figure, pre { break-inside: avoid; }
+  .notebook-editor [data-content-type="codeBlock"] { overflow: visible; white-space: pre-wrap; }
+  .notebook-editor [data-content-type="codeBlock"] pre { min-width: 0; white-space: pre-wrap; }
+  table { break-inside: auto; }
+  tr { break-inside: avoid; }
+  a { color: inherit !important; text-decoration: underline; }
+}

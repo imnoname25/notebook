@@ -1,0 +1,9 @@
+import { describe, expect, it, vi } from "vitest";
+import { S3BackupTarget, validateS3Config } from "@/lib/s3-backup";
+
+const config = { endpoint: "http://minio.local:9000", region: "us-east-1", bucket: "notebook", accessKeyId: "access", secretAccessKey: "secret", prefix: "notes/backups", forcePathStyle: true };
+describe("S3 backup safety", () => {
+  it("allows LAN HTTP endpoints without URL credentials", () => { expect(validateS3Config(config).prefix).toBe("notes/backups"); expect(() => validateS3Config({ ...config, endpoint: "https://user:pass@example.test" })).toThrow("endpoint"); });
+  it("rejects traversal prefixes and never owns foreign object keys", () => { expect(() => validateS3Config({ ...config, prefix: "../foreign" })).toThrow("prefix"); const target = new S3BackupTarget(config); expect(target.ownsKey("notes/backups/notebook-backup-2026.zip")).toBe(true); expect(target.ownsKey("foreign/notebook-backup-2026.zip")).toBe(false); expect(target.ownsKey("notes/backups/arbitrary.zip")).toBe(false); });
+  it("records SDK upload metadata and categorizes failed credentials without network access", async () => { const success = { send: vi.fn().mockResolvedValue({ ETag: "etag", VersionId: "v1" }) } as unknown as ConstructorParameters<typeof S3BackupTarget>[1]; const target = new S3BackupTarget(config, success); await expect(target.upload({ filename: "notebook-backup-2026.zip", filePath: "package.json", size: 3n, sha256: "a".repeat(64) })).resolves.toEqual({ remoteKey: "notes/backups/notebook-backup-2026.zip", etag: "etag", versionId: "v1" }); const failed = { send: vi.fn().mockRejectedValue(new Error("bad credentials")) } as unknown as ConstructorParameters<typeof S3BackupTarget>[1]; await expect(new S3BackupTarget(config, failed).test()).rejects.toThrow("credentials"); });
+});

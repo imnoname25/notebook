@@ -1,0 +1,37 @@
+import { expect, test } from "@playwright/test";
+
+test("new sensitive APIs require authentication", async ({ request }) => {
+  const calls = [
+    request.get("/api/pages/foreign/versions"),
+    request.get("/api/pages/foreign/versions/version"),
+    request.post("/api/pages/foreign/versions/version/restore", { data: { expectedRevision: 0 } }),
+    request.delete("/api/pages/foreign/versions/version"),
+    request.post("/api/pages/foreign/move", { data: { destinationSectionId: "foreign" } }),
+    request.post("/api/sections/foreign/move", { data: { destinationNotebookId: "foreign" } }),
+    request.post("/api/pages/foreign/duplicate"),
+    request.post("/api/auth/logout-all"),
+    request.get("/api/uploads/foreign"),
+    request.get("/api/attachments"),
+    request.get("/api/data/export/all"),
+    request.get("/api/data/backup"),
+    request.post("/api/data/import/preview", { data: "{}" }),
+    request.get("/api/settings"),
+    request.patch("/api/settings", { data: {} }),
+    request.post("/api/settings/webdav-test", { data: {} }),
+    request.post("/api/settings/s3-test", { data: {} }),
+    request.get("/api/templates"),
+    request.post("/api/templates", { data: {} }),
+    request.patch("/api/templates/foreign", { data: {} }),
+    request.delete("/api/templates/foreign"),
+    request.get("/api/notifications"),
+    request.patch("/api/notifications", { data: {} }),
+    request.get("/api/backups"),
+    request.post("/api/backups"),
+    request.get("/api/backups/foreign"),
+    request.delete("/api/backups/foreign"),
+    request.post("/api/backups/foreign/retry?provider=s3"),
+    request.post("/api/backups/foreign/remote-restore", { data: { provider: "s3" } }),
+    request.get("/api/system"),
+  ];
+  for (const response of await Promise.all(calls)) expect(response.status()).toBe(401);
+});

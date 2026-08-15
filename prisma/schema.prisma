@@ -1,0 +1,245 @@
+generator client {
+  provider = "prisma-client"
+  output   = "../src/generated/prisma"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+model User {
+  id           String     @id @default(cuid())
+  email        String     @unique
+  passwordHash String
+  name         String
+  createdAt    DateTime   @default(now())
+  updatedAt    DateTime   @updatedAt
+  notebooks    Notebook[]
+  sessions     Session[]
+  uploads      Upload[]
+  pageTemplates PageTemplate[]
+}
+
+model Session {
+  id                String   @id @default(cuid())
+  userId            String
+  tokenHash         String   @unique
+  expiresAt         DateTime
+  absoluteExpiresAt DateTime
+  lastUsedAt        DateTime @default(now())
+  createdAt         DateTime @default(now())
+  user              User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([expiresAt])
+  @@index([absoluteExpiresAt])
+  @@index([lastUsedAt])
+}
+
+model Notebook {
+  id              String    @id @default(cuid())
+  userId          String
+  title           String
+  icon            String    @default("notebook")
+  color           String    @default("slate")
+  sortOrder       Int       @default(0)
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+  deletedAt       DateTime?
+  deletionGroupId String?
+  isDeletionRoot  Boolean   @default(false)
+  user            User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  sections        Section[]
+
+  @@index([userId, sortOrder])
+  @@index([userId, deletedAt])
+}
+
+model Section {
+  id              String    @id @default(cuid())
+  notebookId      String
+  parentId        String?
+  title           String
+  icon            String?
+  sortOrder       Int       @default(0)
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+  deletedAt       DateTime?
+  deletionGroupId String?
+  isDeletionRoot  Boolean   @default(false)
+  notebook        Notebook  @relation(fields: [notebookId], references: [id], onDelete: Cascade)
+  parent          Section?  @relation("SectionTree", fields: [parentId], references: [id], onDelete: Cascade)
+  children        Section[] @relation("SectionTree")
+  pages           Page[]
+
+  @@index([notebookId, parentId, sortOrder])
+  @@index([notebookId, deletedAt])
+  @@index([deletionGroupId])
+}
+
+model Page {
+  id              String    @id @default(cuid())
+  sectionId       String
+  title           String    @default("Без названия")
+  content         Json
+  searchText      String    @default("") @db.Text
+  sortOrder       Int       @default(0)
+  isFavorite      Boolean   @default(false)
+  revision        Int       @default(0)
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+  deletedAt       DateTime?
+  deletionGroupId String?
+  isDeletionRoot  Boolean   @default(false)
+  section         Section   @relation(fields: [sectionId], references: [id], onDelete: Cascade)
+  versions        PageVersion[]
+  uploads         Upload[]
+
+  @@index([sectionId, deletedAt, sortOrder])
+  @@index([deletionGroupId])
+}
+
+model PageVersion {
+  id          String   @id @default(cuid())
+  pageId      String
+  title       String
+  content     Json
+  searchText  String   @default("") @db.Text
+  contentHash String
+  reason      String
+  createdAt   DateTime @default(now())
+  page        Page     @relation(fields: [pageId], references: [id], onDelete: Cascade)
+
+  @@index([pageId, createdAt])
+}
+
+model Upload {
+  id           String   @id @default(cuid())
+  userId       String
+  pageId       String?
+  storageName  String   @unique
+  originalName String
+  mimeType     String
+  size         Int
+  sha256       String?
+  createdAt    DateTime @default(now())
+  user         User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  page         Page?    @relation(fields: [pageId], references: [id], onDelete: SetNull)
+
+  @@index([userId])
+  @@index([userId, createdAt])
+  @@index([pageId])
+  @@index([userId, sha256])
+}
+
+model PageTemplate {
+  id          String   @id @default(cuid())
+  userId      String
+  name        String
+  description String?
+  icon        String   @default("file-text")
+  content     Json
+  sortOrder   Int      @default(0)
+  isBuiltIn   Boolean  @default(false)
+  builtInKey  String?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, builtInKey])
+  @@index([userId, sortOrder])
+}
+
+model ApplicationSettings {
+  id                           String   @id @default("singleton")
+  defaultTheme                 String   @default("system")
+  autosaveDelayMs              Int      @default(750)
+  pageVersionIntervalMinutes   Int      @default(5)
+  pageVersionRetentionDays     Int      @default(30)
+  pageVersionMaxCount          Int      @default(100)
+  backupEnabled                Boolean  @default(false)
+  backupSchedule               String   @default("daily")
+  backupTime                   String   @default("02:00")
+  backupRetentionCount         Int      @default(14)
+  backupRetentionDays          Int      @default(30)
+  lastScheduledBackupAt        DateTime?
+  backupConsecutiveFailures    Int      @default(0)
+  webdavEnabled                Boolean  @default(false)
+  webdavUrl                    String?
+  webdavUsername               String?
+  webdavPasswordEncrypted      String?
+  webdavRemoteDirectory        String   @default("notebook-backups")
+  s3Enabled                    Boolean  @default(false)
+  s3Endpoint                   String?
+  s3Region                     String   @default("us-east-1")
+  s3Bucket                     String?
+  s3AccessKeyId                String?
+  s3SecretAccessKeyEncrypted   String?
+  s3Prefix                     String   @default("notebook-backups")
+  s3ForcePathStyle             Boolean  @default(false)
+  s3ProviderLabel              String?
+  remoteRetentionCount         Int      @default(30)
+  remoteRetentionDays          Int      @default(90)
+  editorSpellcheck             Boolean  @default(true)
+  editorCodeLineNumbers        Boolean  @default(false)
+  editorCompactMode            Boolean  @default(false)
+  editorContentWidth           String   @default("normal")
+  lastStorageAuditAt           DateTime?
+  createdAt                    DateTime @default(now())
+  updatedAt                    DateTime @updatedAt
+}
+
+model BackupRecord {
+  id            String    @id @default(cuid())
+  type          String
+  status        String
+  filename      String?   @unique
+  size          BigInt?
+  sha256        String?
+  remoteStatus  String    @default("not_configured")
+  remoteEtag    String?
+  errorCategory String?
+  createdAt     DateTime  @default(now())
+  completedAt   DateTime?
+  remoteCopies  BackupRemoteCopy[]
+
+  @@index([createdAt])
+  @@index([status, createdAt])
+}
+
+model BackupRemoteCopy {
+  id             String    @id @default(cuid())
+  backupRecordId String
+  provider       String
+  status         String
+  remoteKey      String
+  etag           String?
+  versionId      String?
+  size           BigInt?
+  sha256         String?
+  errorCategory  String?
+  uploadedAt     DateTime?
+  lastAttemptAt  DateTime  @default(now())
+  createdAt      DateTime  @default(now())
+  updatedAt      DateTime  @updatedAt
+  backupRecord   BackupRecord @relation(fields: [backupRecordId], references: [id], onDelete: Cascade)
+
+  @@unique([backupRecordId, provider])
+  @@index([provider, status, uploadedAt])
+}
+
+model SystemNotification {
+  id        String    @id @default(cuid())
+  type      String
+  severity  String
+  title     String
+  message   String
+  dedupKey  String?
+  readAt    DateTime?
+  resolvedAt DateTime?
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+
+  @@index([readAt, createdAt])
+  @@index([dedupKey, resolvedAt])
+}

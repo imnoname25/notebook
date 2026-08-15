@@ -1,0 +1,87 @@
+services:
+  postgres:
+    image: ${POSTGRES_IMAGE:-postgres:17-alpine}
+    restart: unless-stopped
+    stop_grace_period: 60s
+    shm_size: 256mb
+    environment:
+      POSTGRES_DB: "${POSTGRES_DB:-notebook}"
+      POSTGRES_USER: "${POSTGRES_USER:-notebook}"
+      POSTGRES_PASSWORD: "${POSTGRES_PASSWORD:?Set POSTGRES_PASSWORD in .env}"
+      TZ: "${TZ:-Etc/UTC}"
+    volumes:
+      - type: bind
+        source: ${POSTGRES_DATA_PATH:-/mnt/user/appdata/notebook/postgres}
+        target: /var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U \"$${POSTGRES_USER}\" -d \"$${POSTGRES_DB}\""]
+      interval: 10s
+      timeout: 5s
+      start_period: 30s
+      retries: 10
+    logging:
+      driver: json-file
+      options:
+        max-size: 10m
+        max-file: "3"
+
+  notebook:
+    image: ${NOTEBOOK_IMAGE:-ghcr.io/metroom/notebook:latest}
+    build:
+      context: .
+      dockerfile: Dockerfile
+    restart: unless-stopped
+    init: true
+    stop_grace_period: 30s
+    cap_drop:
+      - ALL
+    cap_add:
+      - CHOWN
+      - DAC_OVERRIDE
+      - FOWNER
+      - SETGID
+      - SETUID
+    security_opt:
+      - no-new-privileges:true
+    depends_on:
+      postgres:
+        condition: service_healthy
+    environment:
+      DATABASE_URL: "postgresql://${POSTGRES_USER:-notebook}:${POSTGRES_PASSWORD:?Set POSTGRES_PASSWORD in .env}@postgres:5432/${POSTGRES_DB:-notebook}?schema=public"
+      APP_ORIGIN: "${APP_ORIGIN:?Set APP_ORIGIN in .env}"
+      UPLOAD_DIR: /data/uploads
+      BACKUP_DIR: /data/backups
+      PUID: "${PUID:-99}"
+      PGID: "${PGID:-100}"
+      UMASK: "${UMASK:-002}"
+      FIX_PERMISSIONS: "${FIX_PERMISSIONS:-0}"
+      DATABASE_WAIT_TIMEOUT_SECONDS: "${DATABASE_WAIT_TIMEOUT_SECONDS:-90}"
+      TZ: "${TZ:-Etc/UTC}"
+      SETTINGS_ENCRYPTION_KEY: "${SETTINGS_ENCRYPTION_KEY:-}"
+      MAX_UPLOAD_SIZE_MB: "${MAX_UPLOAD_SIZE_MB:-10}"
+      MAX_IMPORT_SIZE_MB: "${MAX_IMPORT_SIZE_MB:-250}"
+      MAX_IMPORT_UNCOMPRESSED_MB: "${MAX_IMPORT_UNCOMPRESSED_MB:-1024}"
+    ports:
+      - "${NOTEBOOK_BIND_ADDRESS:-0.0.0.0}:${NOTEBOOK_PORT:-3000}:3000"
+    volumes:
+      - type: bind
+        source: ${UPLOAD_DATA_PATH:-/mnt/user/appdata/notebook/uploads}
+        target: /data/uploads
+      - type: bind
+        source: ${BACKUP_DATA_PATH:-/mnt/user/appdata/notebook/backups}
+        target: /data/backups
+    healthcheck:
+      test: ["CMD", "node", "-e", "fetch('http://127.0.0.1:3000/api/health/ready').then(r=>{if(!r.ok)process.exit(1)}).catch(()=>process.exit(1))"]
+      interval: 30s
+      timeout: 5s
+      start_period: 90s
+      retries: 3
+    logging:
+      driver: json-file
+      options:
+        max-size: 10m
+        max-file: "3"
+
+networks:
+  default:
+    name: ${NOTEBOOK_NETWORK:-notebook-net}

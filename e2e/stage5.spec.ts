@@ -1,0 +1,15 @@
+import { expect, test, type Page } from "@playwright/test";
+
+async function login(page: Page) { await page.goto("/"); await page.getByLabel("Email").fill("admin@example.test"); await page.getByLabel("Пароль").fill("correct horse battery staple"); await page.getByRole("button", { name: "Войти", exact: true }).click(); await expect(page).toHaveURL(/\/app$/); }
+
+test("editor settings persist and remain usable on mobile", async ({ page }) => {
+  await page.setViewportSize({ width: 390, height: 844 }); await login(page); await page.getByRole("button", { name: "Настройки", exact: true }).click(); await page.getByRole("button", { name: "Редактор", exact: true }).click(); await page.getByLabel("Ширина контента").selectOption("wide"); await page.getByLabel("Компактный режим").check(); await page.getByRole("button", { name: "Сохранить настройки" }).click(); await page.getByRole("button", { name: "Закрыть" }).click(); await page.reload(); await page.getByRole("button", { name: "Настройки", exact: true }).click(); await page.getByRole("button", { name: "Редактор", exact: true }).click(); await expect(page.getByLabel("Ширина контента")).toHaveValue("wide"); await expect(page.getByLabel("Компактный режим")).toBeChecked();
+});
+
+test("manual backup appears in settings and can be deleted", async ({ page }) => {
+  await login(page); await page.getByRole("button", { name: "Настройки", exact: true }).click(); await page.getByRole("button", { name: "Резервные копии", exact: true }).click(); await page.getByRole("button", { name: "Создать резервную копию" }).click(); await expect(page.getByRole("link", { name: "Скачать backup" }).first()).toBeVisible({ timeout: 20_000 }); page.once("dialog", (dialog) => dialog.accept()); await page.getByRole("button", { name: "Удалить backup" }).first().click();
+});
+
+test("custom callout and safe code language survive reload", async ({ page }) => {
+  await login(page); const notebook = await page.request.post("/api/notebooks", { data: { title: "Editor polish" } }).then((response) => response.json()); const section = await page.request.post("/api/sections", { data: { notebookId: notebook.notebook.id, parentId: null, title: "Blocks" } }).then((response) => response.json()); const created = await page.request.post("/api/pages", { data: { sectionId: section.section.id, title: "Custom blocks" } }).then((response) => response.json()); await page.request.patch(`/api/pages/${created.page.id}`, { data: { expectedRevision: 0, title: "Custom blocks", content: [{ type: "callout", props: { kind: "warning", title: "Важно" }, content: [{ type: "text", text: "Проверьте backup", styles: {} }] }, { type: "codeBlock", props: { language: "typescript" }, content: "const ready = true" }] } }); await page.goto(`/pages/${created.page.id}`); await expect(page.locator(".notebook-callout")).toContainText("Проверьте backup"); await expect(page.locator('[data-content-type="codeBlock"]')).toContainText("const ready = true"); await page.reload(); await expect(page.locator(".notebook-callout")).toBeVisible();
+});
