@@ -49,8 +49,8 @@ LABEL org.opencontainers.image.title="Notebook" \
 RUN apt-get update \
     && apt-get install -y --no-install-recommends gosu \
     && rm -rf /var/lib/apt/lists/* \
-    && groupadd --gid 1000 notebook \
-    && useradd --uid 1000 --gid notebook --no-create-home --home-dir /tmp --shell /usr/sbin/nologin notebook
+    && groupadd --gid 10001 notebook \
+    && useradd --uid 10001 --gid notebook --no-log-init --no-create-home --home-dir /tmp --shell /usr/sbin/nologin notebook
 
 COPY --from=builder /app/.next/standalone ./
 COPY --from=builder /app/.next/static ./.next/static
