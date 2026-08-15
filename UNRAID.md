@@ -99,7 +99,7 @@ Put `appdata`, especially PostgreSQL, on an SSD/NVMe pool when possible. Contain
 /var/lib/postgresql/data     → /mnt/user/appdata/notebook/postgres
 ```
 
-Notebook bootstraps the two application directories as root, then migrations and the server run under `PUID=99`, `PGID=100` with `UMASK=002`. It never uses `chmod 777`. If migrated files have stale ownership, set `FIX_PERMISSIONS=1` for one successful startup and then return it to `0`.
+Notebook starts as root only for the bounded storage, PostgreSQL preflight and migration bootstrap. It then replaces the bootstrap process with the standalone server running under numeric `PUID=99`, `PGID=100` with `UMASK=002`. The application tree remains root-owned and is not writable by the runtime identity. Notebook never uses `chmod 777`. If migrated files have stale ownership, set `FIX_PERMISSIONS=1` for one successful startup and then return it to `0`.
 
 PostgreSQL is different: its official entrypoint manages `PGDATA` using the image's own system user. Do not recursively change its directory to `99:100` and do not run a general Unraid permissions repair over the `appdata` share.
 

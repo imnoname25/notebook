@@ -54,22 +54,23 @@ jobs:
             OCI_SOURCE=https://github.com/${{ github.repository }}
           cache-from: type=gha,scope=notebook-smoke
           cache-to: type=gha,mode=max,scope=notebook-smoke
-      - name: Verify image runtime dependencies and account
+      - name: Verify image runtime dependencies and permissions
         shell: bash
         run: |
           set -Eeuo pipefail
           docker run --rm --entrypoint sh notebook:smoke -c '
-            test "$(id -u notebook)" = 10001
-            test "$(id -g notebook)" = 10001
+            test "$(id -u)" = 0
             test -f /app/docker/preflight.mjs
             test ! -e /usr/local/lib/notebook/preflight.mjs
             cd /app
-            gosu 10001:10001 node --input-type=module -e "
+            node --input-type=module -e "
               import { createRequire } from \"node:module\";
               const require = createRequire(new URL(\"file:///app/docker/preflight.mjs\"));
               require.resolve(\"pg\");
             "
-            gosu 10001:10001 ./node_modules/.bin/prisma -v >/dev/null
+            ./node_modules/.bin/prisma -v >/dev/null
+            test -d /app/node_modules/@prisma/engines
+            gosu 99:100 sh -c "test ! -w /app && test ! -w /app/node_modules && test ! -w /app/node_modules/@prisma/engines"
           '
       - name: Test migrations, readiness and restart
         shell: bash
@@ -130,12 +131,17 @@ jobs:
             sleep 2
           done
 
-          docker top notebook-smoke-app -eo uid,gid,comm | awk \
-            '$1 == 99 && $2 == 100 && $3 == "node" { found=1 } END { exit !found }'
+          docker top notebook-smoke-app -eo uid,gid,comm,args | awk '
+            $3 == "node" && index($0, "node server.js") {
+              if ($1 == 0) root_server=1
+              if ($1 == 99 && $2 == 100) runtime_server=1
+            }
+            END { exit root_server || !runtime_server }
+          '
           docker exec notebook-smoke-app sh -c \
             'test "$(stat -c %u /data/uploads)" = 99 && test "$(stat -c %g /data/uploads)" = 100 && test "$(stat -c %u /data/backups)" = 99 && test "$(stat -c %g /data/backups)" = 100'
           docker exec --user 99:100 notebook-smoke-app sh -c \
-            'test -w /data/uploads && test -w /data/backups'
+            'test -w /data/uploads && test -w /data/backups && test ! -w /app && test ! -w /app/node_modules'
 
           docker restart notebook-smoke-app
           for attempt in $(seq 1 90); do

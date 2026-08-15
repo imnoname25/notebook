@@ -27,6 +27,11 @@ esac
 umask "$UMASK"
 cd "$APP_DIR"
 
+if [ "$(id -u)" -ne 0 ]; then
+  echo "Notebook must start as root for storage and migration bootstrap; the application process is dropped to PUID:PGID afterwards" >&2
+  exit 1
+fi
+
 is_enabled() {
   case "${1:-}" in
     1|true|TRUE|yes|YES) return 0 ;;
@@ -34,29 +39,23 @@ is_enabled() {
   esac
 }
 
-run_as_notebook() {
-  if [ "$(id -u)" -eq 0 ]; then
-    gosu "$PUID:$PGID" env HOME=/tmp XDG_CACHE_HOME=/tmp/.cache "$@"
-  else
-    "$@"
-  fi
+run_as_runtime_user() {
+  gosu "$PUID:$PGID" env HOME=/tmp XDG_CACHE_HOME=/tmp/.cache "$@"
 }
 
-if [ "$(id -u)" -eq 0 ]; then
-  for storage_path in "$UPLOAD_DIR" "$BACKUP_DIR"; do
-    mkdir -p "$storage_path"
-    if is_enabled "$FIX_PERMISSIONS"; then
-      echo "Repairing persistent storage ownership"
-      chown -R "$PUID:$PGID" "$storage_path"
-    else
-      chown "$PUID:$PGID" "$storage_path"
-    fi
-    chmod 0770 "$storage_path"
-  done
-fi
+for storage_path in "$UPLOAD_DIR" "$BACKUP_DIR"; do
+  mkdir -p "$storage_path"
+  if is_enabled "$FIX_PERMISSIONS"; then
+    echo "Repairing persistent storage ownership"
+    chown -R "$PUID:$PGID" "$storage_path"
+  else
+    chown "$PUID:$PGID" "$storage_path"
+  fi
+  chmod 0770 "$storage_path"
+done
 
 for storage_path in "$UPLOAD_DIR" "$BACKUP_DIR"; do
-  if ! run_as_notebook sh -c 'test -d "$1" && test -w "$1"' sh "$storage_path"; then
+  if ! run_as_runtime_user sh -c 'test -d "$1" && test -w "$1"' sh "$storage_path"; then
     echo "Persistent storage is not writable by the configured PUID and PGID" >&2
     echo "Set FIX_PERMISSIONS=1 for one start if existing files have stale ownership" >&2
     exit 1
@@ -65,14 +64,11 @@ done
 echo "Uploads storage writable"
 echo "Backups storage writable"
 
-run_as_notebook node "$APP_DIR/docker/preflight.mjs"
+node "$APP_DIR/docker/preflight.mjs"
 
 echo "Running database migrations..."
-run_as_notebook "$APP_DIR/node_modules/.bin/prisma" migrate deploy
+"$APP_DIR/node_modules/.bin/prisma" migrate deploy
 echo "Migrations complete"
 
 echo "Starting Notebook as UID $PUID and GID $PGID (umask $UMASK)"
-if [ "$(id -u)" -eq 0 ]; then
-  exec gosu "$PUID:$PGID" env HOME=/tmp XDG_CACHE_HOME=/tmp/.cache "$@"
-fi
-exec "$@"
+exec gosu "$PUID:$PGID" env HOME=/tmp XDG_CACHE_HOME=/tmp/.cache "$@"

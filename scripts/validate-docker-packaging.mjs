@@ -7,6 +7,7 @@ const root = resolve(fileURLToPath(new URL("..", import.meta.url)));
 const dockerfile = readFileSync(resolve(root, "Dockerfile"), "utf8");
 const entrypoint = readFileSync(resolve(root, "docker/notebook-entrypoint.sh"), "utf8");
 const packageJson = JSON.parse(readFileSync(resolve(root, "package.json"), "utf8"));
+const entrypointLines = entrypoint.split(/\r?\n/).map((line) => line.trim());
 
 function assert(condition, message) {
   if (!condition) throw new Error(`Docker packaging validation failed: ${message}`);
@@ -28,19 +29,42 @@ assert(
   dockerfile.includes("COPY --from=production-dependencies /app/node_modules ./node_modules"),
   "production node_modules must be installed in /app for runtime scripts and Prisma",
 );
+assert(dockerfile.includes('CMD ["node", "server.js"]'), "the final command must start the standalone Node server");
 assert(
   dockerfile.includes("COPY docker/preflight.mjs /app/docker/preflight.mjs"),
   "preflight.mjs must be installed at /app/docker/preflight.mjs",
 );
 assert(
-  entrypoint.includes('run_as_notebook node "$APP_DIR/docker/preflight.mjs"'),
-  "entrypoint must execute preflight.mjs from the application tree",
+  entrypointLines.includes('node "$APP_DIR/docker/preflight.mjs"'),
+  "entrypoint must execute preflight.mjs from the application tree during root bootstrap",
 );
 assert(
-  entrypoint.includes('run_as_notebook "$APP_DIR/node_modules/.bin/prisma" migrate deploy'),
-  "entrypoint must execute the packaged Prisma CLI from /app/node_modules",
+  entrypointLines.includes('"$APP_DIR/node_modules/.bin/prisma" migrate deploy'),
+  "entrypoint must execute the packaged Prisma CLI from /app/node_modules during root bootstrap",
 );
 assert(!entrypoint.includes("/usr/local/lib/notebook"), "entrypoint references a Node script outside /app");
+assert(!/chown[^\r\n]*(?:\/app|\$APP_DIR)/.test(entrypoint), "entrypoint must not chown the application tree");
+assert(!/chown[^\r\n]*\/app/.test(dockerfile), "Dockerfile must not chown the application tree");
+assert(!entrypoint.includes("id -u notebook"), "entrypoint must use numeric PUID and PGID, not a named user");
+assert(entrypointLines.includes("set -eu"), "entrypoint must stop when preflight or migrations fail");
+assert(
+  entrypoint.includes('if [ "$(id -u)" -ne 0 ]'),
+  "entrypoint must require root only for storage and migration bootstrap",
+);
+assert(
+  entrypointLines.includes('exec gosu "$PUID:$PGID" env HOME=/tmp XDG_CACHE_HOME=/tmp/.cache "$@"'),
+  "entrypoint must exec the application with numeric PUID and PGID",
+);
+
+const storageBootstrapIndex = entrypoint.indexOf('for storage_path in "$UPLOAD_DIR" "$BACKUP_DIR"');
+const preflightIndex = entrypoint.indexOf('node "$APP_DIR/docker/preflight.mjs"');
+const migrateIndex = entrypoint.indexOf('"$APP_DIR/node_modules/.bin/prisma" migrate deploy');
+const privilegeDropIndex = entrypoint.indexOf('exec gosu "$PUID:$PGID"');
+assert(storageBootstrapIndex >= 0, "entrypoint must bootstrap persistent storage");
+assert(
+  storageBootstrapIndex < preflightIndex && preflightIndex < migrateIndex && migrateIndex < privilegeDropIndex,
+  "storage, preflight and migrations must finish before the final privilege drop",
+);
 assert(packageJson.dependencies?.pg, "pg must remain a direct production dependency");
 assert(packageJson.dependencies?.prisma, "Prisma CLI must remain a production dependency for migrate deploy");
 

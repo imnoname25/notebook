@@ -32,9 +32,6 @@ FROM base AS runner
 ARG NOTEBOOK_VERSION=0.1.0
 ARG NOTEBOOK_GIT_SHA=unknown
 ARG OCI_SOURCE=https://github.com/metroom/notebook
-# node:bookworm-slim reserves 1000:1000 for its built-in node account.
-ARG NOTEBOOK_RUNTIME_UID=10001
-ARG NOTEBOOK_RUNTIME_GID=10001
 ENV NODE_ENV=production \
     NEXT_TELEMETRY_DISABLED=1 \
     HOSTNAME=0.0.0.0 \
