@@ -30,6 +30,8 @@ jobs:
         run: npm ci --legacy-peer-deps
       - name: Validate Unraid templates
         run: npm run validate:unraid
+      - name: Validate Docker packaging
+        run: npm run validate:docker
 
   smoke:
     needs: validate
@@ -52,6 +54,23 @@ jobs:
             OCI_SOURCE=https://github.com/${{ github.repository }}
           cache-from: type=gha,scope=notebook-smoke
           cache-to: type=gha,mode=max,scope=notebook-smoke
+      - name: Verify image runtime dependencies and account
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+          docker run --rm --entrypoint sh notebook:smoke -c '
+            test "$(id -u notebook)" = 10001
+            test "$(id -g notebook)" = 10001
+            test -f /app/docker/preflight.mjs
+            test ! -e /usr/local/lib/notebook/preflight.mjs
+            cd /app
+            gosu 10001:10001 node --input-type=module -e "
+              import { createRequire } from \"node:module\";
+              const require = createRequire(new URL(\"file:///app/docker/preflight.mjs\"));
+              require.resolve(\"pg\");
+            "
+            gosu 10001:10001 ./node_modules/.bin/prisma -v >/dev/null
+          '
       - name: Test migrations, readiness and restart
         shell: bash
         run: |
@@ -92,6 +111,7 @@ jobs:
 
           docker run -d --name notebook-smoke-app \
             --network notebook-smoke \
+            --init \
             --cap-drop=ALL \
             --cap-add=CHOWN --cap-add=DAC_OVERRIDE --cap-add=FOWNER --cap-add=SETGID --cap-add=SETUID \
             --security-opt=no-new-privileges:true \
@@ -99,7 +119,7 @@ jobs:
             -e DATABASE_URL='postgresql://notebook:notebook-smoke-password@notebook-smoke-postgres:5432/notebook?schema=public' \
             -e APP_ORIGIN=http://127.0.0.1:3100 \
             -e SETTINGS_ENCRYPTION_KEY=1111111111111111111111111111111111111111111111111111111111111111 \
-            -e PUID=1000 -e PGID=1000 -e UMASK=002 \
+            -e PUID=99 -e PGID=100 -e UMASK=002 \
             -v notebook-smoke-uploads:/data/uploads \
             -v notebook-smoke-backups:/data/backups \
             notebook:smoke
@@ -109,6 +129,13 @@ jobs:
             [ "$attempt" -eq 90 ] && exit 1
             sleep 2
           done
+
+          docker top notebook-smoke-app -eo uid,gid,comm | awk \
+            '$1 == 99 && $2 == 100 && $3 == "node" { found=1 } END { exit !found }'
+          docker exec notebook-smoke-app sh -c \
+            'test "$(stat -c %u /data/uploads)" = 99 && test "$(stat -c %g /data/uploads)" = 100 && test "$(stat -c %u /data/backups)" = 99 && test "$(stat -c %g /data/backups)" = 100'
+          docker exec --user 99:100 notebook-smoke-app sh -c \
+            'test -w /data/uploads && test -w /data/backups'
 
           docker restart notebook-smoke-app
           for attempt in $(seq 1 90); do

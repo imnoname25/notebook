@@ -7,6 +7,7 @@ UMASK="${UMASK:-002}"
 FIX_PERMISSIONS="${FIX_PERMISSIONS:-0}"
 UPLOAD_DIR="${UPLOAD_DIR:-/data/uploads}"
 BACKUP_DIR="${BACKUP_DIR:-/data/backups}"
+APP_DIR=/app
 
 case "$PUID" in
   ""|*[!0-9]*) echo "PUID must be a positive numeric UID" >&2; exit 1 ;;
@@ -24,6 +25,7 @@ case "$UMASK" in
 esac
 
 umask "$UMASK"
+cd "$APP_DIR"
 
 is_enabled() {
   case "${1:-}" in
@@ -63,10 +65,10 @@ done
 echo "Uploads storage writable"
 echo "Backups storage writable"
 
-run_as_notebook node /usr/local/lib/notebook/preflight.mjs
+run_as_notebook node "$APP_DIR/docker/preflight.mjs"
 
 echo "Running database migrations..."
-run_as_notebook ./node_modules/.bin/prisma migrate deploy
+run_as_notebook "$APP_DIR/node_modules/.bin/prisma" migrate deploy
 echo "Migrations complete"
 
 echo "Starting Notebook as UID $PUID and GID $PGID (umask $UMASK)"
