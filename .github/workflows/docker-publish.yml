@@ -209,6 +209,5 @@ jobs:
             NOTEBOOK_GIT_SHA=${{ github.sha }}
             OCI_SOURCE=https://github.com/${{ github.repository }}
           cache-from: type=gha,scope=notebook-multiarch
-          cache-to: type=gha,mode=max,scope=notebook-multiarch
           provenance: mode=max
           sbom: true
