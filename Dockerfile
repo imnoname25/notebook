@@ -51,7 +51,7 @@ LABEL org.opencontainers.image.title="Notebook" \
       org.opencontainers.image.revision=${NOTEBOOK_GIT_SHA}
 RUN apt-get update \
     && apt-get install -y --no-install-recommends gosu \
-    && rm -rf /var/lib/apt/lists/* \
+    && rm -rf /var/lib/apt/lists/*
 
 COPY --from=builder /app/.next/standalone ./
 COPY --from=builder /app/.next/static ./.next/static
