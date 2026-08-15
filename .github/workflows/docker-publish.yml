@@ -131,12 +131,26 @@ jobs:
             sleep 2
           done
 
-          docker top notebook-smoke-app -eo uid,gid,comm,args | awk '
-            $3 == "node" && index($0, "node server.js") {
-              if ($1 == 0) root_server=1
-              if ($1 == 99 && $2 == 100) runtime_server=1
-            }
-            END { exit root_server || !runtime_server }
+          docker exec notebook-smoke-app sh -c '
+            server_pid=1
+            pid_one_uid=$(awk "/^Uid:/{print \$2}" /proc/1/status)
+            if [ "$pid_one_uid" = "0" ]; then
+              server_pid=""
+              for child_pid in $(cat /proc/1/task/1/children); do
+                [ -r "/proc/$child_pid/status" ] || continue
+                child_uid=$(awk "/^Uid:/{print \$2}" "/proc/$child_pid/status")
+                [ "$child_uid" != "0" ] || continue
+                server_pid=$child_pid
+                break
+              done
+            fi
+            [ -n "$server_pid" ] || { echo "Notebook non-root server process not found" >&2; exit 1; }
+            grep -E "^(Uid|Gid):" "/proc/$server_pid/status"
+            runtime_uid=$(awk "/^Uid:/{print \$2}" "/proc/$server_pid/status")
+            runtime_gid=$(awk "/^Gid:/{print \$2}" "/proc/$server_pid/status")
+            [ "$runtime_uid" != "0" ] || { echo "Notebook Node server is running as root" >&2; exit 1; }
+            [ "$runtime_uid" = "99" ] || { echo "Unexpected Notebook UID: $runtime_uid" >&2; exit 1; }
+            [ "$runtime_gid" = "100" ] || { echo "Unexpected Notebook GID: $runtime_gid" >&2; exit 1; }
           '
           docker exec notebook-smoke-app sh -c \
             'test "$(stat -c %u /data/uploads)" = 99 && test "$(stat -c %g /data/uploads)" = 100 && test "$(stat -c %u /data/backups)" = 99 && test "$(stat -c %g /data/backups)" = 100'
