@@ -130,6 +130,26 @@ https://notes.example.com
 
 Do not add a trailing path. Standard `Host`, `X-Forwarded-Host` and `X-Forwarded-Proto` headers are supported. `APP_ORIGIN=https://...` enables the `Secure` session-cookie flag; a LAN-only `http://192.168...` origin remains usable without it.
 
+## Восстановление доступа администратора
+
+Если единственный администратор забыл пароль или потерял TOTP-устройство и recovery-коды, запустите локальный recovery tool из терминала Unraid:
+
+```bash
+docker exec -it notebook node /app/scripts/admin-recovery.mjs
+```
+
+Инструмент показывает существующего администратора и предлагает сбросить пароль, отключить TOTP 2FA либо выполнить оба действия. Новый пароль вводится скрыто два раза и никогда не передаётся аргументом командной строки или environment variable. Перед изменением необходимо ввести `RESET`.
+
+Если пользователей несколько, выберите нужного в интерактивном списке либо укажите точное имя, email или ID:
+
+```bash
+docker exec -it notebook node /app/scripts/admin-recovery.mjs --user metroom
+```
+
+Пароль по-прежнему вводится только интерактивно. Не используйте `docker exec` без `-it` для сброса пароля. Recovery выполняется транзакционно через текущий `DATABASE_URL`, использует тот же scrypt service, что первоначальная настройка Notebook, и не создаёт HTTP endpoint. После любого recovery отзываются все sessions и незавершённые 2FA challenges. При отключении TOTP также удаляются encrypted/pending secrets и recovery-code hashes. Notebook, sections, pages, uploads и Vault не изменяются.
+
+Доступ к Docker daemon фактически даёт административный доступ к приложению и базе данных. Ограничьте доступ к терминалу Unraid и не публикуйте Docker socket.
+
 ## Health and logs
 
 The image healthcheck calls the local readiness endpoint and does not depend on `APP_ORIGIN`:

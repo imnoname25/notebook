@@ -124,7 +124,7 @@ model Notebook {
   userId          String
   title           String
   icon            String    @default("notebook")
-  color           String    @default("slate")
+  color           String    @default("default")
   sortOrder       Int       @default(0)
   createdAt       DateTime  @default(now())
   updatedAt       DateTime  @updatedAt
@@ -144,6 +144,7 @@ model Section {
   parentId        String?
   title           String
   icon            String?
+  color           String    @default("default")
   sortOrder       Int       @default(0)
   createdAt       DateTime  @default(now())
   updatedAt       DateTime  @updatedAt
@@ -163,6 +164,9 @@ model Section {
 model Page {
   id              String        @id @default(cuid())
   sectionId       String
+  icon            String?
+  color           String        @default("default")
+  coverUploadId   String?       @unique
   title           String        @default("Без названия")
   content         Json
   searchText      String        @default("") @db.Text
@@ -176,7 +180,8 @@ model Page {
   isDeletionRoot  Boolean       @default(false)
   section         Section       @relation(fields: [sectionId], references: [id], onDelete: Cascade)
   versions        PageVersion[]
-  uploads         Upload[]
+  uploads         Upload[]      @relation("PageUploads")
+  coverUpload     Upload?       @relation("PageCover", fields: [coverUploadId], references: [id], onDelete: SetNull)
 
   @@index([sectionId, deletedAt, sortOrder])
   @@index([deletionGroupId])
@@ -207,7 +212,8 @@ model Upload {
   sha256       String?
   createdAt    DateTime @default(now())
   user         User     @relation(fields: [userId], references: [id], onDelete: Cascade)
-  page         Page?    @relation(fields: [pageId], references: [id], onDelete: SetNull)
+  page         Page?    @relation("PageUploads", fields: [pageId], references: [id], onDelete: SetNull)
+  coverFor     Page?    @relation("PageCover")
 
   @@index([userId])
   @@index([userId, createdAt])
@@ -267,6 +273,7 @@ model ApplicationSettings {
   editorCodeLineNumbers      Boolean   @default(false)
   editorCompactMode          Boolean   @default(false)
   editorContentWidth         String    @default("normal")
+  interfaceDensity           String    @default("comfortable")
   lastStorageAuditAt         DateTime?
   createdAt                  DateTime  @default(now())
   updatedAt                  DateTime  @updatedAt

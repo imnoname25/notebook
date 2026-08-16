@@ -13,6 +13,7 @@ import { PageList } from "./page-list";
 import { SearchDialog } from "./search-dialog";
 import { TrashView } from "./trash-view";
 import { AppearanceDialog } from "./appearance-dialog";
+import { PageAppearanceDialog, SectionAppearanceDialog } from "./content-appearance-dialog";
 import { MoveDialog, type MoveTarget } from "./move-dialog";
 import { VersionHistory } from "./version-history";
 import { DataSettings } from "./data-settings";
@@ -45,6 +46,9 @@ export function NotebookApp({ user, initialLocation }: { user: { id: string; nam
   const [workspaceRevision, setWorkspaceRevision] = useState(0);
   const [historyOpen, setHistoryOpen] = useState(false);
   const [appearanceNotebook, setAppearanceNotebook] = useState<Notebook | null>(null);
+  const [appearanceSection, setAppearanceSection] = useState<Section | null>(null);
+  const [appearancePage, setAppearancePage] = useState<PageSummary | null>(null);
+  const [density, setDensity] = useState<"comfortable" | "compact">("comfortable");
   const [moveTarget, setMoveTarget] = useState<MoveTarget | null>(null);
   const [editorEpoch, setEditorEpoch] = useState(0);
   const [dataSettingsOpen, setDataSettingsOpen] = useState(false);
@@ -81,6 +85,7 @@ export function NotebookApp({ user, initialLocation }: { user: { id: string; nam
     }).catch(report);
     return () => { cancelled = true; };
   }, [report]);
+  useEffect(() => { void api<{ settings: { interfaceDensity: "comfortable" | "compact" } }>("/api/settings").then(({ settings }) => setDensity(settings.interfaceDensity)).catch(() => undefined); const listener = (event: Event) => setDensity((event as CustomEvent<"comfortable" | "compact">).detail); window.addEventListener("notebook:density", listener); return () => window.removeEventListener("notebook:density", listener); }, []);
   useEffect(() => {
     if (!initialLocation || initialPageOpened.current || notebooks.length === 0) return; initialPageOpened.current = true;
     void api<{ page: PageDocument }>(`/api/pages/${initialLocation.pageId}`).then(({ page }) => { activePageRef.current = page; setActivePage(page); setMobileView("editor"); }).catch(report);
@@ -148,11 +153,13 @@ export function NotebookApp({ user, initialLocation }: { user: { id: string; nam
         else if (action === "delete") { if (window.confirm(`Переместить блокнот «${target.item.title}» и его содержимое в корзину?`)) { await api(`/api/notebooks/${target.item.id}`, jsonOptions("DELETE")); await loadNotebooks(); } }
         else await reorderNotebooks(target.item, action === "up" ? -1 : 1);
       } else if (target.type === "section") {
+        if (action === "appearance") { setAppearanceSection(target.item); return; }
         if (action === "move") { setMoveTarget({ type: "section", id: target.item.id, currentNotebookId: target.item.notebookId, title: target.item.title }); return; }
         if (action === "rename") { const title = window.prompt("Новое название", target.item.title); if (title?.trim()) await patchAndReload(`/api/sections/${target.item.id}`, { title }); }
         else if (action === "delete") { if (window.confirm(`Переместить раздел «${target.item.title}» и его содержимое в корзину?`)) { await api(`/api/sections/${target.item.id}`, jsonOptions("DELETE")); await loadNotebooks(); } }
         else await reorderSections(target.item, action === "up" ? -1 : 1);
       } else {
+        if (action === "appearance") { setAppearancePage(target.item); return; }
         if (action === "template") { const name = window.prompt("Название шаблона", target.item.title); if (name?.trim()) { await api("/api/templates", jsonOptions("POST", { name, icon: "file-text", sourcePageId: target.item.id })); setNotice("Шаблон создан"); } return; }
         if (action === "print") { if (activePageRef.current?.id !== target.item.id) await openPage(target.item); setPrintOpen(true); return; }
         if (action === "move") { setMoveTarget({ type: "page", id: target.item.id, currentSectionId: target.item.sectionId, title: target.item.title }); return; }
@@ -253,7 +260,7 @@ export function NotebookApp({ user, initialLocation }: { user: { id: string; nam
     catch { report(new Error("Не удалось скопировать ссылку")); }
   }
 
-  return <div className="flex h-dvh flex-col overflow-hidden bg-background text-foreground">
+  return <div data-density={density} className="flex h-dvh flex-col overflow-hidden bg-background text-foreground">
     <header className="notebook-no-print flex h-14 shrink-0 items-center border-b border-border/60 px-4">
       <div className="flex items-center gap-2 font-semibold"><span className="flex size-8 items-center justify-center rounded-lg bg-primary text-primary-foreground"><BookOpen size={17} /></span>Notebook</div>{activeNotebook && <div className="ml-4 hidden min-w-0 items-center gap-2 border-l border-border/60 pl-4 text-sm sm:flex"><span className={cn("flex size-6 shrink-0 items-center justify-center rounded-md text-white", activeNotebookColor)}><ActiveNotebookIcon size={14}/></span><span className="max-w-40 truncate">{activeNotebook.title}</span></div>}
       <div className="ml-auto flex items-center gap-1"><NotificationCenter onError={report}/><Button variant="ghost" size="icon" className="size-11" aria-label="Поиск" title="Поиск (Ctrl/Cmd + K)" onClick={() => setSearchOpen(true)}><Search size={17} /></Button><Button variant="ghost" size="icon" className="size-11" aria-label="Настройки" onClick={() => setSettingsOpen(true)}><Settings size={17}/></Button><Button variant="ghost" size="icon" className="size-11" aria-label="Переключить тему" title={`Тема: ${theme === "system" ? "системная" : theme === "dark" ? "тёмная" : "светлая"}`} onClick={() => setTheme(theme === "system" ? "light" : theme === "light" ? "dark" : "system")}>{theme === "system" ? <Monitor size={17} /> : resolvedTheme === "dark" ? <Moon size={17} /> : <Sun size={17} />}</Button><span className="hidden px-2 text-xs text-muted-foreground sm:block">{user.name}</span><Button variant="ghost" size="icon" className="hidden size-11 sm:inline-flex" aria-label="Выйти на всех устройствах" title="Выйти на всех устройствах" onClick={() => void logoutAll()}><ShieldCheck size={17}/></Button><Button variant="ghost" size="icon" className="size-11" aria-label="Выйти" onClick={() => void logout()}><LogOut size={17} /></Button></div>
@@ -272,9 +279,13 @@ export function NotebookApp({ user, initialLocation }: { user: { id: string; nam
       {actionTarget.type === "notebook" && <button className="block w-full rounded-lg px-3 py-2 text-left text-sm hover:bg-accent" onClick={() => void runAction("appearance")}>Настроить блокнот</button>}
       {actionTarget.type === "notebook" && <a className="block w-full rounded-lg px-3 py-2 text-left text-sm hover:bg-accent" href={`/api/data/export/notebook/${actionTarget.item.id}`}><span className="inline-flex items-center gap-2"><Download size={14}/>Экспортировать блокнот</span></a>}
       {actionTarget.type === "section" && <button className="block w-full rounded-lg px-3 py-2 text-left text-sm hover:bg-accent" onClick={() => void runAction("move")}>Переместить раздел</button>}
+      {actionTarget.type === "section" && <button className="block w-full rounded-lg px-3 py-2 text-left text-sm hover:bg-accent" onClick={() => void runAction("appearance")}>Оформление раздела</button>}
+      {actionTarget.type === "page" && <button className="block w-full rounded-lg px-3 py-2 text-left text-sm hover:bg-accent" onClick={() => void runAction("appearance")}>Оформление</button>}
       {actionTarget.type === "page" && <><button className="block w-full rounded-lg px-3 py-2 text-left text-sm hover:bg-accent" onClick={() => void runAction("history")}>История версий</button><button className="block w-full rounded-lg px-3 py-2 text-left text-sm hover:bg-accent" onClick={() => void runAction("move")}>Переместить</button><button className="block w-full rounded-lg px-3 py-2 text-left text-sm hover:bg-accent" onClick={() => void runAction("duplicate")}>Дублировать страницу</button><button className="block w-full rounded-lg px-3 py-2 text-left text-sm hover:bg-accent" onClick={() => void runAction("template")}>Сохранить как шаблон</button><button className="block w-full rounded-lg px-3 py-2 text-left text-sm hover:bg-accent" onClick={() => void runAction("print")}>Экспорт → Печать / PDF</button><button className="flex w-full items-center gap-2 rounded-lg px-3 py-2 text-left text-sm hover:bg-accent" onClick={() => { void copyPageLink(actionTarget.item); setActionTarget(null); }}><Link2 size={14}/>Копировать ссылку</button><a className="block w-full rounded-lg px-3 py-2 text-sm hover:bg-accent" href={`/api/data/export/page/${actionTarget.item.id}?format=markdown`}>Экспортировать страницу · Markdown</a><a className="block w-full rounded-lg px-3 py-2 text-sm hover:bg-accent" href={`/api/data/export/page/${actionTarget.item.id}?format=html`}>Экспортировать страницу · standalone HTML</a><a className="block w-full rounded-lg px-3 py-2 text-sm hover:bg-accent" href={`/api/data/export/page/${actionTarget.item.id}?format=json`}>Экспортировать страницу · Notebook JSON</a></>}
       <button className="block w-full rounded-lg px-3 py-2 text-left text-sm hover:bg-accent" onClick={() => void runAction("up")}>Переместить выше</button><button className="block w-full rounded-lg px-3 py-2 text-left text-sm hover:bg-accent" onClick={() => void runAction("down")}>Переместить ниже</button><button className="block w-full rounded-lg px-3 py-2 text-left text-sm text-destructive hover:bg-accent" onClick={() => void runAction("delete")}>Переместить в корзину</button><button className="mt-1 block w-full rounded-lg px-3 py-2 text-left text-sm text-muted-foreground hover:bg-accent" onClick={() => setActionTarget(null)}>Отмена</button></div></div>}
     {appearanceNotebook && <AppearanceDialog key={appearanceNotebook.id} notebook={appearanceNotebook} open onOpenChange={(open) => { if (!open) setAppearanceNotebook(null); }} onSave={saveAppearance}/>} 
+    {appearanceSection && <SectionAppearanceDialog section={appearanceSection} onClose={() => setAppearanceSection(null)} onSaved={(section) => { setNotebooks((items) => items.map((notebook) => notebook.id === section.notebookId ? { ...notebook, sections: notebook.sections.map((item) => item.id === section.id ? section : item) } : notebook)); }}/>} 
+    {appearancePage && <PageAppearanceDialog page={appearancePage} onClose={() => setAppearancePage(null)} onSaved={(page) => { setPages((items) => items.map((item) => item.id === page.id ? page : item)); if (activePageRef.current?.id === page.id) { activePageRef.current = { ...activePageRef.current, ...page }; setActivePage(activePageRef.current); setEditorEpoch((value) => value + 1); } }}/>} 
     <MoveDialog target={moveTarget} notebooks={notebooks} open={Boolean(moveTarget)} onOpenChange={(open) => { if (!open) setMoveTarget(null); }} onMove={moveSelected}/>
     {historyOpen && <VersionHistory key={activePage?.id} page={activePage} open onOpenChange={setHistoryOpen} onRestore={restoreVersion}/>} 
     <DataSettings open={dataSettingsOpen} onOpenChange={setDataSettingsOpen} notebooks={notebooks} activeSectionId={activeSection?.id ?? null} onChanged={async () => { await loadNotebooks(); setWorkspaceRevision((value) => value + 1); }} onOpenPage={(pageId) => { setDataSettingsOpen(false); void openPageById(pageId).catch(report); }} onError={report}/>

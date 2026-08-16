@@ -28,6 +28,7 @@ export async function buildPortableExport(userId: string, options: ExportOptions
   if (options.notebookId && notebooks.length === 0) throw new ApiError(404, "Блокнот не найден");
   const attachmentIds = new Set<string>();
   for (const notebook of notebooks) for (const section of notebook.sections) for (const page of section.pages) {
+    if (page.coverUploadId) attachmentIds.add(page.coverUploadId);
     attachmentIdsInContent(page.content).forEach((id) => attachmentIds.add(id));
     if (options.includeHistory) page.versions.forEach((version) => attachmentIdsInContent(version.content).forEach((id) => attachmentIds.add(id)));
   }
@@ -44,9 +45,9 @@ export async function buildPortableExport(userId: string, options: ExportOptions
   const portableNotebooks: PortableNotebook[] = notebooks.map((notebook) => ({
     key: notebookKey.get(notebook.id)!, title: notebook.title, icon: notebook.icon as PortableNotebook["icon"], color: notebook.color as PortableNotebook["color"], sortOrder: notebook.sortOrder, createdAt: date(notebook.createdAt), updatedAt: date(notebook.updatedAt),
     ...(options.backup ? { deletedAt: notebook.deletedAt ? date(notebook.deletedAt) : null, deletionGroup: portableGroup(notebook.deletionGroupId), isDeletionRoot: notebook.isDeletionRoot } : {}),
-    sections: notebook.sections.map((section) => ({ key: sectionKey.get(section.id)!, parentKey: section.parentId ? sectionKey.get(section.parentId) ?? null : null, title: section.title, icon: section.icon, sortOrder: section.sortOrder, createdAt: date(section.createdAt), updatedAt: date(section.updatedAt),
+    sections: notebook.sections.map((section) => ({ key: sectionKey.get(section.id)!, parentKey: section.parentId ? sectionKey.get(section.parentId) ?? null : null, title: section.title, icon: section.icon, color: section.color as PortableNotebook["sections"][number]["color"], sortOrder: section.sortOrder, createdAt: date(section.createdAt), updatedAt: date(section.updatedAt),
       ...(options.backup ? { deletedAt: section.deletedAt ? date(section.deletedAt) : null, deletionGroup: portableGroup(section.deletionGroupId), isDeletionRoot: section.isDeletionRoot } : {}),
-      pages: section.pages.map((page) => ({ key: pageKey.get(page.id)!, title: page.title, content: portableBlocks(page.content, uploadKey, pageKey), sortOrder: page.sortOrder, isFavorite: page.isFavorite, createdAt: date(page.createdAt), updatedAt: date(page.updatedAt),
+      pages: section.pages.map((page) => ({ key: pageKey.get(page.id)!, title: page.title, icon: page.icon, color: page.color as PortableNotebook["sections"][number]["pages"][number]["color"], coverAttachmentKey: page.coverUploadId ? uploadKey.get(page.coverUploadId) ?? null : null, content: portableBlocks(page.content, uploadKey, pageKey), sortOrder: page.sortOrder, isFavorite: page.isFavorite, createdAt: date(page.createdAt), updatedAt: date(page.updatedAt),
         ...(options.backup ? { deletedAt: page.deletedAt ? date(page.deletedAt) : null, deletionGroup: portableGroup(page.deletionGroupId), isDeletionRoot: page.isDeletionRoot, versions: page.versions.map((version) => ({ title: version.title, content: portableBlocks(version.content, uploadKey, pageKey), searchText: version.searchText, contentHash: version.contentHash, reason: version.reason, createdAt: date(version.createdAt) })) } : {}),
       })),
     })),
@@ -77,12 +78,12 @@ export async function writePortableArchive(userId: string, target: string, optio
 export async function exportPageJson(userId: string, pageId: string): Promise<PageExport> {
   const page = await db.page.findFirst({ where: { id: pageId, deletedAt: null, section: { deletedAt: null, notebook: { userId, deletedAt: null } } } });
   if (!page) throw new ApiError(404, "Страница не найдена");
-  const ids = [...attachmentIdsInContent(page.content)]; const uploads = await db.upload.findMany({ where: { userId, id: { in: ids } } });
+  const ids = [...attachmentIdsInContent(page.content)]; if (page.coverUploadId) ids.push(page.coverUploadId); const uploads = await db.upload.findMany({ where: { userId, id: { in: ids } } });
   if (uploads.length !== ids.length) throw new ApiError(409, "Некоторые вложения страницы отсутствуют");
   const keys = new Map(uploads.map((upload, index) => [upload.id, `attachment-${index + 1}`]));
   const attachments: PortableAttachment[] = [];
   for (const upload of uploads) { const source = resolveStoragePath(upload.storageName); const bytes = await readFile(source); attachments.push({ key: keys.get(upload.id)!, fileName: safeDownloadName(upload.originalName), mimeType: upload.mimeType, size: upload.size, sha256: upload.sha256 ?? await sha256File(source), dataBase64: bytes.toString("base64") }); }
-  return { manifest: { format: PAGE_FORMAT, version: LEGACY_DATA_FORMAT_VERSION, createdAt: new Date().toISOString(), app: "Notebook" }, page: { key: randomUUID(), title: page.title, content: portableBlocks(page.content, keys, new Map()), sortOrder: 0, isFavorite: false, createdAt: date(page.createdAt), updatedAt: date(page.updatedAt) }, attachments };
+  return { manifest: { format: PAGE_FORMAT, version: LEGACY_DATA_FORMAT_VERSION, createdAt: new Date().toISOString(), app: "Notebook" }, page: { key: randomUUID(), title: page.title, icon: page.icon, color: page.color as PortableNotebook["sections"][number]["pages"][number]["color"], coverAttachmentKey: page.coverUploadId ? keys.get(page.coverUploadId) ?? null : null, content: portableBlocks(page.content, keys, new Map()), sortOrder: 0, isFavorite: false, createdAt: date(page.createdAt), updatedAt: date(page.updatedAt) }, attachments };
 }
 
 export async function exportPageMarkdown(userId: string, pageId: string) {

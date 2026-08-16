@@ -3,6 +3,7 @@ import { z } from "zod";
 export const BACKUP_SCHEDULES = ["daily", "every_3_days", "weekly"] as const;
 export const EDITOR_WIDTHS = ["narrow", "normal", "wide"] as const;
 export const THEMES = ["system", "light", "dark"] as const;
+export const INTERFACE_DENSITIES = ["comfortable", "compact"] as const;
 export type BackupSchedule = (typeof BACKUP_SCHEDULES)[number];
 
 const time = z.string().regex(/^(?:[01]\d|2[0-3]):[0-5]\d$/, "Используйте время HH:MM");
@@ -42,6 +43,7 @@ export const settingsUpdateSchema = z.object({
   editorCodeLineNumbers: z.boolean().optional(),
   editorCompactMode: z.boolean().optional(),
   editorContentWidth: z.enum(EDITOR_WIDTHS).optional(),
+  interfaceDensity: z.enum(INTERFACE_DENSITIES).optional(),
 }).strict();
 
 export type SettingsUpdate = z.infer<typeof settingsUpdateSchema>;

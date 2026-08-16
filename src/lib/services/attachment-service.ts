@@ -8,8 +8,8 @@ import { resolveStoragePath, uploadRoot } from "@/lib/storage";
 import { createNotification, resolveNotification } from "@/lib/services/system-notification-service";
 
 async function usedUploadIds(userId: string) {
-  const pages = await db.page.findMany({ where: { section: { notebook: { userId } } }, select: { content: true, versions: { select: { content: true } } } }); const used = new Set<string>();
-  for (const page of pages) { attachmentIdsInContent(page.content).forEach((id) => used.add(id)); for (const version of page.versions) attachmentIdsInContent(version.content).forEach((id) => used.add(id)); }
+  const pages = await db.page.findMany({ where: { section: { notebook: { userId } } }, select: { content: true, coverUploadId: true, versions: { select: { content: true } } } }); const used = new Set<string>();
+  for (const page of pages) { if (page.coverUploadId) used.add(page.coverUploadId); attachmentIdsInContent(page.content).forEach((id) => used.add(id)); for (const version of page.versions) attachmentIdsInContent(version.content).forEach((id) => used.add(id)); }
   return used;
 }
 

@@ -6,6 +6,7 @@ import { SuggestionMenuController, useCreateBlockNote } from "@blocknote/react";
 import { BlockNoteView } from "@blocknote/shadcn";
 import "@blocknote/shadcn/style.css";
 import { useTheme } from "next-themes";
+import Image from "next/image";
 import { Check, CloudAlert, FileText, Loader2 } from "lucide-react";
 import { api, jsonOptions } from "@/lib/client-api";
 import { cn } from "@/lib/utils";
@@ -99,10 +100,9 @@ export function RichTextEditor({ page, onSaved, onController, onInternalNavigate
     enhance(); const observer = new MutationObserver(enhance); observer.observe(root, { childList: true, subtree: true }); return () => observer.disconnect();
   }, [editor]);
 
-  const width = preferences.editorContentWidth === "narrow" ? "max-w-3xl" : preferences.editorContentWidth === "wide" ? "max-w-6xl" : "max-w-4xl";
-
   return <div className="flex min-h-0 flex-1 flex-col">
-    <div className={cn("mx-auto flex w-full shrink-0 items-center gap-4 px-5 pt-7 md:px-12 md:pt-10", width)}>
+    {page.coverUploadId && <div className="notebook-page-cover relative mx-5 mt-4 h-[clamp(180px,20vh,240px)] shrink-0 overflow-hidden rounded-lg md:mx-8"><Image unoptimized fill sizes="(min-width: 768px) 60vw, 100vw" src={`/api/uploads/${page.coverUploadId}`} alt="" className="object-cover"/></div>}
+    <div data-testid="page-editor-header" data-page-icon={page.icon ?? ""} className="notebook-editor-header flex w-full shrink-0 items-center gap-4 pt-7 md:pt-10">
       <h1 className="notebook-print-title hidden">{title}</h1><input value={title} onChange={(event) => { const nextTitle = event.target.value; setTitle(nextTitle); schedule({ title: nextTitle.trim() || t("editor.untitled"), content: editor.document }); }} placeholder={t("editor.pageTitlePlaceholder")} className="notebook-page-title-input min-w-0 flex-1 bg-transparent text-2xl font-semibold tracking-tight outline-none placeholder:text-muted-foreground/50 md:text-3xl" />
       <time className="notebook-print-date hidden">Изменено {new Date(page.updatedAt).toLocaleString("ru")}</time>
       <span className="flex shrink-0 items-center gap-1 text-[12.5px] text-muted-foreground/90" aria-live="polite">
@@ -111,7 +111,7 @@ export function RichTextEditor({ page, onSaved, onController, onInternalNavigate
         {status === "error" && <><CloudAlert size={12} className="text-destructive" />{t("editor.saveError")}</>}
       </span>
     </div>
-    <div ref={editorRoot} spellCheck={preferences.editorSpellcheck} className={cn("notebook-editor mx-auto min-h-0 w-full flex-1 overflow-y-auto px-1 pb-20 pt-5 md:px-8", width, preferences.editorCompactMode && "notebook-editor-compact", preferences.editorCodeLineNumbers && "notebook-code-lines")} onClickCapture={(event) => { const target = event.target as HTMLElement; const copy = target.closest(".notebook-code-copy"); if (copy) { event.preventDefault(); const text = copy.parentElement?.querySelector("code")?.textContent ?? ""; void navigator.clipboard.writeText(text).then(() => { copy.textContent = t("editor.copied"); window.setTimeout(() => { copy.textContent = t("editor.copyCode"); }, 1200); }); return; } const anchor = target.closest("a"); if (!anchor) return; if (anchor.getAttribute("href")?.startsWith("notebook-page://")) { event.preventDefault(); anchor.dataset.broken = "true"; return; } const match = new URL(anchor.href, window.location.origin).pathname.match(/^\/pages\/([^/]+)$/); if (!match?.[1]) return; event.preventDefault(); void onInternalNavigate(match[1]).catch(() => { anchor.dataset.broken = "true"; }); }}>
+    <div ref={editorRoot} data-testid="notebook-editor-canvas" data-content-width={preferences.editorContentWidth} spellCheck={preferences.editorSpellcheck} className={cn("notebook-editor min-h-0 w-full flex-1 overflow-y-auto pb-20 pt-5", preferences.editorCompactMode && "notebook-editor-compact", preferences.editorCodeLineNumbers && "notebook-code-lines")} onClickCapture={(event) => { const target = event.target as HTMLElement; const copy = target.closest(".notebook-code-copy"); if (copy) { event.preventDefault(); const text = copy.parentElement?.querySelector("code")?.textContent ?? ""; void navigator.clipboard.writeText(text).then(() => { copy.textContent = t("editor.copied"); window.setTimeout(() => { copy.textContent = t("editor.copyCode"); }, 1200); }); return; } const anchor = target.closest("a"); if (!anchor) return; if (anchor.getAttribute("href")?.startsWith("notebook-page://")) { event.preventDefault(); anchor.dataset.broken = "true"; return; } const match = new URL(anchor.href, window.location.origin).pathname.match(/^\/pages\/([^/]+)$/); if (!match?.[1]) return; event.preventDefault(); void onInternalNavigate(match[1]).catch(() => { anchor.dataset.broken = "true"; }); }}>
       <BlockNoteView editor={editor} slashMenu={false} theme={resolvedTheme === "dark" ? "dark" : "light"} onChange={() => schedule({ title: title.trim() || t("editor.untitled"), content: editor.document })}><SuggestionMenuController triggerCharacter="/" getItems={slashItems}/><SuggestionMenuController triggerCharacter="[[" getItems={mentionItems}/></BlockNoteView>
     </div>
   </div>;

@@ -13,7 +13,7 @@ export async function GET(request: NextRequest) {
     if (!sectionId) throw new ApiError(400, "Не указан sectionId");
     const section = await db.section.findFirst({ where: { id: sectionId, deletedAt: null, notebook: { userId: user.id, deletedAt: null } }, select: { id: true } });
     if (!section) throw new ApiError(404, "Раздел не найден");
-    const pages = await db.page.findMany({ where: { sectionId, deletedAt: null }, orderBy: [{ sortOrder: "asc" }, { createdAt: "asc" }], select: { id: true, sectionId: true, title: true, sortOrder: true, isFavorite: true, revision: true, createdAt: true, updatedAt: true } });
+    const pages = await db.page.findMany({ where: { sectionId, deletedAt: null }, orderBy: [{ sortOrder: "asc" }, { createdAt: "asc" }], select: { id: true, sectionId: true, title: true, icon: true, color: true, coverUploadId: true, sortOrder: true, isFavorite: true, revision: true, createdAt: true, updatedAt: true } });
     return NextResponse.json({ pages });
   } catch (error) { return apiError(error); }
 }

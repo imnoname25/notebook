@@ -34,6 +34,15 @@ assert(
   dockerfile.includes("COPY docker/preflight.mjs /app/docker/preflight.mjs"),
   "preflight.mjs must be installed at /app/docker/preflight.mjs",
 );
+assert(dockerfile.includes("COPY --from=builder /app/scripts ./scripts"), "production image must include recovery scripts under /app/scripts");
+assert(dockerfile.includes("chmod 0755 /app/scripts/admin-recovery.mjs"), "admin recovery CLI must be executable in the production image");
+const recoveryCli = readFileSync(resolve(root, "scripts/admin-recovery.mjs"), "utf8");
+assert(recoveryCli.includes('from "./admin-recovery-service.mjs"'), "CLI must use the shared recovery service");
+assert(recoveryCli.includes('from "./admin-recovery-db.mjs"'), "CLI database adapter must stay inside the application script tree");
+assert(!recoveryCli.includes("PrismaClient"), "runtime recovery CLI must not import the TypeScript-generated Prisma client directly");
+assert(!/--password|process\.env\.[A-Z_]*PASSWORD/.test(recoveryCli), "recovery password must only be accepted through hidden TTY input");
+assert(recoveryCli.includes("RESET"), "recovery CLI must require an explicit destructive-action confirmation");
+assert(readFileSync(resolve(root, "src/lib/auth/password.ts"), "utf8").includes('scripts/auth-password.mjs'), "application password service must use the same runtime implementation as recovery");
 assert(
   entrypointLines.includes('node "$APP_DIR/docker/preflight.mjs"'),
   "entrypoint must execute preflight.mjs from the application tree during root bootstrap",

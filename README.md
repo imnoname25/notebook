@@ -336,6 +336,18 @@ Code blocks имеют allowlist языков, встроенный selector, la
 
 Paste использует официальный BlockNote pipeline: plain text/Markdown преобразуются штатным parser, HTML проходит через ProseMirror/BlockNote parsing без исполнения script/event handlers, изображения используют существующий authenticated upload pipeline с MIME/signature/size validation. Offline editing и custom HTML execution отсутствуют.
 
+## Desktop UI и оформление
+
+- левая навигация и список страниц используют компактные list rows с едиными hover/selected/focus состояниями;
+- длинные названия обрезаются с сохранением полного значения в tooltip;
+- блокноты поддерживают curated иконки и нейтральный/цветной accent;
+- разделы поддерживают отдельный accent color;
+- страницы поддерживают emoji, accent color и защищённую cover-картинку из существующего uploads storage;
+- настройка плотности переключает комфортный и компактный режим;
+- выход на всех устройствах перенесён из top bar в `Настройки → Безопасность` и требует подтверждения.
+
+Appearance metadata входит в portable JSON/ZIP export. Старые архивы без новых optional-полей продолжают импортироваться со значениями по умолчанию.
+
 ## Следующий этап
 
 Приоритеты: Android AutofillService после отдельного security review; полноценный Vault UI и client-side Argon2id/encryption protocol; biometric unwrap Vault key; browser-extension-neutral Vault protocol; WebAuthn/passkeys; дополнительная проверка интерфейса на реальных Android/4K устройствах.

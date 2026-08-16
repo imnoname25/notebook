@@ -34,6 +34,21 @@ export const RU_MESSAGES = {
   "settings.remoteDirectory": "Удалённый каталог",
   "settings.retry": "Повторить",
   "settings.localCopy": "Локальная копия",
+  "appearance.title": "Оформление",
+  "appearance.icon": "Выбрать иконку",
+  "appearance.color": "Выбрать цвет",
+  "appearance.cover": "Обложка",
+  "appearance.removeCover": "Убрать обложку",
+  "appearance.density": "Плотность интерфейса",
+  "appearance.compact": "Компактный",
+  "appearance.comfortable": "Комфортный",
+  "security.sessions": "Сеансы",
+  "security.logoutAll": "Выйти на всех устройствах",
+  "security.logoutAllConfirm": "Выйти из аккаунта на всех устройствах?",
+  "security.logoutAllDescription": "Все активные сеансы, включая текущий, будут завершены. Для продолжения потребуется войти снова.",
+  "empty.selectPage": "Выберите страницу",
+  "empty.selectPageDescription": "Откройте существующую страницу слева или создайте новую.",
+  "empty.createPage": "Создать страницу",
 } as const;
 
 export type MessageKey = keyof typeof RU_MESSAGES;

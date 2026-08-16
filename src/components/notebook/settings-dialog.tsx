@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useState, useSyncExternalStore } from "react";
 import * as Dialog from "@radix-ui/react-dialog";
+import * as AlertDialog from "@radix-ui/react-alert-dialog";
 import { Archive, CheckCircle2, Database, Download, HardDrive, Loader2, RefreshCw, RotateCcw, Save, Settings, ShieldCheck, Trash2, UploadCloud, X } from "lucide-react";
 import { useTheme } from "next-themes";
 import { useRouter } from "next/navigation";
@@ -52,6 +53,8 @@ export function SettingsDialog({ open, onOpenChange, onDataOpen, onTemplatesOpen
         {tab === "system" && system && <div className="mt-4 grid gap-3 sm:grid-cols-2"><Info icon={<Database size={17}/>} title="Полнотекстовый поиск" value={`${system.diagnostics.fts.status} · ${system.diagnostics.fts.indexedPages} страниц · ${system.diagnostics.fts.ginIndexes}/3 индекса`}/><Info icon={<Archive size={17}/>} title="Этап 6" value={`${system.counts.templates} шаблонов · ${system.counts.remoteBackups} remote copies · ${system.counts.notifications} уведомлений`}/></div>}
         {tab === "system" && androidClientVersion && <div className="mt-3"><Info icon={<CheckCircle2 size={17}/>} title="Android-клиент" value={`Версия ${androidClientVersion}`}/></div>}
         {tab === "security" && <TwoFactorSettings/>}
+        {tab === "general" && <InterfaceDensitySettings onError={onError}/>}
+        {tab === "security" && <SecuritySessionActions onError={onError}/>}
         <div className="sticky bottom-0 mt-6 flex justify-end border-t border-border/60 bg-card py-3"><Button onClick={() => void save()} disabled={!draft || Boolean(busy)}>{busy === "save" ? <Loader2 className="animate-spin" size={15}/> : <Save size={15}/>}Сохранить настройки</Button></div>
       </>}</div>
     </div>
@@ -63,3 +66,16 @@ function Field({ label, children }: { label: string; children: React.ReactNode }
 function Check({ label, checked, onChange }: { label: string; checked: boolean; onChange(value: boolean): void }) { return <label className="flex min-h-11 items-center gap-3 rounded-lg px-2 hover:bg-muted/50"><input type="checkbox" checked={checked} onChange={(event) => onChange(event.target.checked)} className="size-4"/><span className="text-sm">{label}</span></label>; }
 function NumberField({ label, value, min, max, onChange }: { label: string; value: number; min: number; max: number; onChange(value: number): void }) { return <Field label={label}><input className="input" type="number" value={value} min={min} max={max} onChange={(event) => onChange(Number(event.target.value))}/></Field>; }
 function Info({ icon, title, value }: { icon: React.ReactNode; title: string; value: string }) { return <div className="flex gap-3 rounded-xl bg-muted/45 p-3"><span className="mt-0.5 text-muted-foreground">{icon}</span><div className="min-w-0"><p className="text-sm font-medium">{title}</p><p className="text-xs text-muted-foreground">{value}</p></div></div>; }
+
+function InterfaceDensitySettings({ onError }: { onError(error: unknown): void }) {
+  const [density, setDensity] = useState<"comfortable" | "compact">("comfortable");
+  useEffect(() => { void api<{ settings: { interfaceDensity: "comfortable" | "compact" } }>("/api/settings").then(({ settings }) => setDensity(settings.interfaceDensity)).catch(onError); }, [onError]);
+  async function update(value: "comfortable" | "compact") { try { await api("/api/settings", jsonOptions("PATCH", { interfaceDensity: value })); setDensity(value); window.dispatchEvent(new CustomEvent("notebook:density", { detail: value })); } catch (error) { onError(error); } }
+  return <Section title={t("appearance.density")}><div className="grid grid-cols-2 gap-2"><Button type="button" variant={density === "comfortable" ? "default" : "outline"} onClick={() => void update("comfortable")}>{t("appearance.comfortable")}</Button><Button type="button" variant={density === "compact" ? "default" : "outline"} onClick={() => void update("compact")}>{t("appearance.compact")}</Button></div></Section>;
+}
+
+function SecuritySessionActions({ onError }: { onError(error: unknown): void }) {
+  const router = useRouter();
+  async function logoutAll() { try { await api("/api/auth/logout-all", jsonOptions("POST")); router.replace("/login"); router.refresh(); } catch (error) { onError(error); } }
+  return <section className="mt-6 border-t border-border/60 pt-5"><h3 className="font-semibold">{t("security.sessions")}</h3><p className="mt-1 text-sm text-muted-foreground">{t("security.logoutAllDescription")}</p><AlertDialog.Root><AlertDialog.Trigger asChild><Button className="mt-3" variant="outline">{t("security.logoutAll")}</Button></AlertDialog.Trigger><AlertDialog.Portal><AlertDialog.Overlay className="fixed inset-0 z-[70] bg-black/40"/><AlertDialog.Content className="fixed left-1/2 top-1/2 z-[70] w-[min(92vw,440px)] -translate-x-1/2 -translate-y-1/2 rounded-xl bg-card p-5 shadow-2xl"><AlertDialog.Title className="font-semibold">{t("security.logoutAllConfirm")}</AlertDialog.Title><AlertDialog.Description className="mt-2 text-sm text-muted-foreground">{t("security.logoutAllDescription")}</AlertDialog.Description><div className="mt-5 flex justify-end gap-2"><AlertDialog.Cancel asChild><Button variant="ghost">{t("common.cancel")}</Button></AlertDialog.Cancel><AlertDialog.Action asChild><Button variant="destructive" onClick={() => void logoutAll()}>{t("security.logoutAll")}</Button></AlertDialog.Action></div></AlertDialog.Content></AlertDialog.Portal></AlertDialog.Root></section>;
+}
