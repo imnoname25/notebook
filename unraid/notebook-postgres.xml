@@ -13,8 +13,8 @@
   <Description>Official PostgreSQL 17 image with persistent PGDATA and a container-local healthcheck.</Description>
   <Category>Tools:Other</Category>
   <WebUI/>
-  <TemplateURL>https://raw.githubusercontent.com/metroom/notebook/main/unraid/notebook-postgres.xml</TemplateURL>
-  <Icon>https://raw.githubusercontent.com/metroom/notebook/main/public/icons/icon-512.png</Icon>
+  <TemplateURL>https://raw.githubusercontent.com/imnoname25/notebook/main/unraid/notebook-postgres.xml</TemplateURL>
+  <Icon>https://raw.githubusercontent.com/imnoname25/notebook/main/public/icons/icon-512.png</Icon>
   <ExtraParams>--restart=unless-stopped --health-cmd=&quot;pg_isready -U notebook -d notebook&quot; --health-interval=10s --health-timeout=5s --health-start-period=30s --health-retries=10</ExtraParams>
   <PostArgs/>
   <CPUset/>

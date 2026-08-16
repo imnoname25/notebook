@@ -1,20 +1,20 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <Container version="2">
   <Name>notebook</Name>
-  <Repository>ghcr.io/metroom/notebook:latest</Repository>
-  <Registry>https://github.com/metroom/notebook/pkgs/container/notebook</Registry>
+  <Repository>ghcr.io/imnoname25/notebook:latest</Repository>
+  <Registry>https://github.com/imnoname25/notebook/pkgs/container/notebook</Registry>
   <Network>notebook-net</Network>
   <MyIP/>
   <Shell>sh</Shell>
   <Privileged>false</Privileged>
-  <Support>https://github.com/metroom/notebook/issues</Support>
-  <Project>https://github.com/metroom/notebook</Project>
+  <Support>https://github.com/imnoname25/notebook/issues</Support>
+  <Project>https://github.com/imnoname25/notebook</Project>
   <Overview>Notebook is a simple self-hosted digital notebook: Notebook → Section → Page. Install the separate Notebook PostgreSQL template first, then create the first administrator from the WebUI.</Overview>
   <Description>Fast self-hosted notes with BlockNote rich text, local attachments, search, version history and backup operations. No external SaaS is required.</Description>
   <Category>Productivity:</Category>
   <WebUI>http://[IP]:[PORT:3000]/</WebUI>
-  <TemplateURL>https://raw.githubusercontent.com/metroom/notebook/main/unraid/notebook.xml</TemplateURL>
-  <Icon>https://raw.githubusercontent.com/metroom/notebook/main/public/icons/icon-512.png</Icon>
+  <TemplateURL>https://raw.githubusercontent.com/imnoname25/notebook/main/unraid/notebook.xml</TemplateURL>
+  <Icon>https://raw.githubusercontent.com/imnoname25/notebook/main/public/icons/icon-512.png</Icon>
   <ExtraParams>--init --restart=unless-stopped --cap-drop=ALL --cap-add=CHOWN --cap-add=DAC_OVERRIDE --cap-add=FOWNER --cap-add=SETGID --cap-add=SETUID --security-opt=no-new-privileges:true</ExtraParams>
   <PostArgs/>
   <CPUset/>
@@ -30,11 +30,12 @@
   <Config Name="Storage: Uploads" Target="/data/uploads" Default="/mnt/user/appdata/notebook/uploads" Mode="rw" Description="Persistent images and attachments." Type="Path" Display="always" Required="true" Mask="false">/mnt/user/appdata/notebook/uploads</Config>
   <Config Name="Storage: Backups" Target="/data/backups" Default="/mnt/user/appdata/notebook/backups" Mode="rw" Description="Persistent application-level backup archives." Type="Path" Display="always" Required="true" Mask="false">/mnt/user/appdata/notebook/backups</Config>
 
-  <Config Name="Security: Encryption Key" Target="SETTINGS_ENCRYPTION_KEY" Default="" Mode="" Description="Exactly 32 random bytes as 64 hex characters (openssl rand -hex 32). Generate once and keep it stable. Without it Notebook still runs, but WebDAV/S3 credentials cannot be saved." Type="Variable" Display="always" Required="false" Mask="true"></Config>
+  <Config Name="Security: Encryption Key" Target="SETTINGS_ENCRYPTION_KEY" Default="" Mode="" Description="Exactly 32 random bytes as 64 hex characters (openssl rand -hex 32). Keep it stable. Required for WebDAV/S3 credentials and TOTP 2FA." Type="Variable" Display="always" Required="false" Mask="true"></Config>
 
   <Config Name="Advanced: PUID" Target="PUID" Default="99" Mode="" Description="UID used by Notebook after startup. Standard Unraid nobody UID is 99." Type="Variable" Display="advanced" Required="true" Mask="false">99</Config>
   <Config Name="Advanced: PGID" Target="PGID" Default="100" Mode="" Description="GID used by Notebook after startup. Standard Unraid users GID is 100." Type="Variable" Display="advanced" Required="true" Mask="false">100</Config>
   <Config Name="Advanced: UMASK" Target="UMASK" Default="002" Mode="" Description="File creation mask for uploads and backups. Files are not made world-writable." Type="Variable" Display="advanced" Required="true" Mask="false">002</Config>
+  <Config Name="Advanced: Release Channel" Target="NOTEBOOK_CHANNEL" Default="stable" Mode="" Description="Diagnostic label only. Use stable with :latest and edge with :edge." Type="Variable" Display="advanced" Required="false" Mask="false">stable</Config>
   <Config Name="Advanced: Repair Permissions" Target="FIX_PERMISSIONS" Default="0" Mode="" Description="Set to 1 for one startup only to recursively repair existing uploads/backups ownership, then return to 0." Type="Variable" Display="advanced" Required="false" Mask="false">0</Config>
   <Config Name="Advanced: Database Wait Timeout" Target="DATABASE_WAIT_TIMEOUT_SECONDS" Default="90" Mode="" Description="Maximum startup wait for PostgreSQL, from 5 to 300 seconds." Type="Variable" Display="advanced" Required="false" Mask="false">90</Config>
   <Config Name="Advanced: Upload Limit" Target="MAX_UPLOAD_SIZE_MB" Default="10" Mode="" Description="Maximum size of one uploaded image in MiB." Type="Variable" Display="advanced" Required="false" Mask="false">10</Config>

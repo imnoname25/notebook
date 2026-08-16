@@ -7,7 +7,7 @@ const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const definitions = [
   {
     file: "unraid/notebook.xml",
-    repository: "ghcr.io/metroom/notebook:latest",
+    repository: "ghcr.io/imnoname25/notebook:latest",
     name: "notebook",
     requiredTargets: ["3000", "APP_ORIGIN", "DATABASE_URL", "/data/uploads", "/data/backups", "SETTINGS_ENCRYPTION_KEY", "PUID", "PGID", "UMASK"],
   },

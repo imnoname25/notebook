@@ -25,6 +25,9 @@ Notebook не является wiki, PKM, task manager или project-management
 - Цвета и иконки блокнотов хранить как identifiers из общих server/client allowlist. Не принимать CSS или произвольные имена компонентов.
 - Cross-parent move выполнять транзакционно с проверкой активного destination и нормализацией `sortOrder`; UI не является security boundary.
 - Session idle/absolute lifetime и auth rate-limit constants держать централизованно. Не добавлять Redis для single-instance MVP без отдельного решения.
+- TOTP secret хранить только через versioned AEAD encryption; recovery-коды — только hashes. Не создавать authenticated session до завершения второго фактора и rate-limit challenge.
+- Vault остаётся отдельным `/api/vault/*` boundary. Никогда не помещать Vault secrets в Page content/search/history/обычный export и не логировать ciphertext-derived plaintext, master keys, TOTP seeds или recovery codes.
+- Vault server хранит только opaque ciphertext и KDF metadata. Не заявлять zero-knowledge до завершённого и проверенного client-side key protocol; login password нельзя напрямую использовать как vault encryption key.
 - Изображения не хранить в БД/base64. Файлы принадлежат пользователю и живут только в persistent `/data/uploads`.
 - Вложения всегда отдавать через authenticated API с ownership-проверкой; не публиковать uploads как static files и не кэшировать их публично.
 - Portable export/import использует версионируемый manifest и независимые от БД ключи. Импорт никогда не перезаписывает существующие данные; ZIP распаковывать только с traversal, symlink, entry-count и size validation.

@@ -3,7 +3,7 @@
 Notebook is packaged as two independent containers:
 
 ```text
-notebook             ghcr.io/metroom/notebook:latest
+notebook             ghcr.io/imnoname25/notebook:latest
 notebook-postgres    postgres:17-alpine
 ```
 
@@ -53,7 +53,7 @@ Generate and save a permanent encryption key:
 openssl rand -hex 32
 ```
 
-Put the result in `SETTINGS_ENCRYPTION_KEY`. Notebook can start without it, but WebDAV/S3 credentials cannot be saved, and losing or changing an existing key makes previously encrypted remote-backup credentials unreadable.
+Put the result in `SETTINGS_ENCRYPTION_KEY`. Notebook can start without it, but WebDAV/S3 credentials and TOTP 2FA cannot be configured. Losing or changing an existing key makes remote-backup credentials and the enabled TOTP secret unreadable; preserve the key outside the container.
 
 ### 4. Open WebUI
 
@@ -79,6 +79,8 @@ Published image tags are intended to be:
 - `v1.2.3`, `1.2` and `latest` for a release tag such as `v1.2.3`.
 
 `latest` is convenient for Unraid, while the version and SHA tags provide immutable rollback references.
+
+For normal installations use `ghcr.io/imnoname25/notebook:latest` (`stable`). Use `ghcr.io/imnoname25/notebook:edge` only for testing current `main`. After a stable `v*` release, open **Docker → Check for Updates → notebook → Update**. Unraid retains all environment variables and path mappings, pulls the new digest and recreates only the application container. Startup waits for PostgreSQL and runs `prisma migrate deploy` before the non-root server starts. Create an application backup before schema-changing releases; Notebook intentionally has no self-updater.
 
 ## Persistent data and permissions
 
@@ -175,7 +177,7 @@ docker run -d --name notebook \
   -e TZ='Asia/Yekaterinburg' -e PUID=99 -e PGID=100 -e UMASK=002 \
   -v /mnt/user/appdata/notebook/uploads:/data/uploads \
   -v /mnt/user/appdata/notebook/backups:/data/backups \
-  ghcr.io/metroom/notebook:latest
+  ghcr.io/imnoname25/notebook:latest
 ```
 
 Publishing the templates through Community Applications is a separate moderation/submission step. Until the GHCR package and templates are published from the final GitHub repository, maintainers can test them from their raw template URLs; end users should not be told that a CA listing already exists.

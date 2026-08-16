@@ -3,6 +3,7 @@
 import { BlockNoteSchema, createCodeBlockSpec, defaultBlockSpecs, filterSuggestionItems, insertOrUpdateBlockForSlashMenu, SyntaxHighlightingExtension, type BlockNoteEditor, type PartialBlock } from "@blocknote/core";
 import { createReactBlockSpec, getDefaultReactSlashMenuItems } from "@blocknote/react";
 import { AlertCircle, CheckCircle2, ChevronDown, ChevronRight, FileText, Info, Lightbulb, ListTree } from "lucide-react";
+import { t } from "@/lib/i18n/messages";
 
 export const CODE_LANGUAGES: Record<string, { name: string; aliases?: string[] }> = { text: { name: "Plain text" }, javascript: { name: "JavaScript", aliases: ["js"] }, typescript: { name: "TypeScript", aliases: ["ts"] }, json: { name: "JSON" }, html: { name: "HTML" }, css: { name: "CSS" }, bash: { name: "Shell", aliases: ["sh"] }, powershell: { name: "PowerShell", aliases: ["ps1"] }, python: { name: "Python", aliases: ["py"] }, sql: { name: "SQL" }, yaml: { name: "YAML", aliases: ["yml"] } };
 export const CALLOUT_TYPES = ["info", "note", "warning", "success", "error"] as const;
@@ -33,13 +34,13 @@ export function normalizeEditorBlocks(value: unknown[]): NotebookBlock[] {
   });
 }
 
-function defaultGroup(keyOrTitle: string) { const value = keyOrTitle.toLowerCase(); if (value.includes("text") || value.includes("paragraph")) return "Text"; if (value.includes("heading")) return "Headings"; if (value.includes("list") || value.includes("check")) return "Lists"; if (["image", "video", "audio", "file"].some((name) => value.includes(name))) return "Media"; return "Advanced"; }
+function defaultGroup(keyOrTitle: string) { const value = keyOrTitle.toLowerCase(); if (value.includes("text") || value.includes("paragraph")) return t("editor.group.text"); if (value.includes("heading")) return t("editor.group.headings"); if (value.includes("list") || value.includes("check")) return t("editor.group.lists"); if (["image", "video", "audio", "file"].some((name) => value.includes(name))) return t("editor.group.media"); return t("editor.group.advanced"); }
 export function slashMenuItems(editor: NotebookEditor, openPagePicker: () => void, query: string) {
   const defaults = getDefaultReactSlashMenuItems(editor).map((item) => ({ ...item, group: defaultGroup("key" in item && typeof item.key === "string" ? item.key : item.title) }));
   const custom = [
-    { title: "Callout", subtext: "Info, note, warning, success или error", aliases: ["callout", "note", "warning"], group: "Advanced", icon: <Info size={16}/>, onItemClick: () => insertOrUpdateBlockForSlashMenu(editor, { type: "callout", props: { kind: "info", title: "" }, content: "" }) },
-    { title: "Toggle", subtext: "Сворачиваемый раздел", aliases: ["toggle", "collapse", "details"], group: "Advanced", icon: <ListTree size={16}/>, onItemClick: () => insertOrUpdateBlockForSlashMenu(editor, { type: "toggle", props: { open: true }, content: "Детали", children: [{ type: "paragraph" }] }) },
-    { title: "Page link", subtext: "Ссылка на страницу Notebook", aliases: ["link page", "page", "mention"], group: "Advanced", icon: <FileText size={16}/>, onItemClick: () => { insertOrUpdateBlockForSlashMenu(editor, { type: "paragraph", content: "[[" }); openPagePicker(); } },
+    { title: t("editor.callout"), subtext: t("editor.calloutDescription"), aliases: ["callout", "note", "warning", "выделенный блок"], group: t("editor.group.advanced"), icon: <Info size={16}/>, onItemClick: () => insertOrUpdateBlockForSlashMenu(editor, { type: "callout", props: { kind: "info", title: "" }, content: "" }) },
+    { title: t("editor.toggle"), subtext: t("editor.toggleDescription"), aliases: ["toggle", "collapse", "details", "свернуть"], group: t("editor.group.advanced"), icon: <ListTree size={16}/>, onItemClick: () => insertOrUpdateBlockForSlashMenu(editor, { type: "toggle", props: { open: true }, content: "Детали", children: [{ type: "paragraph" }] }) },
+    { title: t("editor.pageLink"), subtext: t("editor.pageLinkDescription"), aliases: ["link page", "page", "mention", "ссылка"], group: t("editor.group.advanced"), icon: <FileText size={16}/>, onItemClick: () => { insertOrUpdateBlockForSlashMenu(editor, { type: "paragraph", content: "[[" }); openPagePicker(); } },
   ];
   return filterSuggestionItems([...defaults, ...custom], query);
 }

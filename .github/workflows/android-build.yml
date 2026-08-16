@@ -1,0 +1,96 @@
+name: Android client
+
+on:
+  push:
+    branches: [main]
+    tags: ["v*"]
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+defaults:
+  run:
+    working-directory: android-client
+
+jobs:
+  checks:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v6
+        with:
+          node-version: "24"
+          cache: npm
+          cache-dependency-path: android-client/package-lock.json
+      - uses: actions/setup-java@v5
+        with:
+          distribution: temurin
+          java-version: "21"
+      - uses: android-actions/setup-android@v3
+      - uses: gradle/actions/setup-gradle@v5
+      - run: npm ci
+      - run: npm run check
+      - run: npx cap sync android
+      - name: Lint, unit tests and debug APK
+        run: ./android/gradlew --no-daemon -p android lint test assembleDebug
+      - name: Upload test APK
+        uses: actions/upload-artifact@v6
+        with:
+          name: Notebook-debug-${{ github.sha }}
+          path: android-client/android/app/build/outputs/apk/debug/app-debug.apk
+          if-no-files-found: error
+
+  release:
+    if: startsWith(github.ref, 'refs/tags/v') && !contains(github.ref_name, '-')
+    needs: checks
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v6
+        with:
+          node-version: "24"
+          cache: npm
+          cache-dependency-path: android-client/package-lock.json
+      - uses: actions/setup-java@v5
+        with:
+          distribution: temurin
+          java-version: "21"
+      - uses: android-actions/setup-android@v3
+      - uses: gradle/actions/setup-gradle@v5
+      - run: npm ci
+      - run: npx cap sync android
+      - name: Verify tag and Android version agree
+        run: test "$(node -p "require('./package.json').version")" = "${GITHUB_REF_NAME#v}"
+      - name: Restore signing key
+        env:
+          ANDROID_KEYSTORE_BASE64: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}
+        run: |
+          set -Eeuo pipefail
+          test -n "$ANDROID_KEYSTORE_BASE64"
+          printf '%s' "$ANDROID_KEYSTORE_BASE64" | base64 --decode > "$RUNNER_TEMP/notebook-release.jks"
+      - name: Build signed universal APK and AAB
+        env:
+          ANDROID_KEYSTORE_PATH: ${{ runner.temp }}/notebook-release.jks
+          ANDROID_KEYSTORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
+          ANDROID_KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
+          ANDROID_KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
+        run: |
+          set -Eeuo pipefail
+          ./android/gradlew --no-daemon -p android assembleRelease bundleRelease
+          version="${GITHUB_REF_NAME#v}"
+          mkdir -p dist
+          cp android/app/build/outputs/apk/release/app-release.apk "dist/Notebook-${version}.apk"
+          cp android/app/build/outputs/bundle/release/app-release.aab "dist/Notebook-${version}.aab"
+      - name: Publish APK in GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          files: |
+            android-client/dist/Notebook-*.apk
+            android-client/dist/Notebook-*.aab
+          generate_release_notes: true
+          fail_on_unmatched_files: true

@@ -5,6 +5,6 @@ export async function api<T>(url: string, options?: RequestInit): Promise<T> {
   return body;
 }
 
-export function jsonOptions(method: "POST" | "PATCH" | "DELETE", body?: unknown): RequestInit {
+export function jsonOptions(method: "POST" | "PUT" | "PATCH" | "DELETE", body?: unknown): RequestInit {
   return { method, headers: body === undefined ? undefined : { "content-type": "application/json" }, body: body === undefined ? undefined : JSON.stringify(body) };
 }

@@ -8,16 +8,99 @@ datasource db {
 }
 
 model User {
-  id           String     @id @default(cuid())
-  email        String     @unique
-  passwordHash String
-  name         String
-  createdAt    DateTime   @default(now())
-  updatedAt    DateTime   @updatedAt
-  notebooks    Notebook[]
-  sessions     Session[]
-  uploads      Upload[]
-  pageTemplates PageTemplate[]
+  id                         String             @id @default(cuid())
+  email                      String             @unique
+  passwordHash               String
+  name                       String
+  totpEnabledAt              DateTime?
+  totpSecretEncrypted        String?
+  totpPendingSecretEncrypted String?
+  totpPendingCreatedAt       DateTime?
+  createdAt                  DateTime           @default(now())
+  updatedAt                  DateTime           @updatedAt
+  notebooks                  Notebook[]
+  sessions                   Session[]
+  uploads                    Upload[]
+  pageTemplates              PageTemplate[]
+  authChallenges             AuthChallenge[]
+  totpRecoveryCodes          TotpRecoveryCode[]
+  vaultProfile               VaultProfile?
+}
+
+model AuthChallenge {
+  id        String   @id @default(cuid())
+  userId    String
+  tokenHash String   @unique
+  attempts  Int      @default(0)
+  expiresAt DateTime
+  createdAt DateTime @default(now())
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([expiresAt])
+}
+
+model TotpRecoveryCode {
+  id        String    @id @default(cuid())
+  userId    String
+  codeHash  String    @unique
+  createdAt DateTime  @default(now())
+  usedAt    DateTime?
+  user      User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, usedAt])
+}
+
+model VaultProfile {
+  id                String        @id @default(cuid())
+  userId            String        @unique
+  kdfAlgorithm      String        @default("argon2id")
+  kdfSalt           String
+  kdfMemoryKiB      Int           @default(65536)
+  kdfIterations     Int           @default(3)
+  kdfParallelism    Int           @default(1)
+  verifier          String
+  encryptedKeyset   String        @db.Text
+  encryptionVersion Int           @default(1)
+  createdAt         DateTime      @default(now())
+  updatedAt         DateTime      @updatedAt
+  user              User          @relation(fields: [userId], references: [id], onDelete: Cascade)
+  folders           VaultFolder[]
+  items             VaultItem[]
+}
+
+model VaultFolder {
+  id                String        @id @default(cuid())
+  vaultProfileId    String
+  parentId          String?
+  encryptedPayload  String        @db.Text
+  encryptionVersion Int           @default(1)
+  sortOrder         Int           @default(0)
+  createdAt         DateTime      @default(now())
+  updatedAt         DateTime      @updatedAt
+  vaultProfile      VaultProfile  @relation(fields: [vaultProfileId], references: [id], onDelete: Cascade)
+  parent            VaultFolder?  @relation("VaultFolderTree", fields: [parentId], references: [id], onDelete: Cascade)
+  children          VaultFolder[] @relation("VaultFolderTree")
+  items             VaultItem[]
+
+  @@index([vaultProfileId, parentId, sortOrder])
+}
+
+model VaultItem {
+  id                String       @id @default(cuid())
+  vaultProfileId    String
+  folderId          String?
+  itemType          String
+  encryptedPayload  String       @db.Text
+  encryptionVersion Int          @default(1)
+  sortOrder         Int          @default(0)
+  createdAt         DateTime     @default(now())
+  updatedAt         DateTime     @updatedAt
+  vaultProfile      VaultProfile @relation(fields: [vaultProfileId], references: [id], onDelete: Cascade)
+  folder            VaultFolder? @relation(fields: [folderId], references: [id], onDelete: SetNull)
+
+  @@index([vaultProfileId, folderId, sortOrder])
+  @@index([vaultProfileId, itemType])
 }
 
 model Session {
@@ -78,20 +161,20 @@ model Section {
 }
 
 model Page {
-  id              String    @id @default(cuid())
+  id              String        @id @default(cuid())
   sectionId       String
-  title           String    @default("Без названия")
+  title           String        @default("Без названия")
   content         Json
-  searchText      String    @default("") @db.Text
-  sortOrder       Int       @default(0)
-  isFavorite      Boolean   @default(false)
-  revision        Int       @default(0)
-  createdAt       DateTime  @default(now())
-  updatedAt       DateTime  @updatedAt
+  searchText      String        @default("") @db.Text
+  sortOrder       Int           @default(0)
+  isFavorite      Boolean       @default(false)
+  revision        Int           @default(0)
+  createdAt       DateTime      @default(now())
+  updatedAt       DateTime      @updatedAt
   deletedAt       DateTime?
   deletionGroupId String?
-  isDeletionRoot  Boolean   @default(false)
-  section         Section   @relation(fields: [sectionId], references: [id], onDelete: Cascade)
+  isDeletionRoot  Boolean       @default(false)
+  section         Section       @relation(fields: [sectionId], references: [id], onDelete: Cascade)
   versions        PageVersion[]
   uploads         Upload[]
 
@@ -151,55 +234,55 @@ model PageTemplate {
 }
 
 model ApplicationSettings {
-  id                           String   @id @default("singleton")
-  defaultTheme                 String   @default("system")
-  autosaveDelayMs              Int      @default(750)
-  pageVersionIntervalMinutes   Int      @default(5)
-  pageVersionRetentionDays     Int      @default(30)
-  pageVersionMaxCount          Int      @default(100)
-  backupEnabled                Boolean  @default(false)
-  backupSchedule               String   @default("daily")
-  backupTime                   String   @default("02:00")
-  backupRetentionCount         Int      @default(14)
-  backupRetentionDays          Int      @default(30)
-  lastScheduledBackupAt        DateTime?
-  backupConsecutiveFailures    Int      @default(0)
-  webdavEnabled                Boolean  @default(false)
-  webdavUrl                    String?
-  webdavUsername               String?
-  webdavPasswordEncrypted      String?
-  webdavRemoteDirectory        String   @default("notebook-backups")
-  s3Enabled                    Boolean  @default(false)
-  s3Endpoint                   String?
-  s3Region                     String   @default("us-east-1")
-  s3Bucket                     String?
-  s3AccessKeyId                String?
-  s3SecretAccessKeyEncrypted   String?
-  s3Prefix                     String   @default("notebook-backups")
-  s3ForcePathStyle             Boolean  @default(false)
-  s3ProviderLabel              String?
-  remoteRetentionCount         Int      @default(30)
-  remoteRetentionDays          Int      @default(90)
-  editorSpellcheck             Boolean  @default(true)
-  editorCodeLineNumbers        Boolean  @default(false)
-  editorCompactMode            Boolean  @default(false)
-  editorContentWidth           String   @default("normal")
-  lastStorageAuditAt           DateTime?
-  createdAt                    DateTime @default(now())
-  updatedAt                    DateTime @updatedAt
+  id                         String    @id @default("singleton")
+  defaultTheme               String    @default("system")
+  autosaveDelayMs            Int       @default(750)
+  pageVersionIntervalMinutes Int       @default(5)
+  pageVersionRetentionDays   Int       @default(30)
+  pageVersionMaxCount        Int       @default(100)
+  backupEnabled              Boolean   @default(false)
+  backupSchedule             String    @default("daily")
+  backupTime                 String    @default("02:00")
+  backupRetentionCount       Int       @default(14)
+  backupRetentionDays        Int       @default(30)
+  lastScheduledBackupAt      DateTime?
+  backupConsecutiveFailures  Int       @default(0)
+  webdavEnabled              Boolean   @default(false)
+  webdavUrl                  String?
+  webdavUsername             String?
+  webdavPasswordEncrypted    String?
+  webdavRemoteDirectory      String    @default("notebook-backups")
+  s3Enabled                  Boolean   @default(false)
+  s3Endpoint                 String?
+  s3Region                   String    @default("us-east-1")
+  s3Bucket                   String?
+  s3AccessKeyId              String?
+  s3SecretAccessKeyEncrypted String?
+  s3Prefix                   String    @default("notebook-backups")
+  s3ForcePathStyle           Boolean   @default(false)
+  s3ProviderLabel            String?
+  remoteRetentionCount       Int       @default(30)
+  remoteRetentionDays        Int       @default(90)
+  editorSpellcheck           Boolean   @default(true)
+  editorCodeLineNumbers      Boolean   @default(false)
+  editorCompactMode          Boolean   @default(false)
+  editorContentWidth         String    @default("normal")
+  lastStorageAuditAt         DateTime?
+  createdAt                  DateTime  @default(now())
+  updatedAt                  DateTime  @updatedAt
 }
 
 model BackupRecord {
-  id            String    @id @default(cuid())
+  id            String             @id @default(cuid())
   type          String
   status        String
-  filename      String?   @unique
+  filename      String?            @unique
   size          BigInt?
   sha256        String?
-  remoteStatus  String    @default("not_configured")
+  remoteStatus  String             @default("not_configured")
   remoteEtag    String?
   errorCategory String?
-  createdAt     DateTime  @default(now())
+  createdAt     DateTime           @default(now())
   completedAt   DateTime?
   remoteCopies  BackupRemoteCopy[]
 
@@ -208,7 +291,7 @@ model BackupRecord {
 }
 
 model BackupRemoteCopy {
-  id             String    @id @default(cuid())
+  id             String       @id @default(cuid())
   backupRecordId String
   provider       String
   status         String
@@ -219,9 +302,9 @@ model BackupRemoteCopy {
   sha256         String?
   errorCategory  String?
   uploadedAt     DateTime?
-  lastAttemptAt  DateTime  @default(now())
-  createdAt      DateTime  @default(now())
-  updatedAt      DateTime  @updatedAt
+  lastAttemptAt  DateTime     @default(now())
+  createdAt      DateTime     @default(now())
+  updatedAt      DateTime     @updatedAt
   backupRecord   BackupRecord @relation(fields: [backupRecordId], references: [id], onDelete: Cascade)
 
   @@unique([backupRecordId, provider])
@@ -229,16 +312,16 @@ model BackupRemoteCopy {
 }
 
 model SystemNotification {
-  id        String    @id @default(cuid())
-  type      String
-  severity  String
-  title     String
-  message   String
-  dedupKey  String?
-  readAt    DateTime?
+  id         String    @id @default(cuid())
+  type       String
+  severity   String
+  title      String
+  message    String
+  dedupKey   String?
+  readAt     DateTime?
   resolvedAt DateTime?
-  createdAt DateTime  @default(now())
-  updatedAt DateTime  @updatedAt
+  createdAt  DateTime  @default(now())
+  updatedAt  DateTime  @updatedAt
 
   @@index([readAt, createdAt])
   @@index([dedupKey, resolvedAt])

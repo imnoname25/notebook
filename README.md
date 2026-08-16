@@ -17,6 +17,9 @@ Notebook — простая self-hosted цифровая записная кни
 - перемещение страниц между разделами, разделов между блокнотами и дублирование страниц;
 - breadcrumbs `Блокнот / Раздел / Страница`;
 - rate limiting локальной авторизации без дополнительных сервисов;
+- TOTP 2FA, одноразовые recovery-коды и challenge до создания сессии;
+- Capacitor Android-клиент с выбором self-hosted сервера и release APK pipeline;
+- отдельный ciphertext-only Vault API foundation без смешивания с заметками;
 - избранные страницы;
 - BlockNote: форматирование, заголовки H1–H3, списки, checklist, quote, code, ссылки, таблицы и изображения;
 - autosave заголовка и JSON-контента с debounce 750 мс и статусом сохранения;
@@ -65,6 +68,14 @@ Autosave продолжает обновлять страницу с debounce 75
 
 Сессия имеет 30-дневный idle timeout и 90-дневный absolute lifetime. `lastUsedAt` обновляется с ограниченной частотой. Истёкшие сессии opportunistic удаляются при создании новой; кнопка «Выйти на всех устройствах» отзывает все сессии текущего пользователя, включая текущую.
 
+В `Настройки → Безопасность` можно включить RFC-compatible TOTP: текущий пароль → QR/text secret → проверка шестизначного кода. Сессия при входе создаётся только после второго фактора. TOTP secret хранится через AES-256-GCM с `SETTINGS_ENCRYPTION_KEY`; 10 recovery-кодов показываются один раз и в БД остаются только их SHA-256 hashes. TOTP challenge ограничен пятью попытками и имеет короткий срок жизни. Потеря всех authenticators и recovery-кодов без резервной копии БД/ключа потребует административного восстановления непосредственно через БД.
+
+## Android и Vault foundation
+
+Capacitor project находится в `android-client/`; инструкции по APK, self-hosted URL, signing key и локальной сборке — в [ANDROID.md](ANDROID.md). Push в `main` создаёт debug artifact, а стабильный tag `v*` публикует подписанные universal APK/AAB в GitHub Release. Приложение не хранит пароль и использует текущую server-session модель.
+
+Vault пока является только server/protocol foundation. `VaultProfile`, `VaultFolder` и `VaultItem` хранят KDF metadata и непрозрачные encrypted payload; API расположен только под `/api/vault/*`, проверяет ownership и никогда не включает Vault в обычный поиск, PageVersion или Notebook export. Argon2id должен выполняться будущим клиентом, master key не должен отправляться серверу. Полноценный unlock/UI, аудитируемая client-side crypto и AutofillService ещё не реализованы, поэтому текущий foundation не называется готовым password manager или zero-knowledge продуктом.
+
 ## Требования для development
 
 - Node.js 24;
@@ -90,7 +101,7 @@ npm run dev
 | `UPLOAD_DIR` | каталог изображений, в контейнере `/data/uploads` |
 | `BACKUP_DIR` | приватный каталог локальных backup, в контейнере `/data/backups` |
 | `MAX_UPLOAD_SIZE_MB` | лимит одного изображения, по умолчанию 10 |
-| `SETTINGS_ENCRYPTION_KEY` | ровно 32 случайных байта в hex/base64 для AES-256-GCM шифрования WebDAV password и S3 secret key |
+| `SETTINGS_ENCRYPTION_KEY` | ровно 32 случайных байта в hex/base64 для AES-256-GCM шифрования WebDAV/S3 credentials и TOTP secret |
 | `POSTGRES_PASSWORD` | пароль Compose PostgreSQL |
 | `NOTEBOOK_PORT` | опубликованный порт Compose, по умолчанию 3000 |
 | `POSTGRES_DATA_PATH` | persistent PostgreSQL bind mount, на Unraid `/mnt/user/appdata/notebook/postgres` |
@@ -105,7 +116,7 @@ npm run dev
 
 ## Docker / Unraid
 
-Готовый production image публикуется workflow в `ghcr.io/metroom/notebook`. Unraid использует два XML template: `Notebook PostgreSQL` и `Notebook`; исходники, npm и Compose на сервере не нужны. Единственный инфраструктурный prerequisite — custom network:
+Готовый production image публикуется workflow в `ghcr.io/imnoname25/notebook`. Unraid использует два XML template: `Notebook PostgreSQL` и `Notebook`; исходники, npm и Compose на сервере не нужны. Единственный инфраструктурный prerequisite — custom network:
 
 ```bash
 docker network create notebook-net
@@ -114,6 +125,8 @@ docker network create notebook-net
 После установки PostgreSQL template установите Notebook template, заполните `DATABASE_URL`, `APP_ORIGIN`, `SETTINGS_ENCRYPTION_KEY` и откройте кнопку WebUI. Первый администратор по-прежнему создаётся в браузере.
 
 Push в `main` публикует multi-arch `edge` и `sha-*`; release tag `v*` публикует version tags и `latest`. Перед публикацией CI поднимает чистый PostgreSQL, проверяет migrations, readiness и restart production image.
+
+`latest` — стабильный канал Unraid, `edge` — текущий `main` для тестирования. После release Unraid Docker Manager получает новый digest через `Check for Updates`; стандартная кнопка `Update` сохраняет env/path mappings, скачивает image и запускает встроенный `prisma migrate deploy`. Встроенного self-updater нет.
 
 Compose сохранён для source/development deployment и использует те же env names и persistent paths:
 
@@ -275,7 +288,7 @@ Integration tests требуют отдельную БД и оба `TEST_DATABAS
 
 - env-only: `DATABASE_URL`, `APP_ORIGIN`, `UPLOAD_DIR`, `BACKUP_DIR`, import/upload limits и `SETTINGS_ENCRYPTION_KEY`;
 - DB: editor preferences, snapshot policy, backup schedule/retention и WebDAV metadata;
-- WebDAV password хранится в БД только как AES-256-GCM ciphertext с random nonce/tag. Без encryption key secret-настройки недоступны, но локальные backup продолжают работать.
+- WebDAV/S3 credentials и TOTP secret хранятся в БД только как AES-256-GCM ciphertext с random nonce/tag. Без encryption key secret-настройки и 2FA недоступны, но локальные backup продолжают работать.
 
 Editor settings: browser spellcheck, compact spacing, narrow/normal/wide content width, code line numbers и autosave 500–5000 мс. Snapshot interval допустим 1–60 минут, retention 7–365 дней и 20–500 версий; server остаётся source of truth.
 
@@ -303,7 +316,7 @@ WebDAV и S3 могут быть включены одновременно. У �
 
 Колокольчик в header показывает operational notifications: ошибки scheduled/local backup, повторные failures, WebDAV/S3 upload, критичный storage audit и результат restore. Активные одинаковые warnings deduplicated; success разрешает warning, прочитанные записи старше 90 дней и записи сверх 200 очищаются opportunistically. Email/webhook/realtime transport намеренно отсутствуют.
 
-Application backup v2 дополнительно сохраняет custom templates. Restore продолжает принимать backup v1; обычный notebook/page export остаётся совместимым с v1 и не включает settings, sessions, notification/remote metadata или secrets. Потеря `SETTINGS_ENCRYPTION_KEY` делает сохранённые WebDAV/S3 credentials нерасшифровываемыми — храните ключ вместе с конфигурацией deployment, отдельно от backup archive.
+Application backup v2 дополнительно сохраняет custom templates. Restore продолжает принимать backup v1; обычный notebook/page export остаётся совместимым с v1 и не включает settings, sessions, notification/remote metadata, Vault или secrets. Потеря `SETTINGS_ENCRYPTION_KEY` делает сохранённые WebDAV/S3 credentials и TOTP secret нерасшифровываемыми — храните ключ вместе с конфигурацией deployment, отдельно от backup archive.
 
 ## Диагностика и health
 
@@ -311,6 +324,7 @@ Application backup v2 дополнительно сохраняет custom templ
 - `/api/health/ready` — PostgreSQL, migration status и writable uploads/backups/temp;
 - `/api/health` — совместимый readiness endpoint для Docker;
 - `Настройки → Система` — версия Notebook из `package.json`, Node/environment, БД, миграции, storage/free space, counts, последний backup и client-side PWA status.
+- `Настройки → Система` также показывает Git SHA и Docker channel, когда image передал эти metadata.
 
 Health API не возвращает connection string, hostname, filesystem path, credentials или secrets. Migration check только читает `_prisma_migrations` и никогда не запускает migration.
 
@@ -324,7 +338,7 @@ Paste использует официальный BlockNote pipeline: plain text
 
 ## Следующий этап
 
-Приоритеты этапа 7: умеренные reusable page properties без Notion-подобных databases, напоминания и даты, расширенная command palette, будущие webhook notifications для backup, optional multi-user foundation без публичной регистрации, UI/UX polishing и onboarding.
+Приоритеты: Android AutofillService после отдельного security review; полноценный Vault UI и client-side Argon2id/encryption protocol; biometric unwrap Vault key; browser-extension-neutral Vault protocol; WebAuthn/passkeys; дополнительная проверка интерфейса на реальных Android/4K устройствах.
 
 ## Лицензия
 

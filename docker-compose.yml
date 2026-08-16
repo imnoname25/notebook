@@ -26,7 +26,7 @@ services:
         max-file: "3"
 
   notebook:
-    image: ${NOTEBOOK_IMAGE:-ghcr.io/metroom/notebook:latest}
+    image: ${NOTEBOOK_IMAGE:-ghcr.io/imnoname25/notebook:latest}
     build:
       context: .
       dockerfile: Dockerfile
@@ -54,6 +54,7 @@ services:
       PUID: "${PUID:-99}"
       PGID: "${PGID:-100}"
       UMASK: "${UMASK:-002}"
+      NOTEBOOK_CHANNEL: "${NOTEBOOK_CHANNEL:-stable}"
       FIX_PERMISSIONS: "${FIX_PERMISSIONS:-0}"
       DATABASE_WAIT_TIMEOUT_SECONDS: "${DATABASE_WAIT_TIMEOUT_SECONDS:-90}"
       TZ: "${TZ:-Etc/UTC}"

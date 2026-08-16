@@ -20,7 +20,7 @@ RUN npm ci --omit=dev --legacy-peer-deps --ignore-scripts \
     && npm cache clean --force
 
 FROM base AS builder
-ARG NOTEBOOK_VERSION=0.1.0
+ARG NOTEBOOK_VERSION=0.2.0
 ARG NOTEBOOK_GIT_SHA=unknown
 ENV NOTEBOOK_VERSION=${NOTEBOOK_VERSION} \
     NOTEBOOK_GIT_SHA=${NOTEBOOK_GIT_SHA}
@@ -29,9 +29,10 @@ COPY . .
 RUN npm run db:generate && npm run build
 
 FROM base AS runner
-ARG NOTEBOOK_VERSION=0.1.0
+ARG NOTEBOOK_VERSION=0.2.0
 ARG NOTEBOOK_GIT_SHA=unknown
-ARG OCI_SOURCE=https://github.com/metroom/notebook
+ARG NOTEBOOK_CHANNEL=unknown
+ARG OCI_SOURCE=https://github.com/imnoname25/notebook
 ENV NODE_ENV=production \
     NEXT_TELEMETRY_DISABLED=1 \
     HOSTNAME=0.0.0.0 \
@@ -40,7 +41,8 @@ ENV NODE_ENV=production \
     BACKUP_DIR=/data/backups \
     HOME=/tmp \
     NOTEBOOK_VERSION=${NOTEBOOK_VERSION} \
-    NOTEBOOK_GIT_SHA=${NOTEBOOK_GIT_SHA}
+    NOTEBOOK_GIT_SHA=${NOTEBOOK_GIT_SHA} \
+    NOTEBOOK_CHANNEL=${NOTEBOOK_CHANNEL}
 LABEL org.opencontainers.image.title="Notebook" \
       org.opencontainers.image.description="Simple self-hosted digital notebook" \
       org.opencontainers.image.source=${OCI_SOURCE} \

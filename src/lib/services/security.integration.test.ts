@@ -10,11 +10,13 @@ describe.skipIf(!enabled)("database ownership and mutation security", () => {
   let moves: typeof import("./move-service");
   let pages: typeof import("./page-service");
   let sessions: typeof import("@/lib/auth/session");
+  let vault: typeof import("./vault-service");
+  let exports: typeof import("./export-service");
   let ids: { userA: string; userB: string; notebookA: string; notebookA2: string; notebookB: string; sectionA: string; sectionA2: string; sectionB: string; pageA: string; versionA: string };
 
   beforeAll(async () => {
     ({ db } = await import("@/lib/db"));
-    versions = await import("./page-version-service"); moves = await import("./move-service"); pages = await import("./page-service"); sessions = await import("@/lib/auth/session");
+    versions = await import("./page-version-service"); moves = await import("./move-service"); pages = await import("./page-service"); sessions = await import("@/lib/auth/session"); vault = await import("./vault-service"); exports = await import("./export-service");
   });
   beforeEach(async () => {
     await db.user.deleteMany();
@@ -79,5 +81,14 @@ describe.skipIf(!enabled)("database ownership and mutation security", () => {
     ] });
     await sessions.cleanupExpiredSessions(now); expect(await db.session.count({ where: { userId: ids.userA } })).toBe(1);
     await sessions.revokeAllUserSessions(ids.userA); expect(await db.session.count({ where: { userId: ids.userA } })).toBe(0);
+  });
+
+  it("isolates opaque Vault ciphertext and excludes it from normal Notebook export", async () => {
+    const profile = { kdfAlgorithm: "argon2id" as const, kdfSalt: "A".repeat(24), kdfMemoryKiB: 65_536, kdfIterations: 3, kdfParallelism: 1, verifier: "B".repeat(32), encryptedKeyset: "C".repeat(64), encryptionVersion: 1 as const };
+    await vault.createVaultProfile(ids.userA, profile); await vault.createVaultProfile(ids.userB, { ...profile, kdfSalt: "D".repeat(24), verifier: "E".repeat(32) });
+    const encryptedPayload = "VGhpcy1pcy1vcGFxdWUtY2lwaGVydGV4dA==";
+    const item = await vault.createVaultItem(ids.userA, { itemType: "login", encryptedPayload, encryptionVersion: 1 });
+    await expect(vault.updateVaultItem(ids.userB, item.id, { encryptedPayload: "R".repeat(32) })).rejects.toMatchObject({ status: 404 });
+    expect(JSON.stringify(await exports.buildPortableExport(ids.userA, { includeDeleted: false, includeHistory: false, backup: false }))).not.toContain(encryptedPayload);
   });
 });

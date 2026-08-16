@@ -1,0 +1,19 @@
+{
+  "name": "notebook-android-client",
+  "version": "0.2.0",
+  "type": "module",
+  "private": true,
+  "scripts": {
+    "sync": "cap sync android",
+    "check": "node scripts/validate-client.mjs && node scripts/check-server-url.mjs",
+    "build:debug": "npm run sync && cd android && gradlew.bat assembleDebug",
+    "build:release": "npm run sync && cd android && gradlew.bat assembleRelease bundleRelease"
+  },
+  "dependencies": {
+    "@capacitor/android": "8.5.0",
+    "@capacitor/core": "8.5.0"
+  },
+  "devDependencies": {
+    "@capacitor/cli": "8.5.0"
+  }
+}

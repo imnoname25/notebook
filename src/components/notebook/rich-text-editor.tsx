@@ -9,6 +9,8 @@ import { useTheme } from "next-themes";
 import { Check, CloudAlert, FileText, Loader2 } from "lucide-react";
 import { api, jsonOptions } from "@/lib/client-api";
 import { cn } from "@/lib/utils";
+import { notebookBlockNoteDictionary } from "@/lib/i18n/blocknote";
+import { t } from "@/lib/i18n/messages";
 import type { EditorSaveController, PageDocument } from "./types";
 import { normalizeEditorBlocks, notebookEditorSchema, notebookSyntaxHighlighting, slashMenuItems } from "./editor-schema";
 
@@ -44,6 +46,7 @@ export function RichTextEditor({ page, onSaved, onController, onInternalNavigate
     uploadFile,
     extensions: [notebookSyntaxHighlighting],
     tables: { headers: true, splitCells: true },
+    dictionary: notebookBlockNoteDictionary,
   }, [page.id]);
 
   const mentionItems = useCallback(async (query: string) => {
@@ -92,7 +95,7 @@ export function RichTextEditor({ page, onSaved, onController, onInternalNavigate
 
   useEffect(() => {
     const root = editorRoot.current; if (!root) return;
-    const enhance = () => root.querySelectorAll<HTMLElement>('[data-content-type="codeBlock"]').forEach((block) => { if (block.querySelector(".notebook-code-copy")) return; const button = document.createElement("button"); button.type = "button"; button.className = "notebook-code-copy"; button.contentEditable = "false"; button.textContent = "Копировать"; button.setAttribute("aria-label", "Копировать код"); block.appendChild(button); });
+    const enhance = () => root.querySelectorAll<HTMLElement>('[data-content-type="codeBlock"]').forEach((block) => { if (block.querySelector(".notebook-code-copy")) return; const button = document.createElement("button"); button.type = "button"; button.className = "notebook-code-copy"; button.contentEditable = "false"; button.textContent = t("editor.copyCode"); button.setAttribute("aria-label", t("editor.copyCode")); block.appendChild(button); });
     enhance(); const observer = new MutationObserver(enhance); observer.observe(root, { childList: true, subtree: true }); return () => observer.disconnect();
   }, [editor]);
 
@@ -100,16 +103,16 @@ export function RichTextEditor({ page, onSaved, onController, onInternalNavigate
 
   return <div className="flex min-h-0 flex-1 flex-col">
     <div className={cn("mx-auto flex w-full shrink-0 items-center gap-4 px-5 pt-7 md:px-12 md:pt-10", width)}>
-      <h1 className="notebook-print-title hidden">{title}</h1><input value={title} onChange={(event) => { const nextTitle = event.target.value; setTitle(nextTitle); schedule({ title: nextTitle.trim() || "Без названия", content: editor.document }); }} placeholder="Название страницы" className="notebook-page-title-input min-w-0 flex-1 bg-transparent text-2xl font-semibold tracking-tight outline-none placeholder:text-muted-foreground/50 md:text-3xl" />
+      <h1 className="notebook-print-title hidden">{title}</h1><input value={title} onChange={(event) => { const nextTitle = event.target.value; setTitle(nextTitle); schedule({ title: nextTitle.trim() || t("editor.untitled"), content: editor.document }); }} placeholder={t("editor.pageTitlePlaceholder")} className="notebook-page-title-input min-w-0 flex-1 bg-transparent text-2xl font-semibold tracking-tight outline-none placeholder:text-muted-foreground/50 md:text-3xl" />
       <time className="notebook-print-date hidden">Изменено {new Date(page.updatedAt).toLocaleString("ru")}</time>
-      <span className="flex shrink-0 items-center gap-1.5 text-xs text-muted-foreground" aria-live="polite">
-        {status === "saving" && <><Loader2 size={13} className="animate-spin" />Сохранение...</>}
-        {status === "saved" && <><Check size={13} />Сохранено</>}
-        {status === "error" && <><CloudAlert size={13} />Не сохранено</>}
+      <span className="flex shrink-0 items-center gap-1 text-[12.5px] text-muted-foreground/90" aria-live="polite">
+        {status === "saving" && <><Loader2 size={12} className="animate-spin" />{t("editor.saving")}</>}
+        {status === "saved" && <><Check size={12} />{t("editor.saved")}</>}
+        {status === "error" && <><CloudAlert size={12} className="text-destructive" />{t("editor.saveError")}</>}
       </span>
     </div>
-    <div ref={editorRoot} spellCheck={preferences.editorSpellcheck} className={cn("notebook-editor mx-auto min-h-0 w-full flex-1 overflow-y-auto px-1 pb-20 pt-5 md:px-8", width, preferences.editorCompactMode && "notebook-editor-compact", preferences.editorCodeLineNumbers && "notebook-code-lines")} onClickCapture={(event) => { const target = event.target as HTMLElement; const copy = target.closest(".notebook-code-copy"); if (copy) { event.preventDefault(); const text = copy.parentElement?.querySelector("code")?.textContent ?? ""; void navigator.clipboard.writeText(text).then(() => { copy.textContent = "Скопировано"; window.setTimeout(() => { copy.textContent = "Копировать"; }, 1200); }); return; } const anchor = target.closest("a"); if (!anchor) return; if (anchor.getAttribute("href")?.startsWith("notebook-page://")) { event.preventDefault(); anchor.dataset.broken = "true"; return; } const match = new URL(anchor.href, window.location.origin).pathname.match(/^\/pages\/([^/]+)$/); if (!match?.[1]) return; event.preventDefault(); void onInternalNavigate(match[1]).catch(() => { anchor.dataset.broken = "true"; }); }}>
-      <BlockNoteView editor={editor} slashMenu={false} theme={resolvedTheme === "dark" ? "dark" : "light"} onChange={() => schedule({ title: title.trim() || "Без названия", content: editor.document })}><SuggestionMenuController triggerCharacter="/" getItems={slashItems}/><SuggestionMenuController triggerCharacter="[[" getItems={mentionItems}/></BlockNoteView>
+    <div ref={editorRoot} spellCheck={preferences.editorSpellcheck} className={cn("notebook-editor mx-auto min-h-0 w-full flex-1 overflow-y-auto px-1 pb-20 pt-5 md:px-8", width, preferences.editorCompactMode && "notebook-editor-compact", preferences.editorCodeLineNumbers && "notebook-code-lines")} onClickCapture={(event) => { const target = event.target as HTMLElement; const copy = target.closest(".notebook-code-copy"); if (copy) { event.preventDefault(); const text = copy.parentElement?.querySelector("code")?.textContent ?? ""; void navigator.clipboard.writeText(text).then(() => { copy.textContent = t("editor.copied"); window.setTimeout(() => { copy.textContent = t("editor.copyCode"); }, 1200); }); return; } const anchor = target.closest("a"); if (!anchor) return; if (anchor.getAttribute("href")?.startsWith("notebook-page://")) { event.preventDefault(); anchor.dataset.broken = "true"; return; } const match = new URL(anchor.href, window.location.origin).pathname.match(/^\/pages\/([^/]+)$/); if (!match?.[1]) return; event.preventDefault(); void onInternalNavigate(match[1]).catch(() => { anchor.dataset.broken = "true"; }); }}>
+      <BlockNoteView editor={editor} slashMenu={false} theme={resolvedTheme === "dark" ? "dark" : "light"} onChange={() => schedule({ title: title.trim() || t("editor.untitled"), content: editor.document })}><SuggestionMenuController triggerCharacter="/" getItems={slashItems}/><SuggestionMenuController triggerCharacter="[[" getItems={mentionItems}/></BlockNoteView>
     </div>
   </div>;
 }

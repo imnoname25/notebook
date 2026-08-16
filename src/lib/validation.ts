@@ -7,6 +7,9 @@ export const credentialsSchema = z.object({
   password: z.string().min(8).max(128),
 });
 export const setupSchema = credentialsSchema.extend({ name: z.string().trim().min(1).max(100) });
+export const twoFactorCodeSchema = z.object({ code: z.string().trim().min(6).max(32) }).strict();
+export const twoFactorSetupSchema = z.object({ password: z.string().min(8).max(128) }).strict();
+export const twoFactorDisableSchema = twoFactorSetupSchema.extend({ code: z.string().trim().min(6).max(32) }).strict();
 export const notebookCreateSchema = z.object({ title, icon: z.enum(NOTEBOOK_ICONS).optional(), color: z.enum(NOTEBOOK_COLORS).optional() }).strict();
 export const notebookUpdateSchema = notebookCreateSchema.partial().strict();
 export const sectionCreateSchema = z.object({ notebookId: z.string().min(1), parentId: z.string().min(1).nullable().optional(), title, icon: z.string().max(40).nullable().optional() });

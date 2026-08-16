@@ -10,6 +10,9 @@ test("new sensitive APIs require authentication", async ({ request }) => {
     request.post("/api/sections/foreign/move", { data: { destinationNotebookId: "foreign" } }),
     request.post("/api/pages/foreign/duplicate"),
     request.post("/api/auth/logout-all"),
+    request.get("/api/auth/2fa"),
+    request.post("/api/auth/2fa/setup", { data: { password: "not-a-real-password" } }),
+    request.post("/api/auth/2fa/challenge", { data: { code: "000000" } }),
     request.get("/api/uploads/foreign"),
     request.get("/api/attachments"),
     request.get("/api/data/export/all"),
@@ -32,6 +35,10 @@ test("new sensitive APIs require authentication", async ({ request }) => {
     request.post("/api/backups/foreign/retry?provider=s3"),
     request.post("/api/backups/foreign/remote-restore", { data: { provider: "s3" } }),
     request.get("/api/system"),
+    request.get("/api/vault/profile"),
+    request.post("/api/vault/profile", { data: {} }),
+    request.get("/api/vault/items"),
+    request.get("/api/vault/folders"),
   ];
   for (const response of await Promise.all(calls)) expect(response.status()).toBe(401);
 });

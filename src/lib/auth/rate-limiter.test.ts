@@ -15,4 +15,10 @@ describe("authentication rate limiter", () => {
     for (let count = 0; count < LOGIN_FAILURE_LIMIT; count += 1) limiter.recordFailure("one:user");
     expect(limiter.check("two:user").allowed).toBe(true); expect(limiter.check("one:other").allowed).toBe(true);
   });
+  it("applies the stricter TOTP challenge policy and clears it after success", () => {
+    const limiter = new MemoryAuthRateLimiter(() => 10_000, { failureLimit: 2, failureWindowMs: 60_000, blockMs: 120_000 });
+    limiter.recordFailure("ip:challenge"); expect(limiter.check("ip:challenge").allowed).toBe(true);
+    limiter.recordFailure("ip:challenge"); expect(limiter.check("ip:challenge").allowed).toBe(false);
+    limiter.clear("ip:challenge"); expect(limiter.check("ip:challenge").allowed).toBe(true);
+  });
 });
