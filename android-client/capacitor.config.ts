@@ -10,6 +10,16 @@ const config: CapacitorConfig = {
   },
   plugins: {
     CapacitorHttp: { enabled: true },
+    StatusBar: {
+      overlaysWebView: false,
+      style: "DEFAULT",
+      backgroundColor: "#fafafa",
+    },
+    SystemBars: {
+      insetsHandling: "css",
+      style: "DEFAULT",
+      hidden: false,
+    },
   },
 };
 

@@ -1,5 +1,18 @@
 import { normalizeServerUrl } from "./server-url.js";
 
+async function configureStatusBar() {
+  const StatusBar = globalThis.Capacitor?.Plugins?.StatusBar;
+  if (!StatusBar) return;
+  const dark = globalThis.matchMedia?.("(prefers-color-scheme: dark)").matches ?? false;
+  await StatusBar.setOverlaysWebView({ overlay: false });
+  await StatusBar.setStyle({ style: dark ? "DARK" : "LIGHT" });
+  await StatusBar.setBackgroundColor({ color: dark ? "#18181b" : "#fafafa" });
+}
+
+void configureStatusBar().catch(() => {
+  // CSS safe-area insets remain the fallback on enforced edge-to-edge Android versions.
+});
+
 const CURRENT_VERSION = "0.2.0";
 const SUPPORTED_SERVER_API_VERSION = 1;
 const input = document.querySelector("#server");

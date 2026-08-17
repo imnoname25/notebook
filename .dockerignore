@@ -11,7 +11,6 @@ test-results
 e2e
 unraid
 docs
-scripts
 *.log
 npm-debug.log*
 tsconfig.tsbuildinfo

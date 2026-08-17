@@ -5,6 +5,7 @@ import { fileURLToPath } from "node:url";
 
 const root = resolve(fileURLToPath(new URL("..", import.meta.url)));
 const dockerfile = readFileSync(resolve(root, "Dockerfile"), "utf8");
+const dockerignore = readFileSync(resolve(root, ".dockerignore"), "utf8");
 const entrypoint = readFileSync(resolve(root, "docker/notebook-entrypoint.sh"), "utf8");
 const packageJson = JSON.parse(readFileSync(resolve(root, "package.json"), "utf8"));
 const entrypointLines = entrypoint.split(/\r?\n/).map((line) => line.trim());
@@ -35,6 +36,7 @@ assert(
   "preflight.mjs must be installed at /app/docker/preflight.mjs",
 );
 assert(dockerfile.includes("COPY --from=builder /app/scripts ./scripts"), "production image must include recovery scripts under /app/scripts");
+assert(dockerfile.includes("COPY --from=builder /app/shared ./shared"), "production image must include shared runtime modules under /app/shared");
 assert(dockerfile.includes("chmod 0755 /app/scripts/admin-recovery.mjs"), "admin recovery CLI must be executable in the production image");
 const recoveryCli = readFileSync(resolve(root, "scripts/admin-recovery.mjs"), "utf8");
 assert(recoveryCli.includes('from "./admin-recovery-service.mjs"'), "CLI must use the shared recovery service");
@@ -42,7 +44,19 @@ assert(recoveryCli.includes('from "./admin-recovery-db.mjs"'), "CLI database ada
 assert(!recoveryCli.includes("PrismaClient"), "runtime recovery CLI must not import the TypeScript-generated Prisma client directly");
 assert(!/--password|process\.env\.[A-Z_]*PASSWORD/.test(recoveryCli), "recovery password must only be accepted through hidden TTY input");
 assert(recoveryCli.includes("RESET"), "recovery CLI must require an explicit destructive-action confirmation");
-assert(readFileSync(resolve(root, "src/lib/auth/password.ts"), "utf8").includes('scripts/auth-password.mjs'), "application password service must use the same runtime implementation as recovery");
+const applicationPassword = readFileSync(resolve(root, "src/lib/auth/password.ts"), "utf8");
+const recoveryService = readFileSync(resolve(root, "scripts/admin-recovery-service.mjs"), "utf8");
+const sharedPassword = readFileSync(resolve(root, "shared/auth-password.mjs"), "utf8");
+assert(applicationPassword.includes('shared/auth-password.mjs'), "application password wrapper must import the shared runtime implementation");
+assert(!applicationPassword.includes("scripts/"), "application password code must not depend on /scripts");
+assert(recoveryService.includes('../shared/auth-password.mjs'), "recovery service must import the same shared password implementation");
+assert(sharedPassword.includes("export const KEY_LENGTH = 64"), "shared password key length must remain 64 bytes");
+assert(sharedPassword.includes("export const SALT_BYTES = 16"), "shared password salt must remain 16 bytes");
+assert(sharedPassword.includes('return `scrypt:${salt}:${derived.toString("hex")}`'), "stored password hash format must remain unchanged");
+const ignoredPaths = dockerignore.split(/\r?\n/).map((line) => line.trim()).filter((line) => line && !line.startsWith("#"));
+assert(!ignoredPaths.includes("shared") && !ignoredPaths.includes("shared/**"), "shared runtime modules must be present in the Docker build context");
+assert(!ignoredPaths.includes("scripts") && !ignoredPaths.includes("scripts/**"), "recovery scripts must be present in the Docker build context");
+assert(dockerfile.indexOf("COPY . .") < dockerfile.indexOf("RUN npm run db:generate && npm run build"), "shared modules must enter the builder before the Next.js build");
 assert(
   entrypointLines.includes('node "$APP_DIR/docker/preflight.mjs"'),
   "entrypoint must execute preflight.mjs from the application tree during root bootstrap",

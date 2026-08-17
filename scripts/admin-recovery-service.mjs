@@ -1,4 +1,4 @@
-import { hashPassword } from "./auth-password.mjs";
+import { hashPassword } from "../shared/auth-password.mjs";
 
 export async function recoverAdministrator(db, userId, options) {
   if (!options.resetPassword && !options.disableTotp) throw new Error("Не выбрано действие восстановления");

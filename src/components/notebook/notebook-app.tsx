@@ -19,6 +19,7 @@ import { VersionHistory } from "./version-history";
 import { DataSettings } from "./data-settings";
 import { SettingsDialog } from "./settings-dialog";
 import { NotificationCenter } from "./notification-center";
+import { MobileAppHeader } from "./mobile-app-header";
 import { PrintDialog } from "./print-dialog";
 import { TemplateManager, TemplatePicker, type PageTemplate } from "./template-dialogs";
 import type { EditorSaveController, Notebook, PageDocument, PageSummary, Section } from "./types";
@@ -57,6 +58,7 @@ export function NotebookApp({ user, initialLocation }: { user: { id: string; nam
   const [templatePickerOpen, setTemplatePickerOpen] = useState(false);
   const [templateManagerOpen, setTemplateManagerOpen] = useState(false);
   const [printOpen, setPrintOpen] = useState(false);
+  const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const editorController = useRef<EditorSaveController | null>(null);
   const activePageRef = useRef<PageDocument | null>(null);
   const initialPageOpened = useRef(false);
@@ -260,8 +262,9 @@ export function NotebookApp({ user, initialLocation }: { user: { id: string; nam
     catch { report(new Error("Не удалось скопировать ссылку")); }
   }
 
-  return <div data-density={density} className="flex h-dvh flex-col overflow-hidden bg-background text-foreground">
-    <header className="notebook-no-print flex h-14 shrink-0 items-center border-b border-border/60 px-4">
+  return <div data-density={density} className="notebook-app-shell flex h-dvh flex-col overflow-hidden bg-background text-foreground">
+    <MobileAppHeader userName={user.name} theme={theme} resolvedTheme={resolvedTheme} menuOpen={mobileMenuOpen} onMenu={() => { setScreen("workspace"); setMobileView("navigation"); }} onSearch={() => setSearchOpen(true)} onMenuOpenChange={setMobileMenuOpen} onSettings={() => setSettingsOpen(true)} onTheme={() => setTheme(theme === "system" ? "light" : theme === "light" ? "dark" : "system")} onLogout={() => void logout()} onLogoutAll={() => void logoutAll()} onError={report}/>
+    <header data-testid="desktop-app-header" className="notebook-no-print hidden h-14 shrink-0 items-center border-b border-border/60 px-4 md:flex">
       <div className="flex items-center gap-2 font-semibold"><span className="flex size-8 items-center justify-center rounded-lg bg-primary text-primary-foreground"><BookOpen size={17} /></span>Notebook</div>{activeNotebook && <div className="ml-4 hidden min-w-0 items-center gap-2 border-l border-border/60 pl-4 text-sm sm:flex"><span className={cn("flex size-6 shrink-0 items-center justify-center rounded-md text-white", activeNotebookColor)}><ActiveNotebookIcon size={14}/></span><span className="max-w-40 truncate">{activeNotebook.title}</span></div>}
       <div className="ml-auto flex items-center gap-1"><NotificationCenter onError={report}/><Button variant="ghost" size="icon" className="size-11" aria-label="Поиск" title="Поиск (Ctrl/Cmd + K)" onClick={() => setSearchOpen(true)}><Search size={17} /></Button><Button variant="ghost" size="icon" className="size-11" aria-label="Настройки" onClick={() => setSettingsOpen(true)}><Settings size={17}/></Button><Button variant="ghost" size="icon" className="size-11" aria-label="Переключить тему" title={`Тема: ${theme === "system" ? "системная" : theme === "dark" ? "тёмная" : "светлая"}`} onClick={() => setTheme(theme === "system" ? "light" : theme === "light" ? "dark" : "system")}>{theme === "system" ? <Monitor size={17} /> : resolvedTheme === "dark" ? <Moon size={17} /> : <Sun size={17} />}</Button><span className="hidden px-2 text-xs text-muted-foreground sm:block">{user.name}</span><Button variant="ghost" size="icon" className="hidden size-11 sm:inline-flex" aria-label="Выйти на всех устройствах" title="Выйти на всех устройствах" onClick={() => void logoutAll()}><ShieldCheck size={17}/></Button><Button variant="ghost" size="icon" className="size-11" aria-label="Выйти" onClick={() => void logout()}><LogOut size={17} /></Button></div>
     </header>

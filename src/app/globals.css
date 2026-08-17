@@ -68,6 +68,10 @@
 html, body { min-height: 100%; }
 body { margin: 0; background: var(--background); color: var(--foreground); font-family: var(--font-sans); }
 button, [role="button"] { cursor: pointer; }
+.notebook-app-shell { padding-top: var(--safe-area-inset-top, env(safe-area-inset-top, 0px)); }
+.notebook-mobile-header { min-height: 3.5rem; }
+.notebook-mobile-sheet { padding-bottom: max(1rem, var(--safe-area-inset-bottom, env(safe-area-inset-bottom, 0px))); }
+.notebook-mobile-dialog { padding-bottom: var(--safe-area-inset-bottom, env(safe-area-inset-bottom, 0px)); }
 .notebook-no-print button:has(> .lucide-shield-check) { display: none; }
 .input { min-height: 2.75rem; width: 100%; border-radius: 0.5rem; background: var(--background); padding: 0.5rem 0.75rem; color: var(--foreground); box-shadow: inset 0 0 0 1px var(--border); outline: none; }
 .input:focus { box-shadow: inset 0 0 0 1px var(--ring), 0 0 0 2px color-mix(in oklab, var(--ring) 20%, transparent); }
