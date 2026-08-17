@@ -7,6 +7,7 @@ import { NotificationCenter } from "./notification-center";
 
 type MobileAppHeaderProps = {
   userName: string;
+  isAdmin: boolean;
   theme: string | undefined;
   resolvedTheme: string | undefined;
   menuOpen: boolean;
@@ -36,7 +37,7 @@ export function MobileAppHeader(props: MobileAppHeaderProps) {
         <Dialog.Title className="sr-only">Меню приложения</Dialog.Title>
         <div className="flex min-h-14 items-center border-b border-border/60 px-4"><div className="min-w-0 flex-1"><p className="truncate text-sm font-semibold">{props.userName}</p><p className="text-xs text-muted-foreground">Аккаунт Notebook</p></div><Button variant="ghost" size="icon" className="size-11" aria-label="Закрыть меню" onClick={close}><X size={18}/></Button></div>
         <div className="p-2">
-          <NotificationCenter onError={props.onError} trigger="menu"/>
+          {props.isAdmin && <NotificationCenter onError={props.onError} trigger="menu"/>}
           <button className="flex min-h-11 w-full items-center gap-3 rounded-lg px-3 text-sm hover:bg-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring" onClick={() => { close(); props.onSettings(); }}><Settings size={18}/><span>Настройки</span></button>
           <button className="flex min-h-11 w-full items-center gap-3 rounded-lg px-3 text-sm hover:bg-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring" onClick={() => { close(); props.onTheme(); }}><ThemeIcon size={18}/><span>Переключить тему</span></button>
           <button className="flex min-h-11 w-full items-center gap-3 rounded-lg px-3 text-sm text-muted-foreground hover:bg-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring" onClick={() => { close(); props.onLogoutAll(); }}><ShieldCheck size={18}/><span>Выйти на всех устройствах</span></button>

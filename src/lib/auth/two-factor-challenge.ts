@@ -36,7 +36,7 @@ export async function getTwoFactorChallenge() {
   if (!token) return null;
   const challenge = await db.authChallenge.findUnique({
     where: { tokenHash: hashChallengeToken(token) },
-    include: { user: { select: { id: true, email: true, totpEnabledAt: true, totpSecretEncrypted: true } } },
+    include: { user: { select: { id: true, email: true, totpEnabledAt: true, totpSecretEncrypted: true, disabledAt: true, mustChangePassword: true } } },
   });
   if (!challenge || challenge.expiresAt <= new Date() || challenge.attempts >= TWO_FACTOR_CHALLENGE_MAX_ATTEMPTS) {
     if (challenge) await db.authChallenge.deleteMany({ where: { id: challenge.id } });

@@ -11,7 +11,7 @@ export async function POST(request: NextRequest) {
     validateRequestOrigin(request);
     const { code } = twoFactorCodeSchema.parse(await readJson(request));
     const challenge = await getTwoFactorChallenge();
-    if (!challenge?.user.totpEnabledAt || !challenge.user.totpSecretEncrypted) throw new ApiError(401, "Проверка входа истекла. Введите пароль ещё раз");
+    if (!challenge?.user.totpEnabledAt || !challenge.user.totpSecretEncrypted || challenge.user.disabledAt) throw new ApiError(401, "Проверка входа истекла. Введите пароль ещё раз");
     const limitKey = authRateLimitKey(request.headers, `totp:${challenge.id}`);
     if (!totpRateLimiter.check(limitKey).allowed) throw new ApiError(429, "Слишком много попыток. Повторите позже");
     if (!(await verifyUserSecondFactor(challenge.userId, challenge.user.totpSecretEncrypted, code))) {
@@ -22,7 +22,7 @@ export async function POST(request: NextRequest) {
     if (!(await consumeTwoFactorChallenge(challenge.id))) throw new ApiError(401, "Проверка входа уже использована");
     totpRateLimiter.clear(limitKey);
     await createSession(challenge.userId);
-    return NextResponse.json({ ok: true });
+    return NextResponse.json({ ok: true, mustChangePassword: challenge.user.mustChangePassword });
   } catch (error) {
     return apiError(error);
   }

@@ -47,15 +47,19 @@ export async function revokeAllUserSessions(userId: string) {
   return db.session.deleteMany({ where: { userId } });
 }
 
+export async function clearSessionCookie() {
+  (await cookies()).delete(SESSION_COOKIE);
+}
+
 export async function getCurrentUser() {
   const token = (await cookies()).get(SESSION_COOKIE)?.value;
   if (!token) return null;
   const session = await db.session.findUnique({
     where: { tokenHash: hashSessionToken(token) },
-    include: { user: { select: { id: true, email: true, name: true } } },
+    include: { user: { select: { id: true, email: true, name: true, role: true, disabledAt: true, mustChangePassword: true } } },
   });
   const now = new Date();
-  if (!session || sessionIsExpired(session, now)) {
+  if (!session || sessionIsExpired(session, now) || session.user.disabledAt) {
     if (session) await db.session.deleteMany({ where: { id: session.id } });
     return null;
   }

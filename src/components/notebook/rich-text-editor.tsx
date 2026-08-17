@@ -33,7 +33,7 @@ export function RichTextEditor({ page, onSaved, onController, onInternalNavigate
   const latest = useRef<SavePayload>({ title: page.title, content: page.content });
   const onSavedRef = useRef(onSaved);
   useEffect(() => { onSavedRef.current = onSaved; }, [onSaved]);
-  useEffect(() => { let cancelled = false; void api<{ settings: EditorPreferences }>("/api/settings").then(({ settings }) => { if (!cancelled) setPreferences(settings); }).catch(() => undefined); return () => { cancelled = true; }; }, []);
+  useEffect(() => { let cancelled = false; void api<{ settings: EditorPreferences }>("/api/account/preferences").then(({ settings }) => { if (!cancelled) setPreferences(settings); }).catch(() => undefined); return () => { cancelled = true; }; }, []);
 
   async function uploadFile(file: File) {
     const form = new FormData(); form.append("file", file); form.append("pageId", page.id);

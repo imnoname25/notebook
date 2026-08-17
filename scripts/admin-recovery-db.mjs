@@ -16,6 +16,7 @@ function transactionClient(client) {
           totpSecretEncrypted: "totpSecretEncrypted",
           totpPendingSecretEncrypted: "totpPendingSecretEncrypted",
           totpPendingCreatedAt: "totpPendingCreatedAt",
+          mustChangePassword: "mustChangePassword",
         };
         const entries = Object.entries(data);
         if (!entries.length) return;
@@ -42,7 +43,7 @@ export function createRecoveryDatabase(connectionString) {
     user: {
       async findMany() {
         const result = await pool.query(
-          'SELECT "id", "name", "email", "totpEnabledAt" FROM "User" ORDER BY "createdAt" ASC',
+          'SELECT "id", "name", "email", "totpEnabledAt" FROM "User" WHERE "role" = \'ADMIN\' ORDER BY "createdAt" ASC',
         );
         return result.rows;
       },

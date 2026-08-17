@@ -18,6 +18,19 @@ export function validateRequestOrigin(request: NextRequest) {
 export async function requireUser(): Promise<CurrentUser> {
   const user = await getCurrentUser();
   if (!user) throw new ApiError(401, "Требуется авторизация");
+  if (user.mustChangePassword) throw new ApiError(403, "Необходимо изменить временный пароль");
+  return user;
+}
+
+export async function requireAccountUser(): Promise<CurrentUser> {
+  const user = await getCurrentUser();
+  if (!user) throw new ApiError(401, "Требуется авторизация");
+  return user;
+}
+
+export async function requireAdmin(): Promise<CurrentUser> {
+  const user = await requireUser();
+  if (user.role !== "ADMIN") throw new ApiError(403, "Недостаточно прав");
   return user;
 }
 

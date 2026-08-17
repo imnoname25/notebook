@@ -7,11 +7,19 @@ datasource db {
   provider = "postgresql"
 }
 
+enum UserRole {
+  ADMIN
+  USER
+}
+
 model User {
   id                         String             @id @default(cuid())
   email                      String             @unique
   passwordHash               String
   name                       String
+  role                       UserRole           @default(USER)
+  disabledAt                 DateTime?
+  mustChangePassword         Boolean            @default(false)
   totpEnabledAt              DateTime?
   totpSecretEncrypted        String?
   totpPendingSecretEncrypted String?
@@ -25,6 +33,21 @@ model User {
   authChallenges             AuthChallenge[]
   totpRecoveryCodes          TotpRecoveryCode[]
   vaultProfile               VaultProfile?
+  settings                   UserSettings?
+
+  @@index([role, disabledAt])
+}
+
+model UserSettings {
+  userId                String   @id
+  interfaceDensity      String   @default("comfortable")
+  editorSpellcheck      Boolean  @default(true)
+  editorCodeLineNumbers Boolean  @default(false)
+  editorCompactMode     Boolean  @default(false)
+  editorContentWidth    String   @default("normal")
+  createdAt             DateTime @default(now())
+  updatedAt             DateTime @updatedAt
+  user                  User     @relation(fields: [userId], references: [id], onDelete: Cascade)
 }
 
 model AuthChallenge {

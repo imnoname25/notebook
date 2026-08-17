@@ -18,7 +18,7 @@ export async function POST(request: NextRequest) {
     if (!limit.allowed) throw new ApiError(429, "Слишком много попыток входа. Повторите позже");
     const user = await db.user.findUnique({ where: { email: input.email } });
     const passwordValid = await verifyPassword(input.password, user?.passwordHash ?? DUMMY_PASSWORD_HASH);
-    if (!user || !passwordValid) { authRateLimiter.recordFailure(limitKey); throw new ApiError(401, "Неверный email или пароль"); }
+    if (!user || !passwordValid || user.disabledAt) { authRateLimiter.recordFailure(limitKey); throw new ApiError(401, "Неверный email или пароль"); }
     authRateLimiter.clear(limitKey);
     if (user.totpEnabledAt) {
       if (!user.totpSecretEncrypted) throw new ApiError(500, "Настройка двухфакторной аутентификации повреждена");
@@ -26,7 +26,7 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ ok: true, requiresTwoFactor: true });
     }
     await createSession(user.id);
-    return NextResponse.json({ ok: true });
+    return NextResponse.json({ ok: true, mustChangePassword: user.mustChangePassword });
   } catch (error) {
     return apiError(error);
   }

@@ -15,7 +15,7 @@ export async function POST(request: NextRequest) {
     if (!authRateLimiter.check(limitKey).allowed) throw new ApiError(429, "Слишком много попыток. Повторите позже");
     const user = await db.$transaction(async (tx) => {
       if ((await tx.user.count()) > 0) throw new ApiError(409, "Первый пользователь уже создан");
-      return tx.user.create({ data: { email: input.email, name: input.name, passwordHash: await hashPassword(input.password) }, select: { id: true } });
+      return tx.user.create({ data: { email: input.email, name: input.name, passwordHash: await hashPassword(input.password), role: "ADMIN" }, select: { id: true } });
     }, { isolationLevel: "Serializable" });
     await createSession(user.id);
     authRateLimiter.clear(limitKey);

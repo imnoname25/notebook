@@ -3,9 +3,12 @@ import { NOTEBOOK_COLORS, NOTEBOOK_ICONS } from "@/lib/notebook-appearance";
 import { ACCENT_COLORS, isPageIcon } from "@/lib/content-appearance";
 
 const title = z.string().trim().min(1).max(200);
+export const PASSWORD_MIN_LENGTH = 8;
+export const PASSWORD_MAX_LENGTH = 128;
+export const passwordSchema = z.string().min(PASSWORD_MIN_LENGTH).max(PASSWORD_MAX_LENGTH);
 export const credentialsSchema = z.object({
   email: z.string().trim().toLowerCase().pipe(z.email()),
-  password: z.string().min(8).max(128),
+  password: passwordSchema,
 });
 export const setupSchema = credentialsSchema.extend({ name: z.string().trim().min(1).max(100) });
 export const twoFactorCodeSchema = z.object({ code: z.string().trim().min(6).max(32) }).strict();
@@ -29,3 +32,44 @@ export const pageReorderSchema = z.object({ sectionId: z.string().min(1), ids: o
 export const trashItemSchema = z.object({ type: z.enum(["notebook", "section", "page"]), id: z.string().min(1) });
 export const searchQuerySchema = z.string().trim().min(2).max(300);
 export const searchRequestSchema = z.object({ q: searchQuerySchema, offset: z.coerce.number().int().min(0).max(250).default(0) });
+
+export const accountPasswordSchema = z.object({
+  currentPassword: passwordSchema,
+  newPassword: passwordSchema,
+}).strict();
+
+export const accountProfileSchema = z.object({
+  name: z.string().trim().min(1).max(100),
+  email: z.string().trim().toLowerCase().pipe(z.email()),
+}).strict();
+
+export const accountPreferencesSchema = z.object({
+  interfaceDensity: z.enum(["comfortable", "compact"]).optional(),
+  editorSpellcheck: z.boolean().optional(),
+  editorCodeLineNumbers: z.boolean().optional(),
+  editorCompactMode: z.boolean().optional(),
+  editorContentWidth: z.enum(["narrow", "normal", "wide"]).optional(),
+}).strict();
+
+export const userRoleSchema = z.enum(["ADMIN", "USER"]);
+export const adminUserCreateSchema = z.object({
+  name: z.string().trim().min(1).max(100),
+  email: z.string().trim().toLowerCase().pipe(z.email()),
+  role: userRoleSchema.default("USER"),
+  password: passwordSchema,
+  mustChangePassword: z.boolean().default(true),
+}).strict();
+
+export const adminUserUpdateSchema = z.object({
+  name: z.string().trim().min(1).max(100),
+  email: z.string().trim().toLowerCase().pipe(z.email()),
+  role: userRoleSchema,
+}).strict();
+
+export const adminUserActionSchema = z.discriminatedUnion("action", [
+  z.object({ action: z.literal("disable") }).strict(),
+  z.object({ action: z.literal("enable") }).strict(),
+  z.object({ action: z.literal("revokeSessions") }).strict(),
+  z.object({ action: z.literal("resetTwoFactor") }).strict(),
+  z.object({ action: z.literal("resetPassword"), password: passwordSchema, mustChangePassword: z.boolean().default(true) }).strict(),
+]);

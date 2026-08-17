@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { BookOpen, Download, Link2, LogOut, Monitor, Moon, Search, Settings, ShieldCheck, Sun } from "lucide-react";
+import { BookOpen, Download, Link2, LogOut, Monitor, Moon, Search, Settings, Sun } from "lucide-react";
 import { useTheme } from "next-themes";
 import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
@@ -29,7 +29,7 @@ import { isNotebookColor, isNotebookIcon, NOTEBOOK_COLOR_CLASSES, NOTEBOOK_ICON_
 type ActionTarget = { type: "notebook"; item: Notebook } | { type: "section"; item: Section } | { type: "page"; item: PageSummary };
 
 type InitialLocation = { notebookId: string; sectionId: string; pageId: string };
-export function NotebookApp({ user, initialLocation }: { user: { id: string; name: string; email: string }; initialLocation?: InitialLocation }) {
+export function NotebookApp({ user, initialLocation }: { user: { id: string; name: string; email: string; role: "ADMIN" | "USER"; mustChangePassword: boolean }; initialLocation?: InitialLocation }) {
   const router = useRouter();
   const { theme, resolvedTheme, setTheme } = useTheme();
   const [notebooks, setNotebooks] = useState<Notebook[]>([]);
@@ -87,7 +87,7 @@ export function NotebookApp({ user, initialLocation }: { user: { id: string; nam
     }).catch(report);
     return () => { cancelled = true; };
   }, [report]);
-  useEffect(() => { void api<{ settings: { interfaceDensity: "comfortable" | "compact" } }>("/api/settings").then(({ settings }) => setDensity(settings.interfaceDensity)).catch(() => undefined); const listener = (event: Event) => setDensity((event as CustomEvent<"comfortable" | "compact">).detail); window.addEventListener("notebook:density", listener); return () => window.removeEventListener("notebook:density", listener); }, []);
+  useEffect(() => { void api<{ settings: { interfaceDensity: "comfortable" | "compact" } }>("/api/account/preferences").then(({ settings }) => setDensity(settings.interfaceDensity)).catch(() => undefined); const listener = (event: Event) => setDensity((event as CustomEvent<"comfortable" | "compact">).detail); window.addEventListener("notebook:density", listener); return () => window.removeEventListener("notebook:density", listener); }, []);
   useEffect(() => {
     if (!initialLocation || initialPageOpened.current || notebooks.length === 0) return; initialPageOpened.current = true;
     void api<{ page: PageDocument }>(`/api/pages/${initialLocation.pageId}`).then(({ page }) => { activePageRef.current = page; setActivePage(page); setMobileView("editor"); }).catch(report);
@@ -263,10 +263,10 @@ export function NotebookApp({ user, initialLocation }: { user: { id: string; nam
   }
 
   return <div data-density={density} className="notebook-app-shell flex h-dvh flex-col overflow-hidden bg-background text-foreground">
-    <MobileAppHeader userName={user.name} theme={theme} resolvedTheme={resolvedTheme} menuOpen={mobileMenuOpen} onMenu={() => { setScreen("workspace"); setMobileView("navigation"); }} onSearch={() => setSearchOpen(true)} onMenuOpenChange={setMobileMenuOpen} onSettings={() => setSettingsOpen(true)} onTheme={() => setTheme(theme === "system" ? "light" : theme === "light" ? "dark" : "system")} onLogout={() => void logout()} onLogoutAll={() => void logoutAll()} onError={report}/>
+    <MobileAppHeader userName={user.name} isAdmin={user.role === "ADMIN"} theme={theme} resolvedTheme={resolvedTheme} menuOpen={mobileMenuOpen} onMenu={() => { setScreen("workspace"); setMobileView("navigation"); }} onSearch={() => setSearchOpen(true)} onMenuOpenChange={setMobileMenuOpen} onSettings={() => setSettingsOpen(true)} onTheme={() => setTheme(theme === "system" ? "light" : theme === "light" ? "dark" : "system")} onLogout={() => void logout()} onLogoutAll={() => void logoutAll()} onError={report}/>
     <header data-testid="desktop-app-header" className="notebook-no-print hidden h-14 shrink-0 items-center border-b border-border/60 px-4 md:flex">
       <div className="flex items-center gap-2 font-semibold"><span className="flex size-8 items-center justify-center rounded-lg bg-primary text-primary-foreground"><BookOpen size={17} /></span>Notebook</div>{activeNotebook && <div className="ml-4 hidden min-w-0 items-center gap-2 border-l border-border/60 pl-4 text-sm sm:flex"><span className={cn("flex size-6 shrink-0 items-center justify-center rounded-md text-white", activeNotebookColor)}><ActiveNotebookIcon size={14}/></span><span className="max-w-40 truncate">{activeNotebook.title}</span></div>}
-      <div className="ml-auto flex items-center gap-1"><NotificationCenter onError={report}/><Button variant="ghost" size="icon" className="size-11" aria-label="Поиск" title="Поиск (Ctrl/Cmd + K)" onClick={() => setSearchOpen(true)}><Search size={17} /></Button><Button variant="ghost" size="icon" className="size-11" aria-label="Настройки" onClick={() => setSettingsOpen(true)}><Settings size={17}/></Button><Button variant="ghost" size="icon" className="size-11" aria-label="Переключить тему" title={`Тема: ${theme === "system" ? "системная" : theme === "dark" ? "тёмная" : "светлая"}`} onClick={() => setTheme(theme === "system" ? "light" : theme === "light" ? "dark" : "system")}>{theme === "system" ? <Monitor size={17} /> : resolvedTheme === "dark" ? <Moon size={17} /> : <Sun size={17} />}</Button><span className="hidden px-2 text-xs text-muted-foreground sm:block">{user.name}</span><Button variant="ghost" size="icon" className="hidden size-11 sm:inline-flex" aria-label="Выйти на всех устройствах" title="Выйти на всех устройствах" onClick={() => void logoutAll()}><ShieldCheck size={17}/></Button><Button variant="ghost" size="icon" className="size-11" aria-label="Выйти" onClick={() => void logout()}><LogOut size={17} /></Button></div>
+      <div className="ml-auto flex items-center gap-1">{user.role === "ADMIN" && <NotificationCenter onError={report}/>}<Button variant="ghost" size="icon" className="size-11" aria-label="Поиск" title="Поиск (Ctrl/Cmd + K)" onClick={() => setSearchOpen(true)}><Search size={17} /></Button><Button variant="ghost" size="icon" className="size-11" aria-label="Настройки" onClick={() => setSettingsOpen(true)}><Settings size={17}/></Button><Button variant="ghost" size="icon" className="size-11" aria-label="Переключить тему" title={`Тема: ${theme === "system" ? "системная" : theme === "dark" ? "тёмная" : "светлая"}`} onClick={() => setTheme(theme === "system" ? "light" : theme === "light" ? "dark" : "system")}>{theme === "system" ? <Monitor size={17} /> : resolvedTheme === "dark" ? <Moon size={17} /> : <Sun size={17} />}</Button><span className="hidden px-2 text-xs text-muted-foreground sm:block">{user.name}</span><Button variant="ghost" size="icon" className="size-11" aria-label="Выйти" onClick={() => void logout()}><LogOut size={17} /></Button></div>
     </header>
     {error && <button className="bg-destructive px-4 py-2 text-left text-sm text-white" onClick={() => setError("")}>{error} · нажмите, чтобы закрыть</button>}
     {notice && <button className="bg-accent px-4 py-2 text-left text-sm" onClick={() => setNotice("")}>{notice} · нажмите, чтобы закрыть</button>}
@@ -292,7 +292,7 @@ export function NotebookApp({ user, initialLocation }: { user: { id: string; nam
     <MoveDialog target={moveTarget} notebooks={notebooks} open={Boolean(moveTarget)} onOpenChange={(open) => { if (!open) setMoveTarget(null); }} onMove={moveSelected}/>
     {historyOpen && <VersionHistory key={activePage?.id} page={activePage} open onOpenChange={setHistoryOpen} onRestore={restoreVersion}/>} 
     <DataSettings open={dataSettingsOpen} onOpenChange={setDataSettingsOpen} notebooks={notebooks} activeSectionId={activeSection?.id ?? null} onChanged={async () => { await loadNotebooks(); setWorkspaceRevision((value) => value + 1); }} onOpenPage={(pageId) => { setDataSettingsOpen(false); void openPageById(pageId).catch(report); }} onError={report}/>
-    <SettingsDialog open={settingsOpen} onOpenChange={setSettingsOpen} onDataOpen={() => setDataSettingsOpen(true)} onTemplatesOpen={() => { setSettingsOpen(false); setTemplateManagerOpen(true); }} onError={report}/>
+    <SettingsDialog user={user} open={settingsOpen} onOpenChange={setSettingsOpen} onDataOpen={() => setDataSettingsOpen(true)} onTemplatesOpen={() => { setSettingsOpen(false); setTemplateManagerOpen(true); }} onError={report}/>
     <TemplatePicker open={templatePickerOpen} onOpenChange={setTemplatePickerOpen} onSelect={addPageFromTemplate} onError={report}/><TemplateManager open={templateManagerOpen} onOpenChange={setTemplateManagerOpen} onError={report}/><PrintDialog open={printOpen} onOpenChange={setPrintOpen}/>
   </div>;
 }

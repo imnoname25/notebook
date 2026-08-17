@@ -2,7 +2,7 @@ import { randomUUID } from "node:crypto";
 import { mkdir, rm } from "node:fs/promises";
 import path from "node:path";
 import { NextRequest, NextResponse } from "next/server";
-import { ApiError, apiError, requireUser, validateRequestOrigin } from "@/lib/api";
+import { ApiError, apiError, requireAdmin, validateRequestOrigin } from "@/lib/api";
 import { disposePreparedImport, prepareImport, restoreBackupData } from "@/lib/services/import-service";
 import { writePortableArchive } from "@/lib/services/export-service";
 import { uploadRoot } from "@/lib/storage";
@@ -12,7 +12,7 @@ import { createNotification } from "@/lib/services/system-notification-service";
 export const runtime = "nodejs";
 export async function POST(request: NextRequest) {
   try {
-    validateRequestOrigin(request); const user = await requireUser(); if (request.headers.get("x-notebook-confirmation") !== "RESTORE") throw new ApiError(400, "Введите RESTORE для подтверждения");
+    validateRequestOrigin(request); const user = await requireAdmin(); if (request.headers.get("x-notebook-confirmation") !== "RESTORE") throw new ApiError(400, "Введите RESTORE для подтверждения");
     return await withDataOperation("восстановление backup", async () => {
       const prepared = await prepareImport(request, "backup");
       const safetyDirectory = path.join(uploadRoot(), ".safety-backups"); await mkdir(safetyDirectory, { recursive: true }); const safetyName = `before-restore-${new Date().toISOString().replace(/[:.]/g, "-")}-${randomUUID()}.zip`; const safetyPath = path.join(safetyDirectory, safetyName);

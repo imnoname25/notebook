@@ -11,7 +11,7 @@ export async function recoverAdministrator(db, userId, options) {
     await tx.user.update({
       where: { id: userId },
       data: {
-        ...(passwordHash ? { passwordHash } : {}),
+        ...(passwordHash ? { passwordHash, mustChangePassword: false } : {}),
         ...(options.disableTotp ? { totpEnabledAt: null, totpSecretEncrypted: null, totpPendingSecretEncrypted: null, totpPendingCreatedAt: null } : {}),
       },
     });

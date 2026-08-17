@@ -5,8 +5,9 @@ import { useRouter } from "next/navigation";
 import { BookOpen, Loader2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { t } from "@/lib/i18n/messages";
 
-export function LoginForm({ needsSetup }: { needsSetup: boolean }) {
+export function LoginForm({ needsSetup, passwordChanged = false }: { needsSetup: boolean; passwordChanged?: boolean }) {
   const router = useRouter();
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
@@ -32,6 +33,7 @@ export function LoginForm({ needsSetup }: { needsSetup: boolean }) {
       <h2 className="mb-1 text-lg font-medium">{requiresTwoFactor ? "Подтверждение входа" : needsSetup ? "Создание администратора" : "С возвращением"}</h2>
       <p className="mb-6 text-sm text-muted-foreground">{requiresTwoFactor ? "Введите код из приложения-аутентификатора или одноразовый резервный код." : needsSetup ? "Это первый запуск. Создайте локальную учётную запись." : "Войдите в свою записную книжку."}</p>
       <form className="space-y-4" onSubmit={submit}>
+        {passwordChanged && <p className="rounded-lg bg-emerald-500/10 px-3 py-2 text-sm text-emerald-700 dark:text-emerald-400" role="status">{t("password.changed")}</p>}
         {!requiresTwoFactor && needsSetup && <label className="block text-sm font-medium">Имя<Input className="mt-1.5" name="name" required autoComplete="name" /></label>}
         {!requiresTwoFactor && <label className="block text-sm font-medium">Email<Input className="mt-1.5" name="email" type="email" required autoComplete="email" /></label>}
         {!requiresTwoFactor && <label className="block text-sm font-medium">Пароль<Input className="mt-1.5" name="password" type="password" minLength={8} required autoComplete={needsSetup ? "new-password" : "current-password"} /></label>}
