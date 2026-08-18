@@ -1,7 +1,7 @@
 import { createHash, randomBytes } from "node:crypto";
 import { cookies } from "next/headers";
 import { db } from "@/lib/db";
-import { nextIdleExpiry, SESSION_ABSOLUTE_LIFETIME_MS, sessionIsExpired, shouldTouchSession } from "@/lib/auth/session-policy";
+import { nextIdleExpiry, SESSION_ABSOLUTE_LIFETIME_MS, sessionCookieMaxAgeSeconds, sessionIsExpired, shouldTouchSession } from "@/lib/auth/session-policy";
 
 export const SESSION_COOKIE = "notebook_session";
 
@@ -23,6 +23,7 @@ export async function createSession(userId: string) {
     secure: process.env.APP_ORIGIN?.startsWith("https://") ?? false,
     path: "/",
     expires: absoluteExpiresAt,
+    maxAge: sessionCookieMaxAgeSeconds(absoluteExpiresAt, now),
     priority: "high",
   });
 }

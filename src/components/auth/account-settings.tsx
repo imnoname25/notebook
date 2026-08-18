@@ -8,6 +8,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { api, jsonOptions } from "@/lib/client-api";
 import { t } from "@/lib/i18n/messages";
+import { flushNativeAuthCookies } from "@/lib/native-android";
 
 export type AccountUser = { id: string; name: string; email: string; role: "ADMIN" | "USER"; mustChangePassword: boolean };
 type ManagedUser = AccountUser & { disabledAt: string | null; totpEnabledAt: string | null; createdAt: string; _count: { sessions: number } };
@@ -24,7 +25,7 @@ export function ProfileSettings({ user, onError }: { user: AccountUser; onError(
     event.preventDefault(); setBusy(true); setMessage("");
     try {
       const result = await api<{ sessionRevoked: boolean }>("/api/account/profile", jsonOptions("PATCH", { name, email }));
-      if (result.sessionRevoked) { router.replace("/login"); router.refresh(); return; }
+      if (result.sessionRevoked) { await flushNativeAuthCookies(); router.replace("/login"); router.refresh(); return; }
       setMessage(t("account.profileSaved")); router.refresh();
     } catch (error) { onError(error); } finally { setBusy(false); }
   }
@@ -42,6 +43,7 @@ export function PasswordSettings({ forced = false, onError }: { forced?: boolean
     setBusy(true);
     try {
       await api("/api/account/password", jsonOptions("POST", { currentPassword, newPassword }));
+      await flushNativeAuthCookies();
       router.replace("/login?passwordChanged=1"); router.refresh();
     } catch (cause) { setError(cause instanceof Error ? cause.message : t("password.changeFailed")); onError(cause); } finally { setBusy(false); }
   }

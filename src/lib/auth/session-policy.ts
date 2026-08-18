@@ -15,3 +15,7 @@ export function shouldTouchSession(session: Pick<SessionTimes, "lastUsedAt">, no
 export function nextIdleExpiry(absoluteExpiresAt: Date, now = new Date()) {
   return new Date(Math.min(absoluteExpiresAt.getTime(), now.getTime() + SESSION_IDLE_TIMEOUT_MS));
 }
+
+export function sessionCookieMaxAgeSeconds(absoluteExpiresAt: Date, now = new Date()) {
+  return Math.max(0, Math.floor((absoluteExpiresAt.getTime() - now.getTime()) / 1000));
+}

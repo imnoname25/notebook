@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { nextIdleExpiry, SESSION_IDLE_TIMEOUT_MS, SESSION_TOUCH_INTERVAL_MS, sessionIsExpired, shouldTouchSession } from "./session-policy";
+import { nextIdleExpiry, SESSION_ABSOLUTE_LIFETIME_MS, SESSION_IDLE_TIMEOUT_MS, SESSION_TOUCH_INTERVAL_MS, sessionCookieMaxAgeSeconds, sessionIsExpired, shouldTouchSession } from "./session-policy";
 
 describe("session lifecycle policy", () => {
   const now = new Date("2026-08-14T10:00:00.000Z");
@@ -15,5 +15,10 @@ describe("session lifecycle policy", () => {
     const absolute = new Date(now.getTime() + 1000);
     expect(nextIdleExpiry(absolute, now)).toEqual(absolute);
     expect(nextIdleExpiry(new Date(now.getTime() + SESSION_IDLE_TIMEOUT_MS * 2), now).getTime()).toBe(now.getTime() + SESSION_IDLE_TIMEOUT_MS);
+  });
+  it("persists the cookie only through the absolute session lifetime", () => {
+    const absolute = new Date(now.getTime() + SESSION_ABSOLUTE_LIFETIME_MS);
+    expect(sessionCookieMaxAgeSeconds(absolute, now)).toBe(90 * 24 * 60 * 60);
+    expect(sessionCookieMaxAgeSeconds(new Date(now.getTime() - 1), now)).toBe(0);
   });
 });

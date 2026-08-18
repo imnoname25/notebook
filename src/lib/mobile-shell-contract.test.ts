@@ -14,13 +14,38 @@ describe("Android and mobile shell contract", () => {
 
   it("keeps secondary actions out of the mobile header", () => {
     const mobileHeader = readFileSync("src/components/notebook/mobile-app-header.tsx", "utf8");
-    const header = mobileHeader.match(/<header data-testid="mobile-app-header"[\s\S]*?<\/header>/)?.[0];
+    const header = mobileHeader.match(/<header[\s\S]*?<\/header>/)?.[0];
     expect(header).toBeTruthy();
     expect(header).toContain("Открыть навигацию");
     expect(header).toContain('aria-label="Поиск"');
     expect(header).toContain('aria-label="Ещё"');
     expect(header).not.toContain("ShieldCheck");
     expect(header).not.toContain("Settings");
+    const activity = readFileSync("android-client/android/app/src/main/java/ru/metroom/notebook/MainActivity.java", "utf8");
+    const shell = readFileSync("android-client/www/app.js", "utf8");
+    expect(activity).not.toContain(".canGoBack()");
+    expect(activity).not.toContain(".goBack()");
+    expect(activity).toContain("__NOTEBOOK_ANDROID_BACK__");
+    expect(activity).toContain('private static final String HANDLED = "HANDLED"');
+    expect(activity).toContain("UNHANDLED");
+    expect(activity).toContain("JSONTokener");
+    expect(activity).toContain("NotebookSessionPlugin.class");
+    expect(activity).toContain("CookieManager.getInstance().flush()");
+    expect(shell).toContain("window.location.replace(notebookUrl(server))");
+    expect(shell).toContain('get("changeServer") === "1"');
     expect(mobileHeader).toContain("Выйти на всех устройствах");
+  });
+
+  it("persists and flushes the HttpOnly server session without storing credentials", () => {
+    const session = readFileSync("src/lib/auth/session.ts", "utf8");
+    const login = readFileSync("src/components/auth/login-form.tsx", "utf8");
+    const nativeBridge = readFileSync("src/lib/native-android.ts", "utf8");
+    expect(session).toContain("httpOnly: true");
+    expect(session).toContain("expires: absoluteExpiresAt");
+    expect(session).toContain("maxAge: sessionCookieMaxAgeSeconds");
+    expect(login).toContain("await flushNativeAuthCookies()");
+    expect(nativeBridge).toContain("NotebookSession");
+    expect(nativeBridge).not.toContain("localStorage");
+    expect(nativeBridge).not.toContain("password");
   });
 });

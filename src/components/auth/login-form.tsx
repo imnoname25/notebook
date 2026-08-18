@@ -6,6 +6,7 @@ import { BookOpen, Loader2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { t } from "@/lib/i18n/messages";
+import { flushNativeAuthCookies } from "@/lib/native-android";
 
 export function LoginForm({ needsSetup, passwordChanged = false }: { needsSetup: boolean; passwordChanged?: boolean }) {
   const router = useRouter();
@@ -23,6 +24,7 @@ export function LoginForm({ needsSetup, passwordChanged = false }: { needsSetup:
     const result = (await response.json()) as { error?: string; requiresTwoFactor?: boolean };
     if (!response.ok) { setError(result.error ?? "Не удалось продолжить"); setLoading(false); return; }
     if (result.requiresTwoFactor) { setRequiresTwoFactor(true); setLoading(false); return; }
+    await flushNativeAuthCookies();
     router.replace("/app");
     router.refresh();
   }

@@ -8,7 +8,13 @@ Android-клиент находится в `android-client/` и построен
 
 При первом запуске укажите адрес Notebook, например `https://notes.example.com`. Клиент принимает только HTTP/HTTPS URL без credentials, query или fragment, проверяет `/api/health/live` и ожидает совместимый ответ Notebook с версией API. `http://192.168.x.x:port` разрешён для LAN/debug, но экран явно предупреждает об отсутствии шифрования. Для реального использования настройте HTTPS.
 
-Пароль не сохраняется в SharedPreferences. Авторизация использует существующую server session в WebView. Локально сохраняется только адрес сервера. Системная кнопка Back сначала возвращается по web navigation history, а не закрывает приложение сразу. Gallery/camera/file picker и download проходят через штатные возможности Capacitor WebView и требуют проверки на реальном устройстве.
+Пароль не сохраняется в SharedPreferences. Авторизация использует существующую server session в WebView. Локально сохраняется только адрес сервера. После успешной проверки клиент открывает сервер через replace-navigation: локальный экран подключения не остаётся в истории WebView. При следующем запуске сохранённый сервер проверяется и открывается автоматически.
+
+Системный Back и swipe-back используют версионированный контракт `HANDLED` / `UNHANDLED`: редактор → список страниц → блокноты, а на корневом экране событие передаётся Android. Открытый dialog, search или sheet закрывается первым. Native shell ждёт явный результат JavaScript и не вызывает `WebView.goBack()`, поэтому Back не может случайно вернуть экран выбора сервера или внешний URL. В debug-сборке результат можно проверить командой `adb logcat -s NotebookBack`.
+
+WebView хранит только защищённую `HttpOnly` session cookie сервера. После успешного входа и после logout Capacitor bridge вызывает `CookieManager.flush()`; Activity также выполняет flush при pause/stop. Cookie имеет `Expires` и `Max-Age`, ограниченные абсолютным сроком server session. Пароль, raw token и копия cookie не сохраняются в SharedPreferences или web storage.
+
+Явная смена endpoint доступна в мобильном меню через `Подключение · Сменить сервер` и требует подтверждения; серверные данные при этом не удаляются. Gallery/camera/file picker и download проходят через штатные возможности Capacitor WebView и требуют проверки на реальном устройстве.
 
 ## Локальная сборка
 

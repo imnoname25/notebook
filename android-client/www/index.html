@@ -1,5 +1,33 @@
 <!doctype html>
 <html lang="ru">
-<head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover"><meta name="color-scheme" content="light dark"><title>Notebook</title><link rel="stylesheet" href="styles.css"></head>
-<body><main class="shell"><section class="panel"><img src="icon.png" width="72" height="72" alt=""><h1>Подключение к Notebook</h1><p>Укажите адрес вашего self-hosted сервера.</p><label for="server">Адрес сервера Notebook</label><input id="server" type="url" inputmode="url" autocapitalize="none" spellcheck="false" placeholder="https://notes.example.com"><p id="warning" class="warning" hidden>HTTP не шифрует пароль и данные. Используйте его только в доверенной локальной сети для отладки.</p><button id="connect">Проверить и подключиться</button><p id="status" role="status" aria-live="polite"></p><aside id="update" hidden><span id="updateText"></span><a id="download" rel="external">Скачать</a></aside></section></main><script type="module" src="app.js"></script></body>
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+  <meta name="color-scheme" content="light dark">
+  <title>Notebook</title>
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+  <main class="shell">
+    <section id="bootstrap" class="panel" hidden>
+      <img src="icon.png" width="72" height="72" alt="">
+      <h1>Notebook</h1>
+      <p id="bootstrapStatus" role="status" aria-live="polite">Подключаемся к серверу…</p>
+      <button id="retry" type="button">Повторить</button>
+      <button id="change" class="secondary" type="button">Сменить сервер</button>
+    </section>
+    <section id="chooser" class="panel" hidden>
+      <img src="icon.png" width="72" height="72" alt="">
+      <h1>Подключение к Notebook</h1>
+      <p>Укажите адрес вашего self-hosted сервера.</p>
+      <label for="server">Адрес сервера Notebook</label>
+      <input id="server" type="url" inputmode="url" autocapitalize="none" spellcheck="false" placeholder="https://notes.example.com">
+      <p id="warning" class="warning" hidden>HTTP не шифрует пароль и данные. Используйте его только в доверенной локальной сети для отладки.</p>
+      <button id="connect" type="button">Проверить и подключиться</button>
+      <p id="status" role="status" aria-live="polite"></p>
+      <aside id="update" hidden><span id="updateText"></span><a id="download" rel="external">Скачать</a></aside>
+    </section>
+  </main>
+  <script type="module" src="app.js"></script>
+</body>
 </html>
