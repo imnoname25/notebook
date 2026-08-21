@@ -5,6 +5,7 @@ import { SideMenuExtension, SuggestionMenu as SuggestionMenuExtension } from "@b
 import { AddBlockButton, DragHandleMenu, SideMenu, useBlockNoteEditor, useComponentsContext, useExtension, useExtensionState } from "@blocknote/react";
 import { ArrowDown, ArrowUp, Check, Clipboard, Copy, GripVertical, Link2, Palette, Trash2, Wand2 } from "lucide-react";
 import { BLOCK_BACKGROUND_TOKENS } from "@/lib/editor-block-appearance";
+import { getPageHref } from "@/lib/workspace-navigation";
 import type { NotebookBlock, NotebookEditor, NotebookFullBlock } from "./editor-schema";
 
 const BACKGROUND_LABELS = {
@@ -78,7 +79,7 @@ function NotebookBlockMenu({ pageId }: { pageId: string }) {
     <Components.Generic.Menu.Item icon={<Copy size={16}/>} onClick={() => editor.insertBlocks([freshBlock(typedBlock)], typedBlock, "after")}>Дублировать</Components.Generic.Menu.Item>
     <Components.Generic.Menu.Item icon={<Clipboard size={16}/>} onClick={() => void copy(false)}>Копировать</Components.Generic.Menu.Item>
     <Components.Generic.Menu.Item icon={<Clipboard size={16}/>} onClick={() => void copy(true)}>Копировать как текст</Components.Generic.Menu.Item>
-    <Components.Generic.Menu.Item icon={<Link2 size={16}/>} onClick={() => void navigator.clipboard.writeText(`${window.location.origin}/pages/${pageId}#block=${encodeURIComponent(block.id)}`)}>Копировать ссылку на блок</Components.Generic.Menu.Item>
+    <Components.Generic.Menu.Item icon={<Link2 size={16}/>} onClick={() => void navigator.clipboard.writeText(`${window.location.origin}${getPageHref(pageId, block.id)}`)}>Копировать ссылку на блок</Components.Generic.Menu.Item>
     {TRANSFORMABLE.has(block.type) && <Components.Generic.Menu.Root sub position="right">
       <Components.Generic.Menu.Trigger sub><Components.Generic.Menu.Item subTrigger icon={<Wand2 size={16}/>}>Преобразовать</Components.Generic.Menu.Item></Components.Generic.Menu.Trigger>
       <Components.Generic.Menu.Dropdown sub className="bn-menu-dropdown">

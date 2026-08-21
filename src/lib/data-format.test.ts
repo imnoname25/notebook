@@ -77,9 +77,9 @@ describe("portable data contracts", () => {
     const parsed = archiveDataSchema.parse({
       notebooks: [],
       attachments: [],
-      quickNotes: [{ title: "Idea", body: "Try #tag", color: "amber", icon: "📝", isPinned: true, archivedAt: null, createdAt: now, updatedAt: now }],
+      quickNotes: [{ title: "Idea", body: "Try #tag", color: "amber", icon: "📝", isPinned: true, sortOrder: 3, archivedAt: null, createdAt: now, updatedAt: now }],
     });
-    expect(parsed.quickNotes?.[0]).toMatchObject({ title: "Idea", isPinned: true });
+    expect(parsed.quickNotes?.[0]).toMatchObject({ title: "Idea", isPinned: true, sortOrder: 3 });
   });
   it("preserves curated notebook cover metadata", () => {
     const now = new Date().toISOString();

@@ -59,6 +59,7 @@ export const quickNoteUpdateSchema = quickNoteCreateSchema.extend({
   archived: z.boolean().optional(),
 }).strict();
 export const quickNoteConvertSchema = z.object({ sectionId: z.string().min(1) }).strict();
+export const quickNoteReorderSchema = z.object({ ids: z.array(z.string().min(1)).max(10_000).refine((ids) => new Set(ids).size === ids.length, "ID стикеров не должны повторяться") }).strict();
 export const tagListSchema = z.object({
   limit: z.coerce.number().int().min(1).max(50).default(30),
   tag: z.string().trim().min(1).max(80).optional(),

@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { AlertTriangle, ArrowLeft, Clock3, FileText, Inbox, Loader2, Sparkles, Star } from "lucide-react";
+import { AlertTriangle, ArrowLeft, Clock3, FileText, Loader2, Sparkles, Star, StickyNote } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { api } from "@/lib/client-api";
 import { t } from "@/lib/i18n/messages";
@@ -24,11 +24,11 @@ export function TodayView({ revision, onBack, onCapture, onInbox, onPage, onTag,
     return () => controller.abort();
   }, [onError, revision]);
   const data = response?.revision === revision ? response.data : null;
-  return <main className="col-span-full min-h-0 overflow-y-auto bg-background px-4 pb-8 md:px-8 md:py-7">
+  return <main className="min-h-0 min-w-0 overflow-y-auto bg-background px-4 pb-8 md:col-span-2 md:px-8 md:py-7">
     <div className="mx-auto max-w-6xl"><header className="mb-6 flex min-h-14 items-center gap-3"><Button variant="ghost" className="size-11 px-0 md:hidden" onClick={onBack}><ArrowLeft size={20}/></Button><span className="flex size-11 items-center justify-center rounded-xl bg-primary/10 text-primary"><Sparkles size={21}/></span><div><p className="text-sm text-muted-foreground">{new Date().toLocaleDateString("ru", { weekday: "long", day: "numeric", month: "long" })}</p><h1 className="text-2xl font-semibold tracking-tight">{t("today.title")}</h1></div><Button className="ml-auto min-h-11" onClick={onCapture}>{t("today.capture")}</Button></header>
       {!data ? <div className="flex py-20 justify-center"><Loader2 className="animate-spin text-muted-foreground"/></div> : <div className="grid items-start gap-5 lg:grid-cols-2">
         {data.attention.length > 0 && <TodaySection title={t("today.attention")} icon={<AlertTriangle size={17}/>}><div className="space-y-1">{data.attention.map((item) => <button key={`${item.widget.page.id}:${item.widget.blockId}`} className="flex min-h-14 w-full items-center gap-3 rounded-lg px-2 text-left hover:bg-accent" onClick={() => onPage(item.widget.page.id)}><span className="notebook-live-dot" style={{ "--live-rgb": item.status === "OFFLINE" ? "239 68 68" : "245 158 11" } as React.CSSProperties}/><span className="min-w-0 flex-1"><strong className="block truncate text-sm">{item.widget.title || item.widget.page.title}</strong><span className="block truncate text-xs text-muted-foreground">{item.value}{item.detail ? ` · ${item.detail}` : ""}</span></span></button>)}</div></TodaySection>}
-        {data.inbox.length > 0 && <TodaySection title={t("quickNotes.inbox")} icon={<Inbox size={17}/>} action={onInbox}><div className="grid gap-2 sm:grid-cols-2">{data.inbox.map((note) => <button key={note.id} data-quick-note-color={note.color} className="quick-note-card min-h-24 rounded-xl p-3 text-left ring-1 ring-border/40" onClick={onInbox}><strong className="block truncate text-sm">{note.icon} {note.title || note.body.split(/\s+/).slice(0, 5).join(" ")}</strong><span className="mt-1 block line-clamp-2 text-sm leading-5 text-foreground/70">{note.body}</span></button>)}</div></TodaySection>}
+        {data.inbox.length > 0 && <TodaySection title={t("quickNotes.inbox")} icon={<StickyNote size={17}/>} action={onInbox}><div className="grid gap-2 sm:grid-cols-2">{data.inbox.map((note) => <button key={note.id} data-quick-note-color={note.color} className="quick-note-card min-h-24 rounded-xl p-3 text-left ring-1 ring-border/40" onClick={onInbox}><strong className="block truncate text-sm">{note.icon} {note.title || note.body.split(/\s+/).slice(0, 5).join(" ")}</strong><span className="mt-1 block line-clamp-2 text-sm leading-5 text-foreground/70">{note.body}</span></button>)}</div></TodaySection>}
         {data.recent.length > 0 && <TodaySection title={t("overview.recent")} icon={<Clock3 size={17}/>}><PageRows pages={data.recent} onPage={onPage}/></TodaySection>}
         {data.favorites.length > 0 && <TodaySection title={t("overview.favorites")} icon={<Star size={17}/>}><PageRows pages={data.favorites} onPage={onPage}/></TodaySection>}
         {data.changed.length > 0 && <TodaySection title={t("today.changed")} icon={<FileText size={17}/>}><PageRows pages={data.changed} onPage={onPage}/></TodaySection>}

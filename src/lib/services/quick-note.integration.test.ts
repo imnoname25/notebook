@@ -31,4 +31,29 @@ describe.skipIf(!enabled)("quick note integration", () => {
     expect((await service.listQuickNotes(ids.user, true))[0]).toMatchObject({ id: note.id, status: "CONVERTED" });
     expect(await db.pageTag.count({ where: { pageId: page.id } })).toBe(1);
   });
+
+  it("creates multiple stickers, duplicates unpinned, and persists logical order", async () => {
+    const first = await service.createQuickNote(ids.user, { title: "A", body: "#vpn", color: "blue" });
+    const second = await service.createQuickNote(ids.user, { title: "B", body: "Second", color: "pink" });
+    const third = await service.createQuickNote(ids.user, { title: "C", body: "Third", color: "green" });
+    const pinned = await service.updateQuickNote(ids.user, second.id, { isPinned: true });
+    expect(pinned.isPinned).toBe(true);
+
+    await service.reorderQuickNotes(ids.user, [second.id, third.id, first.id]);
+    expect((await service.listQuickNotes(ids.user)).map((note) => note.id)).toEqual([second.id, third.id, first.id]);
+
+    const copy = await service.duplicateQuickNote(ids.user, first.id);
+    expect(copy).toMatchObject({ title: "A", body: "#vpn", color: "blue", isPinned: false });
+    expect(copy.id).not.toBe(first.id);
+    expect(await db.quickNoteTag.count({ where: { quickNoteId: copy.id } })).toBe(1);
+  });
+
+  it("removes archived stickers from the board and restores them", async () => {
+    const note = await service.createQuickNote(ids.user, { body: "Archive me" });
+    await service.updateQuickNote(ids.user, note.id, { archived: true });
+    expect((await service.listQuickNotes(ids.user)).map((item) => item.id)).not.toContain(note.id);
+    expect((await service.listQuickNotes(ids.user, true)).map((item) => item.id)).toContain(note.id);
+    await service.updateQuickNote(ids.user, note.id, { archived: false });
+    expect((await service.listQuickNotes(ids.user)).map((item) => item.id)).toContain(note.id);
+  });
 });

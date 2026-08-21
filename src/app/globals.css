@@ -812,6 +812,19 @@ button,
 .quick-note-card[data-quick-note-color="violet"] { background: color-mix(in srgb, #a78bfa 18%, var(--card)); }
 .quick-note-card[data-quick-note-color="pink"] { background: color-mix(in srgb, #f472b6 17%, var(--card)); }
 .quick-note-card[data-quick-note-color="neutral"] { background: color-mix(in srgb, #94a3b8 14%, var(--card)); }
+.sticker-board-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(min(100%, 17rem), 22rem));
+  align-items: start;
+  gap: 1rem;
+}
+.quick-note-card[data-dragging="true"] {
+  opacity: 0.72;
+  box-shadow: 0 18px 42px rgb(15 23 42 / 0.18);
+}
+@media (max-width: 767px) {
+  .sticker-board-grid { grid-template-columns: minmax(0, 1fr); }
+}
 .quick-note-swatch[data-color="amber"] { background: #fbbf24; }
 .quick-note-swatch[data-color="orange"] { background: #fb923c; }
 .quick-note-swatch[data-color="green"] { background: #4ade80; }

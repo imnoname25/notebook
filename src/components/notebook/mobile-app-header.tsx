@@ -27,6 +27,7 @@ type MobileAppHeaderProps = {
   resolvedTheme: string | undefined;
   menuOpen: boolean;
   androidClient: boolean;
+  onHome(): void;
   onMenu(): void;
   onSearch(): void;
   onQuickNotes(): void;
@@ -62,12 +63,12 @@ export function MobileAppHeader(props: MobileAppHeaderProps) {
         >
           <Menu size={23} />
         </Button>
-        <div className="flex min-w-0 flex-1 items-center gap-2 px-1 text-[18px] font-semibold">
+        <button type="button" className="flex min-w-0 flex-1 items-center gap-2 rounded-lg px-1 text-left text-[18px] font-semibold focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring" onClick={props.onHome}>
           <span className="flex size-9 shrink-0 items-center justify-center rounded-lg bg-primary text-primary-foreground">
             <BookOpen size={20} />
           </span>
           <span className="truncate">Notebook</span>
-        </div>
+        </button>
         <Button
           variant="ghost"
           size="icon"

@@ -25,8 +25,8 @@ test("quick capture converts to a tagged page and mobile Back closes its sheet",
 
   await page.setViewportSize({ width: 390, height: 844 });
   await page.getByTestId("mobile-app-header").getByRole("button", { name: "Ещё" }).click();
-  await page.getByRole("button", { name: "Быстрые заметки", exact: true }).click();
-  await expect(page.getByRole("dialog", { name: "Быстрая заметка" })).toBeVisible();
+  await page.getByRole("button", { name: "Стикеры", exact: true }).click();
+  await expect(page.getByRole("dialog", { name: "Новый стикер" })).toBeVisible();
   expect(await page.evaluate(() => (window as Window & { __NOTEBOOK_ANDROID_BACK__?: () => string }).__NOTEBOOK_ANDROID_BACK__?.())).toBe("HANDLED");
-  await expect(page.getByRole("dialog", { name: "Быстрая заметка" })).toBeHidden();
+  await expect(page.getByRole("dialog", { name: "Новый стикер" })).toBeHidden();
 });

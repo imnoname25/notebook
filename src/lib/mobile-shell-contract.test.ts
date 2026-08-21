@@ -51,14 +51,17 @@ describe("Android and mobile shell contract", () => {
 
   it("keeps quick capture and tag sheets inside the handled mobile overlay boundary", () => {
     const app = readFileSync("src/components/notebook/notebook-app.tsx", "utf8");
+    const stickers = readFileSync("src/components/notebook/quick-notes.tsx", "utf8");
     const navigation = readFileSync("src/lib/mobile-navigation.ts", "utf8");
     expect(app).toContain("state.quickNotesOpen");
     expect(app).toContain("setQuickNotesOpen(false)");
     expect(app).toContain("state.tagBrowserOpen");
     expect(app).toContain("setTagBrowserOpen(false)");
-    expect(app).toContain('setScreen("inbox")');
+    expect(app).toContain('openSpecial("stickers")');
     expect(navigation).toContain('state.screen !== "workspace"');
     expect(app).toContain("state.editorOverlayOpen");
+    expect(stickers).toContain('new CustomEvent("notebook:editor-overlay"');
+    expect(stickers).toContain('"notebook:close-editor-overlay"');
   });
 
   it("opens explicitly shared Android text in Quick Capture without persisting it natively", () => {

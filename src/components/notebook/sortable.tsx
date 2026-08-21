@@ -2,10 +2,10 @@
 
 import type { CSSProperties, ReactNode } from "react";
 import { closestCenter, DndContext, KeyboardSensor, PointerSensor, useSensor, useSensors, type DragEndEvent } from "@dnd-kit/core";
-import { arrayMove, SortableContext, sortableKeyboardCoordinates, useSortable, verticalListSortingStrategy } from "@dnd-kit/sortable";
+import { arrayMove, rectSortingStrategy, SortableContext, sortableKeyboardCoordinates, useSortable, verticalListSortingStrategy } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
 
-export function SortableList({ ids, onReorder, children }: { ids: string[]; onReorder(ids: string[]): void; children: ReactNode }) {
+export function SortableList({ ids, onReorder, children, strategy = "vertical" }: { ids: string[]; onReorder(ids: string[]): void; children: ReactNode; strategy?: "vertical" | "rect" }) {
   const sensors = useSensors(
     useSensor(PointerSensor, { activationConstraint: { distance: 5 } }),
     useSensor(KeyboardSensor, { coordinateGetter: sortableKeyboardCoordinates }),
@@ -20,11 +20,11 @@ export function SortableList({ ids, onReorder, children }: { ids: string[]; onRe
   }
 
   return <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={dragEnd}>
-    <SortableContext items={ids} strategy={verticalListSortingStrategy}>{children}</SortableContext>
+    <SortableContext items={ids} strategy={strategy === "rect" ? rectSortingStrategy : verticalListSortingStrategy}>{children}</SortableContext>
   </DndContext>;
 }
 
-type SortableRenderState = {
+export type SortableRenderState = {
   setNodeRef(node: HTMLElement | null): void;
   style: CSSProperties;
   attributes: ReturnType<typeof useSortable>["attributes"];

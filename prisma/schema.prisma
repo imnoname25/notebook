@@ -292,6 +292,7 @@ model QuickNote {
   color      String    @default("amber")
   icon       String?
   isPinned   Boolean   @default(false)
+  sortOrder  Int       @default(0)
   status     QuickNoteStatus @default(INBOX)
   archivedAt DateTime?
   createdAt  DateTime  @default(now())
@@ -299,7 +300,7 @@ model QuickNote {
   user       User      @relation(fields: [userId], references: [id], onDelete: Cascade)
   tags       QuickNoteTag[]
 
-  @@index([userId, status, isPinned, updatedAt])
+  @@index([userId, status, isPinned, sortOrder])
 }
 
 model Tag {

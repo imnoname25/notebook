@@ -124,6 +124,7 @@ const portableQuickNoteSchema = z.object({
   color: z.enum(["neutral", "amber", "orange", "green", "blue", "violet", "pink"]),
   icon: z.string().max(16).nullable(),
   isPinned: z.boolean(),
+  sortOrder: z.number().int().min(0).optional(),
   status: z.enum(["INBOX", "ARCHIVED", "CONVERTED"]).optional(),
   archivedAt: portableDate.nullable(),
   createdAt: portableDate,

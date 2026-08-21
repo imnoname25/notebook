@@ -1,5 +1,7 @@
 "use client";
 
+import { useEffect, useState } from "react";
+
 import {
   ChevronDown,
   ChevronRight,
@@ -7,7 +9,7 @@ import {
   FolderPlus,
   GripVertical,
   Hash,
-  Inbox,
+  StickyNote,
   Sparkles,
   Plus,
   Trash2,
@@ -29,6 +31,7 @@ import type { Notebook, Section } from "./types";
 import type { SectionAccentIntensity } from "@/lib/content-appearance";
 import { SectionIcon } from "./section-icon";
 import { t } from "@/lib/i18n/messages";
+import { ensureExpandedNotebook, toggleExpandedNotebook } from "@/lib/notebook-tree-state";
 
 type Props = {
   notebooks: Notebook[];
@@ -36,6 +39,8 @@ type Props = {
   activeSectionId: string | null;
   density?: "comfortable" | "compact";
   sectionAccentIntensity?: SectionAccentIntensity;
+  activeDestination?: "workspace" | "today" | "stickers";
+  expansionStorageKey?: string;
   onNotebookSelect(id: string): void;
   onSectionSelect(section: Section): void;
   onAddNotebook(): void;
@@ -190,23 +195,61 @@ export function NotebookSidebar(props: Props) {
   const ordered = [...props.notebooks].sort(
     (a, b) => a.sortOrder - b.sortOrder,
   );
+  const [expandedIds, setExpandedIds] = useState<Set<string>>(
+    () => new Set(props.activeNotebookId ? [props.activeNotebookId] : []),
+  );
+  const storageKey = props.expansionStorageKey ?? "notebook:expanded-notebooks";
+
+  useEffect(() => {
+    const frame = window.requestAnimationFrame(() => {
+      try {
+        const stored = JSON.parse(window.localStorage.getItem(storageKey) ?? "[]") as unknown;
+        if (!Array.isArray(stored)) return;
+        const valid = new Set(stored.filter((id): id is string => typeof id === "string"));
+        if (props.activeNotebookId) valid.add(props.activeNotebookId);
+        setExpandedIds(valid);
+      } catch {
+        // Presentation state must never block the notebook tree.
+      }
+    });
+    return () => window.cancelAnimationFrame(frame);
+  }, [props.activeNotebookId, storageKey]);
+
+  function persistExpanded(next: Set<string>) {
+    setExpandedIds(next);
+    try {
+      window.localStorage.setItem(storageKey, JSON.stringify([...next]));
+    } catch {
+      // Persistence is optional; the in-memory tree remains fully usable.
+    }
+  }
+
+  function toggleExpanded(id: string) {
+    persistExpanded(toggleExpandedNotebook(expandedIds, id));
+  }
+
+  function selectNotebook(id: string) {
+    if (!expandedIds.has(id)) persistExpanded(ensureExpandedNotebook(expandedIds, id));
+    props.onNotebookSelect(id);
+  }
   return (
     <aside
       data-density={props.density}
       data-section-intensity={props.sectionAccentIntensity ?? "moderate"}
       className="notebook-sidebar flex h-full min-h-0 flex-col bg-sidebar p-2 md:border-r md:border-border/60"
     >
-      <button className="mb-1 flex min-h-11 items-center gap-3 rounded-lg px-3 text-[15px] font-semibold text-foreground transition hover:bg-accent md:min-h-10" onClick={props.onTodayOpen}>
-        <Sparkles size={18} className="text-primary" />
+      <p className="px-2 pb-1 pt-2 text-[11px] font-semibold uppercase tracking-[0.14em] text-muted-foreground">{t("navigation.main")}</p>
+      <button aria-current={props.activeDestination === "today" ? "page" : undefined} className={cn("mb-0.5 flex min-h-11 items-center gap-3 rounded-lg px-3 text-[14px] font-medium transition md:min-h-10", props.activeDestination === "today" ? "bg-sidebar-accent text-sidebar-accent-foreground" : "text-muted-foreground hover:bg-sidebar-accent/60 hover:text-foreground")} onClick={props.onTodayOpen}>
+        <Sparkles size={18} />
         {t("today.title")}
       </button>
-      <button className="mb-2 flex min-h-12 items-center gap-3 rounded-lg bg-amber-400/10 px-3 text-[15px] font-semibold text-foreground ring-1 ring-amber-500/15 transition hover:bg-amber-400/15 md:min-h-11" onClick={props.onInboxOpen}>
-        <span className="flex size-7 items-center justify-center rounded-md bg-amber-400/20 text-amber-700 dark:text-amber-300"><Inbox size={16}/></span>
+      <button aria-current={props.activeDestination === "stickers" ? "page" : undefined} className={cn("mb-3 flex min-h-11 items-center gap-3 rounded-lg px-3 text-[14px] font-medium transition md:min-h-10", props.activeDestination === "stickers" ? "bg-sidebar-accent text-sidebar-accent-foreground" : "text-muted-foreground hover:bg-sidebar-accent/60 hover:text-foreground")} onClick={props.onInboxOpen}>
+        <StickyNote size={18}/>
         {t("quickNotes.inbox")}
       </button>
       <div className="mb-1 flex h-9 items-center justify-between px-1.5">
         <p className="text-[12.5px] font-semibold uppercase tracking-[0.12em] text-muted-foreground">
-          Блокноты
+          {t("navigation.notebooks")}
         </p>
         <Button
           variant="ghost"
@@ -234,6 +277,7 @@ export function NotebookSidebar(props: Props) {
         >
           {ordered.map((notebook) => {
             const active = notebook.id === props.activeNotebookId;
+            const expanded = expandedIds.has(notebook.id);
             const Icon =
               NOTEBOOK_ICON_COMPONENTS[
                 isNotebookIcon(notebook.icon) ? notebook.icon : "notebook"
@@ -284,15 +328,18 @@ export function NotebookSidebar(props: Props) {
                         <GripVertical size={13} />
                       </button>
                       <button
-                        title={notebook.title}
-                        className="flex min-h-11 min-w-0 flex-1 items-center gap-1.5 py-1 text-left text-[15px] font-semibold md:min-h-10"
-                        onClick={() => props.onNotebookSelect(notebook.id)}
+                        className="flex size-11 shrink-0 items-center justify-center rounded-md text-muted-foreground hover:bg-background/70 md:size-9"
+                        aria-label={expanded ? t("navigation.collapseNotebook") : t("navigation.expandNotebook")}
+                        aria-expanded={expanded}
+                        onClick={() => toggleExpanded(notebook.id)}
                       >
-                        {active ? (
-                          <ChevronDown size={14} />
-                        ) : (
-                          <ChevronRight size={14} />
-                        )}
+                        {expanded ? <ChevronDown size={15} /> : <ChevronRight size={15} />}
+                      </button>
+                      <button
+                        title={notebook.title}
+                        className="flex min-h-11 min-w-0 flex-1 items-center gap-2 py-1 text-left text-[15px] font-semibold md:min-h-10"
+                        onClick={() => selectNotebook(notebook.id)}
+                      >
                         <span
                           className={cn(
                             "flex size-6 shrink-0 items-center justify-center rounded text-white",
@@ -311,7 +358,7 @@ export function NotebookSidebar(props: Props) {
                         <Ellipsis size={15} />
                       </button>
                     </div>
-                    {active && (
+                    {expanded && (
                       <div className="mt-0.5">
                         <SectionTree
                           notebookId={notebook.id}

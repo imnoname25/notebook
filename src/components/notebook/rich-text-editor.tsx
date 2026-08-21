@@ -44,6 +44,7 @@ import {
 import { LiveWidgetPageContext } from "./live-widget-block";
 import { EditorSuggestionOverlayBridge, NotebookSideMenu } from "./editor-block-menu";
 import { PageVariablesDialog } from "./page-variables-dialog";
+import { getPageHref, pageIdFromPath } from "@/lib/workspace-navigation";
 import { extractPageVariables, type PageVariable } from "@/lib/page-variables";
 
 type SavePayload = { title: string; content: unknown[] };
@@ -156,7 +157,7 @@ export function RichTextEditor({
           icon: <FileText size={16} />,
           onItemClick: () =>
             editor.insertInlineContent([
-              { type: "link", href: `/pages/${item.id}`, content: item.title },
+              { type: "link", href: getPageHref(item.id), content: item.title },
             ]),
         }));
     },
@@ -517,12 +518,12 @@ export function RichTextEditor({
           if (!window.matchMedia("(hover: hover) and (pointer: fine)").matches) return;
           const anchor = (event.target as HTMLElement).closest("a");
           if (!anchor) return;
-          const match = new URL(anchor.href, window.location.origin).pathname.match(/^\/pages\/([^/]+)$/);
-          if (!match?.[1]) return;
+          const linkedPageId = pageIdFromPath(new URL(anchor.href, window.location.origin).pathname);
+          if (!linkedPageId) return;
           if (linkPreviewTimer.current) clearTimeout(linkPreviewTimer.current);
           const rect = anchor.getBoundingClientRect();
           linkPreviewTimer.current = setTimeout(() => {
-            void api<{ preview: Omit<NonNullable<typeof linkPreview>, "x" | "y"> }>(`/api/pages/${match[1]}/preview`).then(({ preview }) => setLinkPreview({ ...preview, x: Math.min(rect.left, window.innerWidth - 340), y: Math.min(rect.bottom + 8, window.innerHeight - 150) })).catch(() => undefined);
+            void api<{ preview: Omit<NonNullable<typeof linkPreview>, "x" | "y"> }>(`/api/pages/${linkedPageId}/preview`).then(({ preview }) => setLinkPreview({ ...preview, x: Math.min(rect.left, window.innerWidth - 340), y: Math.min(rect.bottom + 8, window.innerHeight - 150) })).catch(() => undefined);
           }, 400);
         }}
         onMouseOutCapture={(event) => {

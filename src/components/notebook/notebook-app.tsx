@@ -45,7 +45,7 @@ import { PrintDialog } from "./print-dialog";
 import { NotebookOverview } from "./notebook-overview";
 import { MobileOutlineSheet } from "./page-outline";
 import { UndoToast } from "./undo-toast";
-import { InboxView, QuickCapture } from "./quick-notes";
+import { QuickCapture, StickerBoard } from "./quick-notes";
 import { TagBrowser } from "./tag-browser";
 import { TodayView } from "./today-view";
 import {
@@ -80,6 +80,7 @@ import { consumeNativeShare, flushNativeAuthCookies } from "@/lib/native-android
 import type { PaletteCommand } from "@/lib/command-palette";
 import type { PageOutlineItem } from "@/lib/page-outline";
 import { createReversibleAction, type ReversibleAction } from "@/lib/reversible-action";
+import { getPageHref, pageIdFromPath, WORKSPACE_ROOT_HREF } from "@/lib/workspace-navigation";
 import {
   PAGE_LIST_VIEWS,
   SECTION_ACCENT_INTENSITIES,
@@ -110,7 +111,7 @@ type MobileBackRuntimeState = {
   mobileView: MobileView;
   moveTarget: MoveTarget | null;
   printOpen: boolean;
-  screen: "workspace" | "trash" | "inbox" | "today";
+  screen: "workspace" | "trash" | "stickers" | "today";
   searchOpen: boolean;
   settingsOpen: boolean;
   templateManagerOpen: boolean;
@@ -160,7 +161,8 @@ export function NotebookApp({
   const [mobileView, setMobileView] = useState<MobileView>("navigation");
   const [error, setError] = useState("");
   const [actionTarget, setActionTarget] = useState<ActionTarget | null>(null);
-  const [screen, setScreen] = useState<"workspace" | "trash" | "inbox" | "today">("workspace");
+  const [screen, setScreen] = useState<"workspace" | "trash" | "stickers" | "today">("workspace");
+  const [startScreen, setStartScreen] = useState<"last" | "today" | "notebooks" | "inbox">("last");
   const [searchOpen, setSearchOpen] = useState(false);
   const [searchInitialQuery, setSearchInitialQuery] = useState("");
   const [workspaceRevision, setWorkspaceRevision] = useState(0);
@@ -336,6 +338,7 @@ export function NotebookApp({
       };
     }>("/api/account/preferences")
       .then(({ settings }) => {
+        setStartScreen(settings.startScreen);
         setDensity(settings.interfaceDensity);
         setSectionAccentIntensity(
           valueFromAllowlist(
@@ -354,7 +357,7 @@ export function NotebookApp({
         if (!startScreenApplied.current && !initialLocation) {
           startScreenApplied.current = true;
           if (settings.startScreen === "today") setScreen("today");
-          else if (settings.startScreen === "inbox") setScreen("inbox");
+          else if (settings.startScreen === "inbox") setScreen("stickers");
           else if (settings.startScreen === "notebooks") {
             setScreen("workspace");
             setActiveSectionId(null);
@@ -371,10 +374,12 @@ export function NotebookApp({
         event as CustomEvent<{
           sectionAccentIntensity: SectionAccentIntensity;
           pageListView: PageListView;
+          startScreen: "last" | "today" | "notebooks" | "inbox";
         }>
       ).detail;
       setSectionAccentIntensity(next.sectionAccentIntensity);
       setPageListView(next.pageListView);
+      setStartScreen(next.startScreen);
     };
     window.addEventListener(
       "notebook:appearance-preferences",
@@ -429,7 +434,7 @@ export function NotebookApp({
   }, [activeSection?.id, report, workspaceRevision]);
 
   function setPageUrl(pageId: string, mode: "push" | "replace" = "push") {
-    const url = `/pages/${pageId}`;
+    const url = getPageHref(pageId);
     if (window.location.pathname === url) return;
     window.history[mode === "push" ? "pushState" : "replaceState"](
       null,
@@ -437,46 +442,25 @@ export function NotebookApp({
       url,
     );
   }
-  async function openPage(
-    page: PageSummary,
-    history: "push" | "replace" | "none" = "push",
-  ) {
-    setPageLoading(true);
-    setMobileView("editor");
-    try {
-      const result = (
-        await api<{ page: PageDocument }>(`/api/pages/${page.id}`)
-      ).page;
-      activePageRef.current = result;
-      setActivePage(result);
-      setOutline([]);
-      setOutlineOpen(false);
-      recordOpenedPage(result.id);
-      if (history !== "none") setPageUrl(result.id, history);
-    } catch (cause) {
-      report(cause);
-    } finally {
-      setPageLoading(false);
-    }
-  }
-
   function openNotebookOverview(notebookId: string) {
+    setScreen("workspace");
     setActiveNotebookId(notebookId);
     setActiveSectionId(null);
     activePageRef.current = null;
     setActivePage(null);
     setOutline([]);
-    window.history.replaceState(null, "", "/app");
+    window.history.replaceState(null, "", WORKSPACE_ROOT_HREF);
     setMobileView("pages");
   }
 
   function openSection(section: Section) {
+    setScreen("workspace");
     setActiveNotebookId(section.notebookId);
     setActiveSectionId(section.id);
     activePageRef.current = null;
     setActivePage(null);
     setOutline([]);
-    window.history.replaceState(null, "", "/app");
+    window.history.replaceState(null, "", WORKSPACE_ROOT_HREF);
     setMobileView("pages");
   }
 
@@ -486,15 +470,18 @@ export function NotebookApp({
       try {
         const page = (await api<{ page: PageDocument }>(`/api/pages/${pageId}`))
           .page;
-        const notebook = notebooks.find((item) =>
+        let availableNotebooks = notebooks;
+        let notebook = availableNotebooks.find((item) =>
           item.sections.some((section) => section.id === page.sectionId),
         );
         if (!notebook) {
-          await loadNotebooks();
-          throw new Error(
-            "Расположение страницы обновилось. Повторите переход",
+          availableNotebooks = (await api<{ notebooks: Notebook[] }>("/api/notebooks")).notebooks;
+          setNotebooks(availableNotebooks);
+          notebook = availableNotebooks.find((item) =>
+            item.sections.some((section) => section.id === page.sectionId),
           );
         }
+        if (!notebook) throw new Error("PAGE_LOCATION_UNAVAILABLE");
         setActiveNotebookId(notebook.id);
         setActiveSectionId(page.sectionId);
         activePageRef.current = page;
@@ -502,19 +489,30 @@ export function NotebookApp({
         setOutline([]);
         setOutlineOpen(false);
         recordOpenedPage(page.id);
+        setScreen("workspace");
         setMobileView("editor");
         if (history !== "none") setPageUrl(page.id, history);
+        return true;
+      } catch {
+        setNotice(t("navigation.pageUnavailable"));
+        return false;
       } finally {
         setPageLoading(false);
       }
     },
-    [loadNotebooks, notebooks, recordOpenedPage],
+    [notebooks, recordOpenedPage],
+  );
+
+  const openPage = useCallback(
+    (page: PageSummary, history: "push" | "replace" | "none" = "push") =>
+      openPageById(page.id, history),
+    [openPageById],
   );
 
   useEffect(() => {
     const pop = () => {
-      const match = window.location.pathname.match(/^\/pages\/([^/]+)$/);
-      if (match?.[1]) void openPageById(match[1], "none").catch(report);
+      const pageId = pageIdFromPath(window.location.pathname);
+      if (pageId) void openPageById(pageId, "none");
       else {
         setMobileView("navigation");
         activePageRef.current = null;
@@ -523,7 +521,7 @@ export function NotebookApp({
     };
     window.addEventListener("popstate", pop);
     return () => window.removeEventListener("popstate", pop);
-  }, [openPageById, report]);
+  }, [openPageById]);
 
   useEffect(() => {
     const androidWindow = window as Window & {
@@ -986,16 +984,16 @@ export function NotebookApp({
       return;
     }
     if (result.type === "quickNote") {
-      setScreen("inbox");
-      setMobileView("navigation");
+      openSpecial("stickers");
       return;
     }
-    setScreen("workspace");
     if (result.type === "notebook") {
+      setScreen("workspace");
       openNotebookOverview(result.notebookId);
       return;
     }
     if (result.type === "section") {
+      setScreen("workspace");
       const notebook = notebooks.find((item) => item.id === result.notebookId);
       const section = notebook?.sections.find((item) => item.id === result.id);
       if (section) openSection(section);
@@ -1120,7 +1118,7 @@ export function NotebookApp({
   }
 
   async function copyPageLink(page: PageSummary) {
-    const link = `${window.location.origin}/pages/${page.id}`;
+    const link = `${window.location.origin}${getPageHref(page.id)}`;
     try {
       if (navigator.clipboard?.writeText)
         await navigator.clipboard.writeText(link);
@@ -1168,14 +1166,14 @@ export function NotebookApp({
     {
       id: "inbox",
       title: t("commands.openInbox"),
-      aliases: ["inbox", "входящие"],
-      run: () => { setScreen("inbox"); setMobileView("navigation"); },
+      aliases: ["inbox", "входящие", "стикеры"],
+      run: () => openSpecial("stickers"),
     },
     {
       id: "today",
       title: t("commands.openToday"),
       aliases: ["today", "сегодня", "главная"],
-      run: () => { setScreen("today"); setMobileView("navigation"); },
+      run: () => openSpecial("today"),
     },
     {
       id: "tags",
@@ -1211,6 +1209,64 @@ export function NotebookApp({
     },
   ];
 
+  function openSpecial(destination: "today" | "stickers") {
+    setScreen(destination);
+    setMobileView("navigation");
+    window.history.replaceState(null, "", WORKSPACE_ROOT_HREF);
+  }
+
+  function openHome() {
+    if (startScreen === "today") {
+      openSpecial("today");
+      return;
+    }
+    if (startScreen === "inbox") {
+      openSpecial("stickers");
+      return;
+    }
+    setScreen("workspace");
+    window.history.replaceState(null, "", WORKSPACE_ROOT_HREF);
+    if (startScreen === "notebooks") {
+      setActiveSectionId(null);
+      activePageRef.current = null;
+      setActivePage(null);
+      setMobileView("navigation");
+      return;
+    }
+    setMobileView(activePageRef.current ? "editor" : activeSectionId ? "pages" : "navigation");
+  }
+
+  const navigationSidebar = (
+    <div
+      data-mobile-screen="navigation"
+      className={cn(
+        "notebook-no-print min-h-0 min-w-0",
+        (screen !== "workspace" || mobileView !== "navigation") && "hidden md:block",
+      )}
+    >
+      <NotebookSidebar
+        notebooks={notebooks}
+        activeNotebookId={activeNotebookId}
+        activeSectionId={activeSection?.id ?? null}
+        activeDestination={screen === "today" ? "today" : screen === "stickers" ? "stickers" : "workspace"}
+        expansionStorageKey={`notebook:expanded-notebooks:${user.id}`}
+        sectionAccentIntensity={sectionAccentIntensity}
+        onNotebookSelect={openNotebookOverview}
+        onSectionSelect={openSection}
+        onAddNotebook={addNotebook}
+        onNotebookMenu={(item) => setActionTarget({ type: "notebook", item })}
+        onAddSection={addSection}
+        onSectionMenu={(item) => setActionTarget({ type: "section", item })}
+        onNotebookReorder={(ids) => void saveNotebookOrder(ids)}
+        onSectionReorder={(notebookId, parentId, ids) => void saveSectionOrder(notebookId, parentId, ids)}
+        onTrashOpen={() => setScreen("trash")}
+        onInboxOpen={() => openSpecial("stickers")}
+        onTodayOpen={() => openSpecial("today")}
+        onTagsOpen={() => { setTagBrowserTag(null); setTagBrowserOpen(true); }}
+      />
+    </div>
+  );
+
   return (
     <div
       data-density={density}
@@ -1224,6 +1280,7 @@ export function NotebookApp({
         resolvedTheme={resolvedTheme}
         menuOpen={mobileMenuOpen}
         androidClient={androidClient}
+        onHome={openHome}
         onMenu={() => {
           setScreen("workspace");
           setMobileView("navigation");
@@ -1250,12 +1307,12 @@ export function NotebookApp({
         data-testid="desktop-app-header"
         className="notebook-no-print hidden h-14 shrink-0 items-center border-b border-border/60 px-4 md:flex"
       >
-        <div className="flex items-center gap-2 font-semibold">
+        <button type="button" className="flex items-center gap-2 rounded-lg font-semibold focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring" onClick={openHome}>
           <span className="flex size-8 items-center justify-center rounded-lg bg-primary text-primary-foreground">
             <BookOpen size={17} />
           </span>
           Notebook
-        </div>
+        </button>
         {activeNotebook && (
           <div className="ml-4 hidden min-w-0 items-center gap-2 border-l border-border/60 pl-4 text-sm sm:flex">
             <span
@@ -1372,8 +1429,10 @@ export function NotebookApp({
             }}
             onError={report}
           />
-        ) : screen === "inbox" ? (
-          <InboxView
+        ) : screen === "stickers" ? (
+          <>
+          {navigationSidebar}
+          <StickerBoard
             notebooks={notebooks}
             revision={workspaceRevision}
             onBack={() => setScreen("workspace")}
@@ -1383,80 +1442,30 @@ export function NotebookApp({
               setSearchOpen(true);
             }}
             onConverted={(page) => {
-              const notebook = notebooks.find((item) => item.sections.some((section) => section.id === page.sectionId));
-              setScreen("workspace");
-              setActiveNotebookId(notebook?.id ?? null);
-              setActiveSectionId(page.sectionId);
-              activePageRef.current = page;
-              setActivePage(page);
               setWorkspaceRevision((value) => value + 1);
-              setMobileView("editor");
-              setPageUrl(page.id);
+              void openPageById(page.id);
             }}
           />
+          </>
         ) : screen === "today" ? (
+          <>
+          {navigationSidebar}
           <TodayView
             revision={workspaceRevision}
             onBack={() => setScreen("workspace")}
             onCapture={() => setQuickNotesOpen(true)}
-            onInbox={() => setScreen("inbox")}
-            onPage={(id) => {
-              setScreen("workspace");
-              void openPageById(id).catch(report);
-            }}
+            onInbox={() => openSpecial("stickers")}
+            onPage={(id) => void openPageById(id)}
             onTag={(tag) => {
               setTagBrowserTag(tag);
               setTagBrowserOpen(true);
             }}
             onError={report}
           />
+          </>
         ) : (
           <>
-            <div
-              data-mobile-screen="navigation"
-              className={cn(
-                "notebook-no-print min-h-0 min-w-0",
-                mobileView !== "navigation" && "hidden md:block",
-              )}
-            >
-              <NotebookSidebar
-                notebooks={notebooks}
-                activeNotebookId={activeNotebookId}
-                activeSectionId={activeSection?.id ?? null}
-                sectionAccentIntensity={sectionAccentIntensity}
-                onNotebookSelect={(id) => {
-                  openNotebookOverview(id);
-                }}
-                onSectionSelect={(section) => {
-                  openSection(section);
-                }}
-                onAddNotebook={addNotebook}
-                onNotebookMenu={(item) =>
-                  setActionTarget({ type: "notebook", item })
-                }
-                onAddSection={addSection}
-                onSectionMenu={(item) =>
-                  setActionTarget({ type: "section", item })
-                }
-                onNotebookReorder={(ids) => void saveNotebookOrder(ids)}
-                onSectionReorder={(notebookId, parentId, ids) =>
-                  void saveSectionOrder(notebookId, parentId, ids)
-                }
-                onTrashOpen={() => setScreen("trash")}
-                onInboxOpen={() => {
-                  setScreen("inbox");
-                  setMobileView("navigation");
-                }}
-                onTodayOpen={() => {
-                  setScreen("today");
-                  setMobileView("navigation");
-                }}
-                onTagsOpen={() => {
-                  setTagBrowserTag(null);
-                  setTagBrowserOpen(true);
-                }}
-              />
-            </div>
+            {navigationSidebar}
             <div
               data-mobile-screen="pages"
               className={cn(
@@ -1576,8 +1585,7 @@ export function NotebookApp({
         }}
         onInbox={() => {
           setTagBrowserOpen(false);
-          setScreen("inbox");
-          setMobileView("navigation");
+          openSpecial("stickers");
         }}
       />
       {screen === "workspace" && mobileView !== "editor" && (

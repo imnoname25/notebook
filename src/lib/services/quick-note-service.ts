@@ -7,23 +7,47 @@ import { syncPageTags, syncQuickNoteTags } from "@/lib/services/tag-service";
 
 const quickNoteSelect = {
   id: true, title: true, body: true, color: true, icon: true,
-  isPinned: true, status: true, archivedAt: true, createdAt: true, updatedAt: true,
+  isPinned: true, sortOrder: true, status: true, archivedAt: true, createdAt: true, updatedAt: true,
   tags: { select: { tag: { select: { name: true, normalized: true } } } },
 } as const;
 
 export async function listQuickNotes(userId: string, archived = false) {
   return db.quickNote.findMany({
     where: { userId, status: archived ? { in: ["ARCHIVED", "CONVERTED"] } : "INBOX" },
-    orderBy: [{ isPinned: "desc" }, { updatedAt: "desc" }],
+    orderBy: [{ isPinned: "desc" }, { sortOrder: "asc" }, { updatedAt: "desc" }],
     select: quickNoteSelect,
   });
 }
 
 export async function createQuickNote(userId: string, input: { title?: string; body?: string; color?: string; icon?: string | null }) {
   return db.$transaction(async (tx) => {
-    const note = await tx.quickNote.create({ data: { userId, ...input }, select: quickNoteSelect });
+    const last = await tx.quickNote.aggregate({ where: { userId }, _max: { sortOrder: true } });
+    const note = await tx.quickNote.create({ data: { userId, ...input, sortOrder: (last._max.sortOrder ?? -1) + 1 }, select: quickNoteSelect });
     await syncQuickNoteTags(tx, userId, note.id, `${note.title} ${note.body}`);
     return tx.quickNote.findUniqueOrThrow({ where: { id: note.id }, select: quickNoteSelect });
+  });
+}
+
+export async function duplicateQuickNote(userId: string, id: string) {
+  return db.$transaction(async (tx) => {
+    const source = await tx.quickNote.findFirst({ where: { id, userId, status: "INBOX" } });
+    if (!source) throw new ApiError(404, "Стикер не найден");
+    const last = await tx.quickNote.aggregate({ where: { userId }, _max: { sortOrder: true } });
+    const note = await tx.quickNote.create({ data: {
+      userId, title: source.title, body: source.body, color: source.color, icon: source.icon,
+      isPinned: false, sortOrder: (last._max.sortOrder ?? -1) + 1,
+    }, select: quickNoteSelect });
+    await syncQuickNoteTags(tx, userId, note.id, `${note.title} ${note.body}`);
+    return tx.quickNote.findUniqueOrThrow({ where: { id: note.id }, select: quickNoteSelect });
+  });
+}
+
+export async function reorderQuickNotes(userId: string, ids: string[]) {
+  await db.$transaction(async (tx) => {
+    const active = await tx.quickNote.findMany({ where: { userId, status: "INBOX" }, select: { id: true } });
+    const owned = new Set(active.map((note) => note.id));
+    if (ids.length !== owned.size || ids.some((id) => !owned.has(id))) throw new ApiError(409, "Список стикеров изменился. Обновите доску");
+    await Promise.all(ids.map((id, sortOrder) => tx.quickNote.update({ where: { id }, data: { sortOrder } })));
   });
 }
 

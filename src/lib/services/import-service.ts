@@ -545,7 +545,7 @@ async function createPortableData(
         sha256: file.attachment.sha256,
       },
     });
-  for (const note of data.quickNotes ?? []) {
+  for (const [noteIndex, note] of (data.quickNotes ?? []).entries()) {
     const createdNote = await tx.quickNote.create({
       data: {
         userId,
@@ -554,6 +554,7 @@ async function createPortableData(
         color: note.color,
         icon: note.icon,
         isPinned: note.isPinned,
+        sortOrder: note.sortOrder ?? noteIndex,
         status: note.status ?? (note.archivedAt ? "ARCHIVED" : "INBOX"),
         archivedAt: note.archivedAt ? new Date(note.archivedAt) : null,
         createdAt: new Date(note.createdAt),

@@ -308,6 +308,7 @@ export async function buildPortableExport(
               color: note.color as "neutral" | "amber" | "orange" | "green" | "blue" | "violet" | "pink",
               icon: note.icon,
               isPinned: note.isPinned,
+              sortOrder: note.sortOrder,
               status: note.status,
               archivedAt: note.archivedAt ? date(note.archivedAt) : null,
               createdAt: date(note.createdAt),
