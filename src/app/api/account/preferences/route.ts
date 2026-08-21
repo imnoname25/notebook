@@ -4,7 +4,7 @@ import { db } from "@/lib/db";
 import { getApplicationSettings } from "@/lib/services/settings-service";
 import { accountPreferencesSchema } from "@/lib/validation";
 
-function publicPreferences(settings: { interfaceDensity: string; sectionAccentIntensity: string; pageListView: string; defaultPagePreset: string; editorSpellcheck: boolean; editorCodeLineNumbers: boolean; editorCompactMode: boolean; editorContentWidth: string }, autosaveDelayMs: number) {
+function publicPreferences(settings: { interfaceDensity: string; sectionAccentIntensity: string; pageListView: string; defaultPagePreset: string; startScreen: string; editorSpellcheck: boolean; editorCodeLineNumbers: boolean; editorCompactMode: boolean; editorContentWidth: string }, autosaveDelayMs: number) {
   return { ...settings, autosaveDelayMs };
 }
 

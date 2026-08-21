@@ -1,6 +1,6 @@
 # Notebook для Android
 
-Android-клиент находится в `android-client/` и построен на Capacitor 8. Его стабильный package ID — `ru.metroom.notebook`; текущая версия — `0.2.0` (`versionCode 2`). Основной интерфейс загружается с выбранного self-hosted сервера, а native project оставляет место для будущих AutofillService, BiometricPrompt, secure storage, share intent и системных file picker.
+Android-клиент находится в `android-client/` и построен на Capacitor 8. Его стабильный package ID — `ru.metroom.notebook`; текущий `versionName` берётся из корневого `package.json`, а положительный целочисленный `versionCode` хранится отдельно в Gradle. Основной интерфейс загружается с выбранного self-hosted сервера, а native project оставляет место для будущих AutofillService, BiometricPrompt, secure storage, share intent и системных file picker.
 
 ## Установка APK
 
@@ -39,7 +39,7 @@ GitHub Actions использует secrets:
 - `ANDROID_KEY_ALIAS`;
 - `ANDROID_KEY_PASSWORD`.
 
-При стабильном tag `v0.2.0` workflow временно восстанавливает keystore, собирает подписанные APK/AAB и прикладывает их к GitHub Release. Keystore и пароли не коммитятся.
+Перед релизом выполните `npm run version:set -- 0.4.1`, затем `npm run version:check`. Команда синхронизирует root/Android package metadata и Gradle `versionName`, а `versionCode` увеличивает на единицу. При стабильном tag `v0.4.1` workflow до сборки сверяет tag, обе package versions и Gradle `versionName`, затем временно восстанавливает keystore, собирает подписанные APK/AAB и прикладывает их к GitHub Release. Keystore и пароли не коммитятся.
 
 > Потеря signing key не позволит устанавливать новые версии поверх уже установленного APK с тем же package ID. Храните зашифрованную резервную копию key и паролей отдельно от GitHub.
 

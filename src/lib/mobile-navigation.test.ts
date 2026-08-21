@@ -17,6 +17,8 @@ describe("mobile Back contract", () => {
 
   it("returns from trash to the workspace first", () => {
     expect(resolveMobileBack({ hasOverlay: false, screen: "trash", view: "navigation" })).toBe("workspace");
+    expect(resolveMobileBack({ hasOverlay: false, screen: "inbox", view: "navigation" })).toBe("workspace");
+    expect(resolveMobileBack({ hasOverlay: false, screen: "today", view: "navigation" })).toBe("workspace");
   });
 
   it("exposes safe diagnostic labels for the native protocol", () => {

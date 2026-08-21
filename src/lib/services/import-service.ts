@@ -32,6 +32,9 @@ import {
 import { db } from "@/lib/db";
 import { ApiError } from "@/lib/errors";
 import { extractBlockNoteText } from "@/lib/blocknote-text";
+import { syncPageTags, syncQuickNoteTags } from "@/lib/services/tag-service";
+import { syncPageLinks } from "@/lib/services/page-link-service";
+import { syncLiveWidgetIndex } from "@/lib/services/live-widget-service";
 import { IMAGE_EXTENSIONS, isValidImageMime } from "@/lib/uploads";
 import {
   portableAttachmentKeysInContent,
@@ -370,6 +373,7 @@ async function createPortableData(
   const attachmentPage = new Map<string, string>();
   const pageCovers = new Map<string, string>();
   const pageBackgrounds = new Map<string, string>();
+  const notebookCovers = new Map<string, string>();
   for (const notebook of data.notebooks) {
     const id = randomUUID();
     notebookIds.set(notebook.key, id);
@@ -383,6 +387,8 @@ async function createPortableData(
             : notebook.title,
         icon: notebook.icon,
         color: notebook.color,
+        coverType: notebook.coverType ?? "none",
+        coverValue: notebook.coverValue ?? null,
         sortOrder: notebook.sortOrder,
         createdAt: new Date(notebook.createdAt),
         updatedAt: new Date(notebook.updatedAt),
@@ -397,6 +403,7 @@ async function createPortableData(
           : {}),
       },
     });
+    if (notebook.coverAttachmentKey) notebookCovers.set(id, notebook.coverAttachmentKey);
   }
   for (const notebook of data.notebooks) {
     const pending = [...notebook.sections];
@@ -451,7 +458,7 @@ async function createPortableData(
           pageIds,
           "import",
         ) as Prisma.InputJsonValue;
-        await tx.page.create({
+        const createdPage = await tx.page.create({
           data: {
             id,
             sectionId: sectionIds.get(section.key)!,
@@ -481,6 +488,7 @@ async function createPortableData(
               : {}),
           },
         });
+        await syncPageTags(tx, userId, id, `${createdPage.title} ${createdPage.searchText}`);
         for (const key of portableAttachmentKeysInContent(page.content))
           if (!attachmentPage.has(key)) attachmentPage.set(key, id);
         if (page.coverAttachmentKey) {
@@ -516,6 +524,14 @@ async function createPortableData(
           }
       }
   }
+  const importedPages = await tx.page.findMany({
+    where: { id: { in: [...pageIds.values()] }, section: { notebook: { userId } } },
+    select: { id: true, content: true },
+  });
+  for (const page of importedPages) {
+    await syncPageLinks(tx, userId, page.id, page.content);
+    await syncLiveWidgetIndex(tx, page.id, page.content);
+  }
   for (const file of files)
     await tx.upload.create({
       data: {
@@ -529,6 +545,23 @@ async function createPortableData(
         sha256: file.attachment.sha256,
       },
     });
+  for (const note of data.quickNotes ?? []) {
+    const createdNote = await tx.quickNote.create({
+      data: {
+        userId,
+        title: note.title,
+        body: note.body,
+        color: note.color,
+        icon: note.icon,
+        isPinned: note.isPinned,
+        status: note.status ?? (note.archivedAt ? "ARCHIVED" : "INBOX"),
+        archivedAt: note.archivedAt ? new Date(note.archivedAt) : null,
+        createdAt: new Date(note.createdAt),
+        updatedAt: new Date(note.updatedAt),
+      },
+    });
+    await syncQuickNoteTags(tx, userId, createdNote.id, `${createdNote.title} ${createdNote.body}`);
+  }
   for (const [pageId, key] of pageCovers) {
     const uploadId = attachmentIds.get(key);
     if (uploadId)
@@ -544,6 +577,10 @@ async function createPortableData(
         where: { id: pageId },
         data: { backgroundUploadId: uploadId },
       });
+  }
+  for (const [notebookId, key] of notebookCovers) {
+    const uploadId = attachmentIds.get(key);
+    if (uploadId) await tx.notebook.update({ where: { id: notebookId }, data: { coverUploadId: uploadId, coverType: "image" } });
   }
   return { notebookIds, pageIds };
 }
@@ -606,6 +643,9 @@ export async function commitImport(
             revision: 0,
           },
         });
+        await syncPageTags(tx, userId, id, `${created.title} ${created.searchText}`);
+        await syncPageLinks(tx, userId, id, created.content);
+        await syncLiveWidgetIndex(tx, id, created.content);
         for (const file of materialized.files)
           await tx.upload.create({
             data: {
@@ -678,6 +718,8 @@ export async function restoreBackupData(
       async (tx) => {
         await tx.notebook.deleteMany({ where: { userId } });
         await tx.upload.deleteMany({ where: { userId } });
+        if (prepared.manifest!.version >= 4)
+          await tx.quickNote.deleteMany({ where: { userId } });
         await createPortableData(
           tx,
           userId,

@@ -6,6 +6,9 @@ import {
   Ellipsis,
   FolderPlus,
   GripVertical,
+  Hash,
+  Inbox,
+  Sparkles,
   Plus,
   Trash2,
 } from "lucide-react";
@@ -25,6 +28,7 @@ import { SortableItem, SortableList } from "./sortable";
 import type { Notebook, Section } from "./types";
 import type { SectionAccentIntensity } from "@/lib/content-appearance";
 import { SectionIcon } from "./section-icon";
+import { t } from "@/lib/i18n/messages";
 
 type Props = {
   notebooks: Notebook[];
@@ -45,6 +49,9 @@ type Props = {
     ids: string[],
   ): void;
   onTrashOpen(): void;
+  onTagsOpen(): void;
+  onInboxOpen(): void;
+  onTodayOpen(): void;
 };
 
 function SectionTree({
@@ -189,6 +196,14 @@ export function NotebookSidebar(props: Props) {
       data-section-intensity={props.sectionAccentIntensity ?? "moderate"}
       className="notebook-sidebar flex h-full min-h-0 flex-col bg-sidebar p-2 md:border-r md:border-border/60"
     >
+      <button className="mb-1 flex min-h-11 items-center gap-3 rounded-lg px-3 text-[15px] font-semibold text-foreground transition hover:bg-accent md:min-h-10" onClick={props.onTodayOpen}>
+        <Sparkles size={18} className="text-primary" />
+        {t("today.title")}
+      </button>
+      <button className="mb-2 flex min-h-12 items-center gap-3 rounded-lg bg-amber-400/10 px-3 text-[15px] font-semibold text-foreground ring-1 ring-amber-500/15 transition hover:bg-amber-400/15 md:min-h-11" onClick={props.onInboxOpen}>
+        <span className="flex size-7 items-center justify-center rounded-md bg-amber-400/20 text-amber-700 dark:text-amber-300"><Inbox size={16}/></span>
+        {t("quickNotes.inbox")}
+      </button>
       <div className="mb-1 flex h-9 items-center justify-between px-1.5">
         <p className="text-[12.5px] font-semibold uppercase tracking-[0.12em] text-muted-foreground">
           Блокноты
@@ -328,13 +343,10 @@ export function NotebookSidebar(props: Props) {
           })}
         </SortableList>
       </div>
-      <button
-        className="mt-1 flex min-h-10 items-center gap-2 rounded-md px-2 text-sm text-muted-foreground hover:bg-accent hover:text-foreground"
-        onClick={props.onTrashOpen}
-      >
-        <Trash2 size={16} />
-        Корзина
-      </button>
+      <div className="mt-1 grid grid-cols-2 gap-1 border-t border-border/50 pt-1">
+        <button className="flex min-h-10 items-center gap-2 rounded-md px-2 text-sm text-muted-foreground hover:bg-accent hover:text-foreground" onClick={props.onTagsOpen}><Hash size={16}/>{t("tags.title")}</button>
+        <button className="flex min-h-10 items-center gap-2 rounded-md px-2 text-sm text-muted-foreground hover:bg-accent hover:text-foreground" onClick={props.onTrashOpen}><Trash2 size={16}/>Корзина</button>
+      </div>
     </aside>
   );
 }

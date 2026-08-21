@@ -75,6 +75,7 @@ type SettingsData = {
   editorCompactMode: boolean;
   editorContentWidth: "narrow" | "normal" | "wide";
   lastStorageAuditAt: string | null;
+  liveWidgetAllowedCidrs: string;
 };
 type RemoteCopy = {
   id: string;
@@ -144,6 +145,7 @@ type Tab =
   | "templates"
   | "backups"
   | "storage"
+  | "live-widgets"
   | "system";
 const accountTabs: { id: Tab; label: string }[] = [
   { id: "profile", label: t("account.profile") },
@@ -157,6 +159,7 @@ const adminTabs: { id: Tab; label: string }[] = [
   { id: "templates", label: "Шаблоны" },
   { id: "backups", label: "Резервные копии" },
   { id: "storage", label: "Хранилище" },
+  { id: "live-widgets", label: "Live Widgets" },
   { id: "system", label: "Система" },
 ];
 const bytes = (value: number | null) =>
@@ -294,6 +297,7 @@ export function SettingsDialog({
         editorCodeLineNumbers: draft.editorCodeLineNumbers,
         editorCompactMode: draft.editorCompactMode,
         editorContentWidth: draft.editorContentWidth,
+        liveWidgetAllowedCidrs: draft.liveWidgetAllowedCidrs,
       };
       const [response] = await Promise.all([
         api<{ settings: SettingsData }>(
@@ -638,6 +642,21 @@ export function SettingsDialog({
                             }
                           />
                         </div>
+                      </Section>
+                    )}
+                    {tab === "live-widgets" && (
+                      <Section title="Live Widgets · доступ к сети">
+                        <Field label="Разрешённые сети CIDR">
+                          <textarea
+                            className="input min-h-32 resize-y font-mono text-sm"
+                            value={draft.liveWidgetAllowedCidrs}
+                            placeholder={"192.168.110.0/24\n10.0.0.0/8"}
+                            onChange={(event) => change("liveWidgetAllowedCidrs", event.target.value)}
+                          />
+                        </Field>
+                        <p className="text-sm leading-6 text-muted-foreground">
+                          По умолчанию разрешён только публичный Internet. LAN доступен лишь после явного добавления сети. Loopback, link-local, multicast и cloud metadata остаются запрещены даже при широком allowlist.
+                        </p>
                       </Section>
                     )}
                     {tab === "templates" && (
@@ -1286,6 +1305,7 @@ type AppearancePreferences = {
   sectionAccentIntensity: SectionAccentIntensity;
   pageListView: PageListView;
   defaultPagePreset: PageAppearancePreset;
+  startScreen: "last" | "today" | "notebooks" | "inbox";
 };
 function AppearancePreferencesSettings({
   onError,
@@ -1367,6 +1387,23 @@ function AppearancePreferencesSettings({
               {PAGE_PRESET_LABELS[preset]}
             </option>
           ))}
+        </select>
+      </Field>
+      <Field label={t("appearance.startScreen")}>
+        <select
+          className="input"
+          value={settings.startScreen}
+          onChange={(event) =>
+            void update(
+              "startScreen",
+              event.target.value as AppearancePreferences["startScreen"],
+            )
+          }
+        >
+          <option value="last">{t("appearance.startLast")}</option>
+          <option value="today">{t("today.title")}</option>
+          <option value="notebooks">{t("quick.notebooks")}</option>
+          <option value="inbox">{t("quickNotes.inbox")}</option>
         </select>
       </Field>
       <p className="text-sm leading-6 text-muted-foreground">

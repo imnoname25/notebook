@@ -17,6 +17,7 @@ import {
   Moon,
   Search,
   Settings,
+  StickyNote,
   Sun,
 } from "lucide-react";
 import { useTheme } from "next-themes";
@@ -29,7 +30,7 @@ import { NotebookSidebar } from "./notebook-sidebar";
 import { PageList } from "./page-list";
 import { SearchDialog } from "./search-dialog";
 import { TrashView, type TrashItem } from "./trash-view";
-import { AppearanceDialog } from "./appearance-dialog";
+import { AppearanceDialog, type NotebookAppearanceInput } from "./appearance-dialog";
 import {
   PageAppearanceDialog,
   SectionAppearanceDialog,
@@ -44,6 +45,9 @@ import { PrintDialog } from "./print-dialog";
 import { NotebookOverview } from "./notebook-overview";
 import { MobileOutlineSheet } from "./page-outline";
 import { UndoToast } from "./undo-toast";
+import { InboxView, QuickCapture } from "./quick-notes";
+import { TagBrowser } from "./tag-browser";
+import { TodayView } from "./today-view";
 import {
   TemplateManager,
   TemplatePicker,
@@ -62,8 +66,6 @@ import {
   isNotebookIcon,
   NOTEBOOK_COLOR_CLASSES,
   NOTEBOOK_ICON_COMPONENTS,
-  type NotebookColor,
-  type NotebookIconId,
 } from "@/lib/notebook-appearance";
 import {
   MOBILE_BACK_PROTOCOL_VERSION,
@@ -74,7 +76,8 @@ import {
   type MobileView,
 } from "@/lib/mobile-navigation";
 import { t } from "@/lib/i18n/messages";
-import { flushNativeAuthCookies } from "@/lib/native-android";
+import { consumeNativeShare, flushNativeAuthCookies } from "@/lib/native-android";
+import type { PaletteCommand } from "@/lib/command-palette";
 import type { PageOutlineItem } from "@/lib/page-outline";
 import { createReversibleAction, type ReversibleAction } from "@/lib/reversible-action";
 import {
@@ -107,11 +110,14 @@ type MobileBackRuntimeState = {
   mobileView: MobileView;
   moveTarget: MoveTarget | null;
   printOpen: boolean;
-  screen: "workspace" | "trash";
+  screen: "workspace" | "trash" | "inbox" | "today";
   searchOpen: boolean;
   settingsOpen: boolean;
   templateManagerOpen: boolean;
   templatePickerOpen: boolean;
+  quickNotesOpen: boolean;
+  tagBrowserOpen: boolean;
+  editorOverlayOpen: boolean;
 };
 const noClientSubscription = () => () => undefined;
 const androidClientSnapshot = () => {
@@ -154,8 +160,9 @@ export function NotebookApp({
   const [mobileView, setMobileView] = useState<MobileView>("navigation");
   const [error, setError] = useState("");
   const [actionTarget, setActionTarget] = useState<ActionTarget | null>(null);
-  const [screen, setScreen] = useState<"workspace" | "trash">("workspace");
+  const [screen, setScreen] = useState<"workspace" | "trash" | "inbox" | "today">("workspace");
   const [searchOpen, setSearchOpen] = useState(false);
+  const [searchInitialQuery, setSearchInitialQuery] = useState("");
   const [workspaceRevision, setWorkspaceRevision] = useState(0);
   const [historyOpen, setHistoryOpen] = useState(false);
   const [appearanceNotebook, setAppearanceNotebook] = useState<Notebook | null>(
@@ -186,6 +193,12 @@ export function NotebookApp({
   const [outlineOpen, setOutlineOpen] = useState(false);
   const [outlineVisible, setOutlineVisible] = useState(false);
   const [undoAction, setUndoAction] = useState<ReversibleAction | null>(null);
+  const [quickNotesOpen, setQuickNotesOpen] = useState(false);
+  const [tagBrowserOpen, setTagBrowserOpen] = useState(false);
+  const [tagBrowserTag, setTagBrowserTag] = useState<string | null>(null);
+  const [editorOverlayOpen, setEditorOverlayOpen] = useState(false);
+  const [sharedCapture, setSharedCapture] = useState<{ title: string; text: string } | null>(null);
+  const [focusMode, setFocusMode] = useState(false);
   const androidClient = useSyncExternalStore(
     noClientSubscription,
     androidClientSnapshot,
@@ -196,6 +209,7 @@ export function NotebookApp({
   const initialPageOpened = useRef(false);
   const mobileBackStateRef = useRef<MobileBackRuntimeState | null>(null);
   const recentRecordedAt = useRef(new Map<string, number>());
+  const startScreenApplied = useRef(false);
 
   mobileBackStateRef.current = {
     actionTarget,
@@ -214,6 +228,9 @@ export function NotebookApp({
     settingsOpen,
     templateManagerOpen,
     templatePickerOpen,
+    quickNotesOpen,
+    tagBrowserOpen,
+    editorOverlayOpen,
   };
 
   const activeNotebook = useMemo(
@@ -268,6 +285,30 @@ export function NotebookApp({
   }, [report]);
 
   useEffect(() => {
+    const receive = () => void consumeNativeShare().then((value) => {
+      if (!value) return;
+      setSharedCapture(value);
+      setQuickNotesOpen(true);
+    });
+    receive();
+    window.addEventListener("notebook:native-share", receive);
+    return () => window.removeEventListener("notebook:native-share", receive);
+  }, []);
+  useEffect(() => {
+    const listener = (event: Event) => setEditorOverlayOpen(Boolean((event as CustomEvent<boolean>).detail));
+    window.addEventListener("notebook:editor-overlay", listener);
+    return () => window.removeEventListener("notebook:editor-overlay", listener);
+  }, []);
+  useEffect(() => {
+    const openTag = (event: Event) => {
+      const tag = (event as CustomEvent<string>).detail;
+      setTagBrowserTag(tag);
+      setTagBrowserOpen(true);
+    };
+    window.addEventListener("notebook:search-tag", openTag);
+    return () => window.removeEventListener("notebook:search-tag", openTag);
+  }, []);
+  useEffect(() => {
     let cancelled = false;
     api<{ notebooks: Notebook[] }>("/api/notebooks")
       .then((result) => {
@@ -291,6 +332,7 @@ export function NotebookApp({
         interfaceDensity: "comfortable" | "compact";
         sectionAccentIntensity: string;
         pageListView: string;
+        startScreen: "last" | "today" | "notebooks" | "inbox";
       };
     }>("/api/account/preferences")
       .then(({ settings }) => {
@@ -309,6 +351,16 @@ export function NotebookApp({
             "standard",
           ),
         );
+        if (!startScreenApplied.current && !initialLocation) {
+          startScreenApplied.current = true;
+          if (settings.startScreen === "today") setScreen("today");
+          else if (settings.startScreen === "inbox") setScreen("inbox");
+          else if (settings.startScreen === "notebooks") {
+            setScreen("workspace");
+            setActiveSectionId(null);
+            setMobileView("navigation");
+          }
+        }
       })
       .catch(() => undefined);
     const listener = (event: Event) =>
@@ -335,7 +387,7 @@ export function NotebookApp({
         appearanceListener,
       );
     };
-  }, []);
+  }, [initialLocation]);
   useEffect(() => {
     if (!initialLocation || initialPageOpened.current || notebooks.length === 0)
       return;
@@ -495,6 +547,9 @@ export function NotebookApp({
         state.settingsOpen ||
         state.templatePickerOpen ||
         state.templateManagerOpen ||
+        state.quickNotesOpen ||
+        state.tagBrowserOpen ||
+        state.editorOverlayOpen ||
         state.printOpen;
       const action = resolveMobileBack({
         hasOverlay,
@@ -507,9 +562,12 @@ export function NotebookApp({
       });
       if (action === "system") return "UNHANDLED";
       if (action === "close-overlay") {
-        if (state.actionTarget) setActionTarget(null);
-        else if (state.mobileMenuOpen) setMobileMenuOpen(false);
+        if (state.editorOverlayOpen) window.dispatchEvent(new Event("notebook:close-editor-overlay"));
+        else if (state.quickNotesOpen) setQuickNotesOpen(false);
         else if (state.searchOpen) setSearchOpen(false);
+        else if (state.tagBrowserOpen) setTagBrowserOpen(false);
+        else if (state.actionTarget) setActionTarget(null);
+        else if (state.mobileMenuOpen) setMobileMenuOpen(false);
         else if (state.outlineOpen) setOutlineOpen(false);
         else if (state.historyOpen) setHistoryOpen(false);
         else if (state.appearanceNotebook) setAppearanceNotebook(null);
@@ -618,11 +676,27 @@ export function NotebookApp({
 
   useEffect(() => {
     function hotkeys(event: KeyboardEvent) {
+      if (event.key === "Escape" && focusMode) {
+        event.preventDefault();
+        setFocusMode(false);
+        return;
+      }
       if (!(event.ctrlKey || event.metaKey)) return;
       const key = event.key.toLowerCase();
       if (key === "k") {
         event.preventDefault();
+        setSearchInitialQuery("");
         setSearchOpen(true);
+        return;
+      }
+      if (key === "n" && event.shiftKey) {
+        event.preventDefault();
+        setQuickNotesOpen(true);
+        return;
+      }
+      if (key === "f" && event.shiftKey && activePage) {
+        event.preventDefault();
+        setFocusMode((value) => !value);
         return;
       }
       if (key === "s" && activePage) {
@@ -642,7 +716,7 @@ export function NotebookApp({
     }
     window.addEventListener("keydown", hotkeys);
     return () => window.removeEventListener("keydown", hotkeys);
-  }, [activePage, activeSection, addPage]);
+  }, [activePage, activeSection, addPage, focusMode]);
 
   async function patchAndReload(url: string, body: unknown) {
     await api(url, jsonOptions("PATCH", body));
@@ -906,6 +980,16 @@ export function NotebookApp({
 
   async function openSearchResult(result: SearchResult) {
     setSearchOpen(false);
+    if (result.type === "tag") {
+      setTagBrowserTag(result.id);
+      setTagBrowserOpen(true);
+      return;
+    }
+    if (result.type === "quickNote") {
+      setScreen("inbox");
+      setMobileView("navigation");
+      return;
+    }
     setScreen("workspace");
     if (result.type === "notebook") {
       openNotebookOverview(result.notebookId);
@@ -942,12 +1026,12 @@ export function NotebookApp({
     window.location.replace("https://localhost/?changeServer=1");
   }
 
-  async function saveAppearance(color: NotebookColor, icon: NotebookIconId) {
+  async function saveAppearance(input: NotebookAppearanceInput) {
     if (!appearanceNotebook) return;
     try {
       await api(
         `/api/notebooks/${appearanceNotebook.id}`,
-        jsonOptions("PATCH", { color, icon }),
+        jsonOptions("PATCH", input),
       );
       await loadNotebooks();
     } catch (cause) {
@@ -1054,9 +1138,83 @@ export function NotebookApp({
     }
   }
 
+  const paletteCommands: PaletteCommand[] = [
+    {
+      id: "new-page",
+      title: t("commands.newPage"),
+      aliases: ["page", "страница", "создать"],
+      disabled: !activeSection,
+      run: () => void addPage(),
+    },
+    {
+      id: "quick-note",
+      title: t("commands.quickNote"),
+      aliases: ["note", "capture", "заметка", "стикер"],
+      run: () => setQuickNotesOpen(true),
+    },
+    {
+      id: "new-section",
+      title: t("commands.newSection"),
+      aliases: ["section", "раздел"],
+      disabled: !activeNotebook,
+      run: () => activeNotebook && void addSection(activeNotebook.id),
+    },
+    {
+      id: "new-notebook",
+      title: t("commands.newNotebook"),
+      aliases: ["notebook", "блокнот"],
+      run: () => void addNotebook(),
+    },
+    {
+      id: "inbox",
+      title: t("commands.openInbox"),
+      aliases: ["inbox", "входящие"],
+      run: () => { setScreen("inbox"); setMobileView("navigation"); },
+    },
+    {
+      id: "today",
+      title: t("commands.openToday"),
+      aliases: ["today", "сегодня", "главная"],
+      run: () => { setScreen("today"); setMobileView("navigation"); },
+    },
+    {
+      id: "tags",
+      title: t("commands.openTags"),
+      aliases: ["tags", "теги", "хештеги"],
+      run: () => { setTagBrowserTag(null); setTagBrowserOpen(true); },
+    },
+    {
+      id: "theme",
+      title: t("commands.toggleTheme"),
+      aliases: ["theme", "dark", "light", "тема", "тёмная", "светлая"],
+      run: () => setTheme(resolvedTheme === "dark" ? "light" : "dark"),
+    },
+    {
+      id: "settings",
+      title: t("commands.settings"),
+      aliases: ["settings", "настройки"],
+      run: () => setSettingsOpen(true),
+    },
+    {
+      id: "live-widget",
+      title: "Новый Live Widget",
+      aliases: ["status", "widget", "виджет", "проверка"],
+      disabled: !activePage,
+      run: () => editorController.current?.insertLiveWidget(),
+    },
+    {
+      id: "focus",
+      title: t("commands.focus"),
+      aliases: ["focus", "zen", "фокус"],
+      disabled: !activePage,
+      run: () => setFocusMode(true),
+    },
+  ];
+
   return (
     <div
       data-density={density}
+      data-focus-mode={focusMode ? "true" : "false"}
       className="notebook-app-shell flex h-dvh flex-col overflow-hidden bg-background text-foreground"
     >
       <MobileAppHeader
@@ -1070,7 +1228,8 @@ export function NotebookApp({
           setScreen("workspace");
           setMobileView("navigation");
         }}
-        onSearch={() => setSearchOpen(true)}
+        onSearch={() => { setSearchInitialQuery(""); setSearchOpen(true); }}
+        onQuickNotes={() => setQuickNotesOpen(true)}
         onMenuOpenChange={setMobileMenuOpen}
         onSettings={() => setSettingsOpen(true)}
         onTheme={() =>
@@ -1116,9 +1275,19 @@ export function NotebookApp({
             variant="ghost"
             size="icon"
             className="size-11"
+            aria-label={t("quickNotes.title")}
+            title={`${t("quickNotes.title")} (Ctrl/Cmd + Shift + N)`}
+            onClick={() => setQuickNotesOpen(true)}
+          >
+            <StickyNote size={17} />
+          </Button>
+          <Button
+            variant="ghost"
+            size="icon"
+            className="size-11"
             aria-label="Поиск"
             title="Поиск (Ctrl/Cmd + K)"
-            onClick={() => setSearchOpen(true)}
+            onClick={() => { setSearchInitialQuery(""); setSearchOpen(true); }}
           >
             <Search size={17} />
           </Button>
@@ -1203,6 +1372,44 @@ export function NotebookApp({
             }}
             onError={report}
           />
+        ) : screen === "inbox" ? (
+          <InboxView
+            notebooks={notebooks}
+            revision={workspaceRevision}
+            onBack={() => setScreen("workspace")}
+            onError={report}
+            onTag={(tag) => {
+              setSearchInitialQuery(`#${tag}`);
+              setSearchOpen(true);
+            }}
+            onConverted={(page) => {
+              const notebook = notebooks.find((item) => item.sections.some((section) => section.id === page.sectionId));
+              setScreen("workspace");
+              setActiveNotebookId(notebook?.id ?? null);
+              setActiveSectionId(page.sectionId);
+              activePageRef.current = page;
+              setActivePage(page);
+              setWorkspaceRevision((value) => value + 1);
+              setMobileView("editor");
+              setPageUrl(page.id);
+            }}
+          />
+        ) : screen === "today" ? (
+          <TodayView
+            revision={workspaceRevision}
+            onBack={() => setScreen("workspace")}
+            onCapture={() => setQuickNotesOpen(true)}
+            onInbox={() => setScreen("inbox")}
+            onPage={(id) => {
+              setScreen("workspace");
+              void openPageById(id).catch(report);
+            }}
+            onTag={(tag) => {
+              setTagBrowserTag(tag);
+              setTagBrowserOpen(true);
+            }}
+            onError={report}
+          />
         ) : (
           <>
             <div
@@ -1236,6 +1443,18 @@ export function NotebookApp({
                   void saveSectionOrder(notebookId, parentId, ids)
                 }
                 onTrashOpen={() => setScreen("trash")}
+                onInboxOpen={() => {
+                  setScreen("inbox");
+                  setMobileView("navigation");
+                }}
+                onTodayOpen={() => {
+                  setScreen("today");
+                  setMobileView("navigation");
+                }}
+                onTagsOpen={() => {
+                  setTagBrowserTag(null);
+                  setTagBrowserOpen(true);
+                }}
               />
             </div>
             <div
@@ -1311,6 +1530,7 @@ export function NotebookApp({
                   else setOutlineVisible((value) => !value);
                 }}
                 onOutlineSelect={(id) => editorController.current?.scrollToBlock(id)}
+                onCreatePage={() => void addPage()}
                 onInternalNavigate={async (pageId) => {
                   try {
                     await openPageById(pageId);
@@ -1325,10 +1545,50 @@ export function NotebookApp({
         )}
       </div>
       <SearchDialog
+        key={`${searchOpen ? "open" : "closed"}:${searchInitialQuery}`}
         open={searchOpen}
+        initialQuery={searchInitialQuery}
         onOpenChange={setSearchOpen}
         onSelect={(result) => void openSearchResult(result)}
+        commands={paletteCommands}
       />
+      <QuickCapture
+        key={sharedCapture ? `share:${sharedCapture.title}:${sharedCapture.text.length}` : "capture"}
+        open={quickNotesOpen}
+        initialTitle={sharedCapture?.title}
+        initialBody={sharedCapture?.text}
+        onOpenChange={(open) => { setQuickNotesOpen(open); if (!open) setSharedCapture(null); }}
+        onError={report}
+        onSaved={() => {
+          setWorkspaceRevision((value) => value + 1);
+          setNotice(t("quickNotes.savedInbox"));
+        }}
+      />
+      <TagBrowser
+        key={`${tagBrowserOpen ? "open" : "closed"}:${tagBrowserTag ?? "index"}`}
+        open={tagBrowserOpen}
+        initialTag={tagBrowserTag}
+        onOpenChange={setTagBrowserOpen}
+        onError={report}
+        onPage={(id) => {
+          setTagBrowserOpen(false);
+          void openPageById(id).catch(report);
+        }}
+        onInbox={() => {
+          setTagBrowserOpen(false);
+          setScreen("inbox");
+          setMobileView("navigation");
+        }}
+      />
+      {screen === "workspace" && mobileView !== "editor" && (
+        <button
+          className="notebook-no-print fixed bottom-[max(1rem,env(safe-area-inset-bottom))] right-4 z-30 flex size-14 items-center justify-center rounded-2xl bg-primary text-primary-foreground shadow-lg shadow-black/20 md:hidden"
+          aria-label={t("quickNotes.create")}
+          onClick={() => setQuickNotesOpen(true)}
+        >
+          <StickyNote size={24}/>
+        </button>
+      )}
       {actionTarget && (
         <div
           className="fixed inset-0 z-50 flex items-end justify-center bg-black/30 p-4 sm:items-center"

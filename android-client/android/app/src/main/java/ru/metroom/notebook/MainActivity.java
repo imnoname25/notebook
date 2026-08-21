@@ -1,6 +1,7 @@
 package ru.metroom.notebook;
 
 import android.os.Bundle;
+import android.content.Intent;
 import android.content.pm.ApplicationInfo;
 import android.util.Log;
 import android.webkit.CookieManager;
@@ -21,7 +22,9 @@ public class MainActivity extends BridgeActivity {
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         registerPlugin(NotebookSessionPlugin.class);
+        registerPlugin(NotebookSharePlugin.class);
         super.onCreate(savedInstanceState);
+        handleShareIntent(getIntent());
 
         CookieManager.getInstance().setAcceptCookie(true);
         getOnBackPressedDispatcher().addCallback(this, new OnBackPressedCallback(true) {
@@ -47,6 +50,26 @@ public class MainActivity extends BridgeActivity {
                 });
             }
         });
+    }
+
+    @Override
+    protected void onNewIntent(Intent intent) {
+        super.onNewIntent(intent);
+        setIntent(intent);
+        handleShareIntent(intent);
+    }
+
+    private void handleShareIntent(Intent intent) {
+        if (intent == null || !Intent.ACTION_SEND.equals(intent.getAction()) || !"text/plain".equals(intent.getType())) return;
+        String text = intent.getStringExtra(Intent.EXTRA_TEXT);
+        String title = intent.getStringExtra(Intent.EXTRA_SUBJECT);
+        if (text == null || text.trim().isEmpty()) return;
+        if (text.length() > 10000) text = text.substring(0, 10000);
+        if (title != null && title.length() > 120) title = title.substring(0, 120);
+        NotebookSharePlugin.setPending(text, title);
+        if (bridge != null && bridge.getWebView() != null) {
+            bridge.getWebView().evaluateJavascript("window.dispatchEvent(new Event('notebook:native-share'))", null);
+        }
     }
 
     @Override

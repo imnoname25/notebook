@@ -3,12 +3,13 @@ import { blockNoteContentSchema } from "@/lib/data-format";
 import { attachmentIdsInContent } from "@/lib/portable-content";
 import { ApiError } from "@/lib/errors";
 import { TEMPLATE_ICONS, type TemplateIcon } from "@/lib/template-icons";
+import { liveWidgetPropsSchema } from "@/lib/live-widgets";
 
 export { TEMPLATE_ICONS, type TemplateIcon };
 export const TEMPLATE_FORMAT = "notebook-page-template" as const;
 export const TEMPLATE_FORMAT_VERSION = 1 as const;
 
-const allowedBlockTypes = new Set(["paragraph", "heading", "bulletListItem", "numberedListItem", "checkListItem", "quote", "codeBlock", "image", "table", "callout", "toggle", "divider"]);
+const allowedBlockTypes = new Set(["paragraph", "heading", "bulletListItem", "numberedListItem", "checkListItem", "toggleListItem", "quote", "codeBlock", "image", "table", "callout", "banner", "toggle", "bookmark", "liveWidget", "divider", "tabs", "tabPanel", "columns", "columnPanel", "tableOfContents", "pageVariables"]);
 
 function hasUnsafeValue(value: unknown): boolean {
   if (typeof value === "string") return /(?:<\s*script|javascript\s*:|data\s*:|blob\s*:)/iu.test(value);
@@ -21,6 +22,7 @@ export function validateTemplateContent(value: unknown) {
   const visit = (blocks: typeof content) => {
     for (const block of blocks) {
       if (!allowedBlockTypes.has(block.type)) throw new ApiError(400, `Блок ${block.type} не поддерживается в шаблонах`);
+      if (block.type === "liveWidget") liveWidgetPropsSchema.parse((block as Record<string, unknown>).props);
       const children = (block as Record<string, unknown>).children;
       if (Array.isArray(children)) visit(blockNoteContentSchema.parse(children));
     }

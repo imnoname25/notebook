@@ -2,6 +2,7 @@ import { db } from "@/lib/db";
 import { ApiError } from "@/lib/errors";
 import { normalizeS3Prefix, normalizeWebdavDirectory, SETTINGS_ID, type SettingsUpdate } from "@/lib/application-settings";
 import { encryptSettingSecret, settingsEncryptionAvailable } from "@/lib/settings-encryption";
+import { parseAllowedCidrs } from "@/lib/live-widget-network-policy";
 
 export async function getApplicationSettings() {
   return db.applicationSettings.upsert({ where: { id: SETTINGS_ID }, create: { id: SETTINGS_ID }, update: {} });
@@ -13,6 +14,10 @@ export function publicSettings(settings: Awaited<ReturnType<typeof getApplicatio
 }
 
 export async function updateApplicationSettings(input: SettingsUpdate) {
+  if (input.liveWidgetAllowedCidrs !== undefined) {
+    try { parseAllowedCidrs(input.liveWidgetAllowedCidrs); }
+    catch { throw new ApiError(400, "Некорректный список разрешённых CIDR"); }
+  }
   if (input.webdavEnabled && !input.webdavUrl) {
     const current = await getApplicationSettings(); if (!current.webdavUrl) throw new ApiError(400, "Укажите WebDAV URL");
   }

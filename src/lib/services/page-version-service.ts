@@ -3,6 +3,9 @@ import { db } from "@/lib/db";
 import { ApiError } from "@/lib/errors";
 import { extractBlockNoteText } from "@/lib/blocknote-text";
 import { pageContentHash, retainedVersionIds, shouldCreateSnapshot, type PageVersionPolicy, type SnapshotReason } from "@/lib/page-version-policy";
+import { syncPageTags } from "@/lib/services/tag-service";
+import { syncPageLinks } from "@/lib/services/page-link-service";
+import { syncLiveWidgetIndex } from "@/lib/services/live-widget-service";
 
 type PageState = { id: string; title: string; content: Prisma.JsonValue; searchText: string; revision: number };
 
@@ -64,6 +67,11 @@ export async function restorePageVersion(userId: string, pageId: string, version
     await createPageSnapshot(tx, page, "before_restore");
     const content = version.content as Prisma.InputJsonValue;
     const blocks = Array.isArray(version.content) ? version.content as Record<string, unknown>[] : [];
-    return tx.page.update({ where: { id: pageId }, data: { title: version.title, content, searchText: extractBlockNoteText(blocks), revision: { increment: 1 } } });
+    const searchText = extractBlockNoteText(blocks);
+    const restored = await tx.page.update({ where: { id: pageId }, data: { title: version.title, content, searchText, revision: { increment: 1 } } });
+    await syncPageTags(tx, userId, pageId, `${version.title} ${searchText}`);
+    await syncPageLinks(tx, userId, pageId, blocks);
+    await syncLiveWidgetIndex(tx, pageId, blocks);
+    return restored;
   });
 }

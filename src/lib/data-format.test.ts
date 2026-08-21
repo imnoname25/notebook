@@ -44,7 +44,7 @@ describe("portable data contracts", () => {
       }),
     ).toThrow();
   });
-  it("keeps v1 and v2 readable and validates template data", () => {
+  it("keeps v1, v2 and v3 readable and validates template data", () => {
     const base = {
       format: "notebook-backup",
       createdAt: new Date().toISOString(),
@@ -55,6 +55,7 @@ describe("portable data contracts", () => {
     } as const;
     expect(manifestSchema.parse({ ...base, version: 1 }).version).toBe(1);
     expect(manifestSchema.parse({ ...base, version: 2 }).version).toBe(2);
+    expect(manifestSchema.parse({ ...base, version: 3 }).version).toBe(3);
     expect(() =>
       archiveDataSchema.parse({
         notebooks: [],
@@ -70,6 +71,32 @@ describe("portable data contracts", () => {
         ],
       }),
     ).toThrow();
+  });
+  it("keeps quick notes in full portable data without coupling them to pages", () => {
+    const now = new Date().toISOString();
+    const parsed = archiveDataSchema.parse({
+      notebooks: [],
+      attachments: [],
+      quickNotes: [{ title: "Idea", body: "Try #tag", color: "amber", icon: "📝", isPinned: true, archivedAt: null, createdAt: now, updatedAt: now }],
+    });
+    expect(parsed.quickNotes?.[0]).toMatchObject({ title: "Idea", isPinned: true });
+  });
+  it("preserves curated notebook cover metadata", () => {
+    const now = new Date().toISOString();
+    const parsed = archiveDataSchema.parse({
+      notebooks: [{ key: "n", title: "Work", icon: "briefcase", color: "blue", coverType: "gradient", coverValue: "ocean", coverAttachmentKey: null, sortOrder: 0, createdAt: now, updatedAt: now, sections: [] }],
+      attachments: [],
+    });
+    expect(parsed.notebooks[0]).toMatchObject({ coverType: "gradient", coverValue: "ocean" });
+    expect(() => archiveDataSchema.parse({ ...parsed, notebooks: [{ ...parsed.notebooks[0], coverValue: "linear-gradient(red,blue)" }] })).toThrow();
+  });
+  it("exports canonical Live Widget config without transient result", () => {
+    const now = new Date().toISOString();
+    const block = { id: "widget-1", type: "liveWidget", props: { widgetType: "HTTP_STATUS", title: "Status", config: JSON.stringify({ type: "HTTP_STATUS", url: "https://example.com/", method: "HEAD", expectedMin: 200, expectedMax: 399 }), refreshMode: "MIN_5", displaySize: "NORMAL", targetLabel: "https://example.com/" } };
+    const parsed = archiveDataSchema.parse({ notebooks: [{ key: "n", title: "Ops", icon: "server", color: "blue", sortOrder: 0, createdAt: now, updatedAt: now, sections: [{ key: "s", parentKey: null, title: "Services", icon: null, sortOrder: 0, createdAt: now, updatedAt: now, pages: [{ key: "p", title: "Runbook", content: [block], sortOrder: 0, isFavorite: false, createdAt: now, updatedAt: now }] }] }], attachments: [] });
+    expect(parsed.notebooks[0]?.sections[0]?.pages[0]?.content[0]).toMatchObject({ type: "liveWidget", props: { refreshMode: "MIN_5" } });
+    expect(JSON.stringify(parsed)).not.toContain("lastLatency");
+    expect(JSON.stringify(parsed)).not.toContain("checkedAt");
   });
   it("rejects malformed BlockNote content", () =>
     expect(() =>

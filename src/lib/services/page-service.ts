@@ -3,6 +3,9 @@ import { ApiError } from "@/lib/errors";
 import { db } from "@/lib/db";
 import { extractBlockNoteText } from "@/lib/blocknote-text";
 import { createPageSnapshot } from "@/lib/services/page-version-service";
+import { syncPageTags } from "@/lib/services/tag-service";
+import { syncPageLinks } from "@/lib/services/page-link-service";
+import { syncLiveWidgetIndex } from "@/lib/services/live-widget-service";
 
 export type PageSaveInput = {
   title?: string;
@@ -62,6 +65,12 @@ export async function savePage(userId: string, pageId: string, input: PageSaveIn
       ...(input.content === undefined ? {} : { content: input.content as Prisma.InputJsonValue, searchText: extractBlockNoteText(input.content) }),
       ...(documentChanged ? { revision: { increment: 1 } } : {}),
     };
-    return tx.page.update({ where: { id: pageId }, data });
+    const saved = await tx.page.update({ where: { id: pageId }, data });
+    if (documentChanged) {
+      await syncPageTags(tx, userId, pageId, `${nextTitle} ${extractBlockNoteText(nextContent)}`);
+      await syncPageLinks(tx, userId, pageId, nextContent);
+      await syncLiveWidgetIndex(tx, pageId, nextContent);
+    }
+    return saved;
   });
 }

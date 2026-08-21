@@ -28,6 +28,11 @@ jobs:
           cache: npm
       - name: Install dependencies
         run: npm ci --legacy-peer-deps
+      - name: Verify shared application version
+        run: npm run version:check
+      - name: Verify release tag and shared application version
+        if: startsWith(github.ref, 'refs/tags/v') && !contains(github.ref_name, '-')
+        run: node scripts/check-release-version.mjs "$GITHUB_REF_NAME"
       - name: Validate Unraid templates
         run: npm run validate:unraid
       - name: Validate Docker packaging

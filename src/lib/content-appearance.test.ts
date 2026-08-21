@@ -95,6 +95,13 @@ describe("appearance validation", () => {
       appearancePreset: null,
     });
   });
+  it("gives every named preset a distinct, recognizable configuration", () => {
+    const presets = ["minimal", "paper", "dark-grid", "warm-notes", "ocean", "focus"] as const;
+    const signatures = presets.map((preset) => JSON.stringify(pagePresetAppearance(preset)));
+    expect(new Set(signatures).size).toBe(presets.length);
+    expect(pagePresetAppearance("dark-grid")).toMatchObject({ backgroundType: "pattern", backgroundPattern: "blueprint", color: "cyan" });
+    expect(pagePresetAppearance("paper")).toMatchObject({ backgroundType: "pattern", backgroundPattern: "paper" });
+  });
   it("validates every background selector server-side", () => {
     expect(
       pageUpdateSchema.parse({

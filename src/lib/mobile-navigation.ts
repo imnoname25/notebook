@@ -2,7 +2,7 @@ export type MobileView = "navigation" | "pages" | "editor";
 
 export type MobileBackState = {
   hasOverlay: boolean;
-  screen: "workspace" | "trash";
+  screen: "workspace" | "trash" | "inbox" | "today";
   view: MobileView;
 };
 
@@ -27,7 +27,7 @@ export function mobileBackActionLog(action: MobileBackAction) {
 
 export function resolveMobileBack(state: MobileBackState): MobileBackAction {
   if (state.hasOverlay) return "close-overlay";
-  if (state.screen === "trash") return "workspace";
+  if (state.screen !== "workspace") return "workspace";
   if (state.view === "editor") return "pages";
   if (state.view === "pages") return "navigation";
   return "system";

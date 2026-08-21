@@ -2,6 +2,7 @@ import { z } from "zod";
 import { NOTEBOOK_COLORS, NOTEBOOK_ICONS } from "@/lib/notebook-appearance";
 import { TEMPLATE_ICONS } from "@/lib/template-icons";
 import { SECTION_ICONS } from "@/lib/section-icons";
+import { NOTEBOOK_COVER_GRADIENTS, NOTEBOOK_COVER_TYPES } from "@/lib/notebook-cover";
 import {
   ACCENT_COLORS,
   PAGE_APPEARANCE_PRESETS,
@@ -12,7 +13,8 @@ import {
   PAGE_PATTERNS,
 } from "@/lib/content-appearance";
 
-export const DATA_FORMAT_VERSION = 3 as const;
+export const DATA_FORMAT_VERSION = 4 as const;
+export const APPEARANCE_DATA_FORMAT_VERSION = 3 as const;
 export const PREVIOUS_DATA_FORMAT_VERSION = 2 as const;
 export const LEGACY_DATA_FORMAT_VERSION = 1 as const;
 export const EXPORT_FORMAT = "notebook-export" as const;
@@ -95,6 +97,9 @@ const portableNotebookSchema = z
     title: z.string().min(1).max(200),
     icon: z.enum(NOTEBOOK_ICONS),
     color: z.enum(NOTEBOOK_COLORS),
+    coverType: z.enum(NOTEBOOK_COVER_TYPES).optional(),
+    coverValue: z.union([z.enum(NOTEBOOK_COVER_GRADIENTS), z.enum(NOTEBOOK_COLORS)]).nullable().optional(),
+    coverAttachmentKey: z.string().min(1).max(100).nullable().optional(),
     sortOrder: z.number().int().min(0),
     createdAt: portableDate,
     updatedAt: portableDate,
@@ -113,6 +118,17 @@ const portableTemplateSchema = z
     sortOrder: z.number().int().min(0),
   })
   .strict();
+const portableQuickNoteSchema = z.object({
+  title: z.string().max(120),
+  body: z.string().max(10_000),
+  color: z.enum(["neutral", "amber", "orange", "green", "blue", "violet", "pink"]),
+  icon: z.string().max(16).nullable(),
+  isPinned: z.boolean(),
+  status: z.enum(["INBOX", "ARCHIVED", "CONVERTED"]).optional(),
+  archivedAt: portableDate.nullable(),
+  createdAt: portableDate,
+  updatedAt: portableDate,
+}).strict();
 
 export const manifestSchema = z
   .object({
@@ -120,6 +136,7 @@ export const manifestSchema = z
     version: z.union([
       z.literal(LEGACY_DATA_FORMAT_VERSION),
       z.literal(PREVIOUS_DATA_FORMAT_VERSION),
+      z.literal(APPEARANCE_DATA_FORMAT_VERSION),
       z.literal(DATA_FORMAT_VERSION),
     ]),
     createdAt: portableDate,
@@ -134,6 +151,7 @@ export const archiveDataSchema = z
     notebooks: z.array(portableNotebookSchema).max(10_000),
     attachments: z.array(portableAttachmentSchema).max(10_000),
     templates: z.array(portableTemplateSchema).max(500).optional(),
+    quickNotes: z.array(portableQuickNoteSchema).max(10_000).optional(),
   })
   .strict();
 export const pageExportSchema = z
@@ -143,6 +161,7 @@ export const pageExportSchema = z
         format: z.literal(PAGE_FORMAT),
         version: z.union([
           z.literal(LEGACY_DATA_FORMAT_VERSION),
+          z.literal(APPEARANCE_DATA_FORMAT_VERSION),
           z.literal(DATA_FORMAT_VERSION),
         ]),
         createdAt: portableDate,

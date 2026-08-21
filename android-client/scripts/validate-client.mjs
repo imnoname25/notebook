@@ -1,16 +1,18 @@
 import { readFile } from "node:fs/promises";
+import { assertSynchronizedVersions, readVersionState } from "../../scripts/versioning.mjs";
 
-const [config, gradle, app, activity, sessionPlugin, manifest, packageJson] = await Promise.all([
+const [config, app, activity, sessionPlugin, sharePlugin, manifest, packageJson] = await Promise.all([
   readFile(new URL("../capacitor.config.ts", import.meta.url), "utf8"),
-  readFile(new URL("../android/app/build.gradle", import.meta.url), "utf8"),
   readFile(new URL("../www/app.js", import.meta.url), "utf8"),
   readFile(new URL("../android/app/src/main/java/ru/metroom/notebook/MainActivity.java", import.meta.url), "utf8"),
   readFile(new URL("../android/app/src/main/java/ru/metroom/notebook/NotebookSessionPlugin.java", import.meta.url), "utf8"),
+  readFile(new URL("../android/app/src/main/java/ru/metroom/notebook/NotebookSharePlugin.java", import.meta.url), "utf8"),
   readFile(new URL("../android/app/src/main/AndroidManifest.xml", import.meta.url), "utf8"),
   readFile(new URL("../package.json", import.meta.url), "utf8").then(JSON.parse),
 ]);
 if (!config.includes('appId: "ru.metroom.notebook"')) throw new Error("Нестабильный package ID");
-if (!gradle.includes("versionName \"0.4.0\"") || !gradle.includes("versionCode 4")) throw new Error("Android version не синхронизирована");
+const versionState = assertSynchronizedVersions(await readVersionState());
+if (packageJson.version !== versionState.androidClientVersion) throw new Error("Android package version changed during validation");
 if (!app.includes('/api/health/live')) throw new Error("Нет проверки совместимости сервера");
 if (!app.includes("SUPPORTED_SERVER_API_VERSION = 1")) throw new Error("Версия server API не зафиксирована");
 if (!app.includes('import { normalizeServerUrl }')) throw new Error("Server URL validation отсутствует");
@@ -26,4 +28,7 @@ if (!activity.includes('private static final String HANDLED = "HANDLED"') || !ac
 if (!activity.includes("getOnBackPressedDispatcher().onBackPressed()")) throw new Error("Root Back must be delegated to the Android dispatcher");
 if (!activity.includes("NotebookSessionPlugin.class") || !sessionPlugin.includes("CookieManager.getInstance().flush()")) throw new Error("Persistent WebView cookies must be flushed through the native session bridge");
 if (!manifest.includes('android:enableOnBackInvokedCallback="true"')) throw new Error("Predictive Back must remain enabled");
-console.log("Android client contract is valid");
+if (!activity.includes("NotebookSharePlugin.class") || !activity.includes("Intent.ACTION_SEND")) throw new Error("Android Share Target bridge is missing");
+if (!manifest.includes('android.intent.action.SEND') || !manifest.includes('android:mimeType="text/plain"')) throw new Error("Android text Share Target is missing from manifest");
+if (sharePlugin.includes("SharedPreferences") || !sharePlugin.includes("pendingText = null")) throw new Error("Shared content must remain ephemeral and consumed once");
+console.log(`Android client contract is valid: ${versionState.androidVersionName} (${versionState.androidVersionCode})`);

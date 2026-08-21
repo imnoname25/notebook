@@ -31,6 +31,9 @@ jobs:
           java-version: "21"
       - uses: android-actions/setup-android@v3
       - uses: gradle/actions/setup-gradle@v5
+      - name: Verify shared application version
+        working-directory: .
+        run: npm run version:check
       - run: npm ci
       - run: npm run check
       - run: npx cap sync android
@@ -62,10 +65,11 @@ jobs:
           java-version: "21"
       - uses: android-actions/setup-android@v3
       - uses: gradle/actions/setup-gradle@v5
+      - name: Verify release tag and shared application version
+        working-directory: .
+        run: node scripts/check-release-version.mjs "$GITHUB_REF_NAME"
       - run: npm ci
       - run: npx cap sync android
-      - name: Verify tag and Android version agree
-        run: test "$(node -p "require('./package.json').version")" = "${GITHUB_REF_NAME#v}"
       - name: Restore signing key
         env:
           ANDROID_KEYSTORE_BASE64: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}

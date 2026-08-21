@@ -21,6 +21,8 @@ Notebook не является wiki, PKM, task manager или project-management
 - Мутации обязаны учитывать CSRF, валидировать ввод и возвращать нормализованные JSON errors.
 - Autosave — ключевая функция. Не добавлять кнопку Save; использовать debounce и понятный статус. Не терять pending change при смене страницы.
 - Все изменения title/content проходят через `page-service`. История использует централизованную snapshot/retention policy; restore и autosave обязаны соблюдать optimistic `revision`, чтобы stale save не перезаписывал восстановление.
+- Индексы хештегов и внутренних PageLink являются производными от пользовательского текста и синхронизируются через save/restore/duplicate/import lifecycle. Не принимать tag ownership с клиента, не связывать чужие страницы и не включать appearance metadata в полнотекстовый индекс.
+- Быстрые заметки принадлежат пользователю напрямую и остаются вне Notebook tree до явного транзакционного преобразования в Page; любой их API обязан быть user-scoped.
 - Ownership версии проверять только через `PageVersion → Page → Section → Notebook → User`; `userId` никогда не принимать от клиента.
 - Цвета и иконки блокнотов хранить как identifiers из общих server/client allowlist. Не принимать CSS или произвольные имена компонентов.
 - Cross-parent move выполнять транзакционно с проверкой активного destination и нормализацией `sortOrder`; UI не является security boundary.

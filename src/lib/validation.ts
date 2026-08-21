@@ -2,6 +2,7 @@ import { z } from "zod";
 import { NOTEBOOK_COLORS, NOTEBOOK_ICONS } from "@/lib/notebook-appearance";
 import { ACCENT_COLORS, isPageIcon, PAGE_APPEARANCE_PRESETS, PAGE_BACKGROUND_OVERLAYS, PAGE_BACKGROUND_POSITIONS, PAGE_BACKGROUND_TYPES, PAGE_GRADIENTS, PAGE_LIST_VIEWS, PAGE_PATTERNS, SECTION_ACCENT_INTENSITIES } from "@/lib/content-appearance";
 import { SECTION_ICONS } from "@/lib/section-icons";
+import { NOTEBOOK_COVER_GRADIENTS, NOTEBOOK_COVER_TYPES } from "@/lib/notebook-cover";
 
 const title = z.string().trim().min(1).max(200);
 export const PASSWORD_MIN_LENGTH = 8;
@@ -16,7 +17,11 @@ export const twoFactorCodeSchema = z.object({ code: z.string().trim().min(6).max
 export const twoFactorSetupSchema = z.object({ password: z.string().min(8).max(128) }).strict();
 export const twoFactorDisableSchema = twoFactorSetupSchema.extend({ code: z.string().trim().min(6).max(32) }).strict();
 export const notebookCreateSchema = z.object({ title, icon: z.enum(NOTEBOOK_ICONS).optional(), color: z.enum(NOTEBOOK_COLORS).optional() }).strict();
-export const notebookUpdateSchema = notebookCreateSchema.partial().strict();
+export const notebookUpdateSchema = notebookCreateSchema.partial().extend({
+  coverType: z.enum(NOTEBOOK_COVER_TYPES).optional(),
+  coverValue: z.enum([...NOTEBOOK_COVER_GRADIENTS, ...NOTEBOOK_COLORS]).nullable().optional(),
+  coverUploadId: z.string().min(1).nullable().optional(),
+}).strict();
 export const sectionCreateSchema = z.object({ notebookId: z.string().min(1), parentId: z.string().min(1).nullable().optional(), title, icon: z.enum(SECTION_ICONS).nullable().optional(), color: z.enum(ACCENT_COLORS).optional() }).strict();
 export const sectionUpdateSchema = z.object({ title, icon: z.enum(SECTION_ICONS).nullable(), color: z.enum(ACCENT_COLORS), parentId: z.string().min(1).nullable() }).partial().strict();
 export const recentPageSchema = z.object({ pageId: z.string().min(1) }).strict();
@@ -42,6 +47,22 @@ export const pageReorderSchema = z.object({ sectionId: z.string().min(1), ids: o
 export const trashItemSchema = z.object({ type: z.enum(["notebook", "section", "page"]), id: z.string().min(1) });
 export const searchQuerySchema = z.string().trim().min(2).max(300);
 export const searchRequestSchema = z.object({ q: searchQuerySchema, offset: z.coerce.number().int().min(0).max(250).default(0) });
+export const quickNoteColors = ["neutral", "amber", "orange", "green", "blue", "violet", "pink"] as const;
+export const quickNoteCreateSchema = z.object({
+  title: z.string().trim().max(120).optional(),
+  body: z.string().max(10_000).optional(),
+  color: z.enum(quickNoteColors).optional(),
+  icon: z.string().max(16).nullable().optional().refine((value) => value === undefined || isPageIcon(value), "Некорректная иконка"),
+}).strict();
+export const quickNoteUpdateSchema = quickNoteCreateSchema.extend({
+  isPinned: z.boolean().optional(),
+  archived: z.boolean().optional(),
+}).strict();
+export const quickNoteConvertSchema = z.object({ sectionId: z.string().min(1) }).strict();
+export const tagListSchema = z.object({
+  limit: z.coerce.number().int().min(1).max(50).default(30),
+  tag: z.string().trim().min(1).max(80).optional(),
+});
 
 export const accountPasswordSchema = z.object({
   currentPassword: passwordSchema,
@@ -62,6 +83,7 @@ export const accountPreferencesSchema = z.object({
   sectionAccentIntensity: z.enum(SECTION_ACCENT_INTENSITIES).optional(),
   pageListView: z.enum(PAGE_LIST_VIEWS).optional(),
   defaultPagePreset: z.enum(PAGE_APPEARANCE_PRESETS).optional(),
+  startScreen: z.enum(["last", "today", "notebooks", "inbox"]).optional(),
 }).strict();
 
 export const userRoleSchema = z.enum(["ADMIN", "USER"]);

@@ -48,4 +48,29 @@ describe("Android and mobile shell contract", () => {
     expect(nativeBridge).not.toContain("localStorage");
     expect(nativeBridge).not.toContain("password");
   });
+
+  it("keeps quick capture and tag sheets inside the handled mobile overlay boundary", () => {
+    const app = readFileSync("src/components/notebook/notebook-app.tsx", "utf8");
+    const navigation = readFileSync("src/lib/mobile-navigation.ts", "utf8");
+    expect(app).toContain("state.quickNotesOpen");
+    expect(app).toContain("setQuickNotesOpen(false)");
+    expect(app).toContain("state.tagBrowserOpen");
+    expect(app).toContain("setTagBrowserOpen(false)");
+    expect(app).toContain('setScreen("inbox")');
+    expect(navigation).toContain('state.screen !== "workspace"');
+    expect(app).toContain("state.editorOverlayOpen");
+  });
+
+  it("opens explicitly shared Android text in Quick Capture without persisting it natively", () => {
+    const activity = readFileSync("android-client/android/app/src/main/java/ru/metroom/notebook/MainActivity.java", "utf8");
+    const manifest = readFileSync("android-client/android/app/src/main/AndroidManifest.xml", "utf8");
+    const plugin = readFileSync("android-client/android/app/src/main/java/ru/metroom/notebook/NotebookSharePlugin.java", "utf8");
+    expect(activity).toContain("Intent.ACTION_SEND");
+    expect(activity).toContain("NotebookSharePlugin.setPending");
+    expect(activity).not.toContain("Log.d(BACK_TAG, text");
+    expect(manifest).toContain('android.intent.action.SEND');
+    expect(manifest).toContain('android:mimeType="text/plain"');
+    expect(plugin).toContain("pendingText = null");
+    expect(plugin).not.toContain("SharedPreferences");
+  });
 });

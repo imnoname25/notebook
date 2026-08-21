@@ -1,12 +1,13 @@
 import { Prisma } from "@/generated/prisma/client";
 import { db } from "@/lib/db";
+import { hashtagQuery } from "@/lib/hashtags";
 
 export const SEARCH_QUERY_MAX_LENGTH = 300;
 export const SEARCH_PAGE_SIZE = 25;
 
 export type HighlightPart = { text: string; highlight: boolean };
 export type SearchResult = {
-  type: "page" | "section" | "notebook";
+  type: "page" | "section" | "notebook" | "tag" | "quickNote";
   id: string;
   title: string;
   notebookId: string;
@@ -70,6 +71,52 @@ export async function searchNotebook(userId: string, rawQuery: string, limit = S
   const query = normalizeSearchQuery(rawQuery);
   const take = Math.min(Math.max(limit, 1), 30);
   const skip = Math.min(Math.max(offset, 0), 250);
+  const tag = hashtagQuery(query);
+  if (tag) {
+    const matchedTag = await db.tag.findFirst({
+      where: { userId, normalized: tag },
+      select: {
+        name: true, normalized: true,
+        pages: {
+          where: { page: { deletedAt: null, section: { deletedAt: null, notebook: { userId, deletedAt: null } } } },
+          orderBy: { page: { updatedAt: "desc" } },
+          take,
+          select: { page: { select: { id: true, title: true, searchText: true, section: { select: { id: true, title: true, notebook: { select: { id: true, title: true, color: true, icon: true } } } } } } },
+        },
+        quickNotes: {
+          where: { quickNote: { userId, status: "INBOX" } },
+          orderBy: { quickNote: { updatedAt: "desc" } },
+          take,
+          select: { quickNote: { select: { id: true, title: true, body: true } } },
+        },
+      },
+    });
+    const pages = matchedTag?.pages.map(({ page }) => page) ?? [];
+    const quickNotes = matchedTag?.quickNotes.map(({ quickNote }) => quickNote) ?? [];
+    const tagResults: SearchResult[] = matchedTag ? [{ type: "tag", id: matchedTag.normalized, title: `#${matchedTag.name}`, titleParts: highlightTitle(`#${matchedTag.name}`, query), notebookId: "", notebookTitle: "", notebookColor: "default", notebookIcon: "notebook" }] : [];
+    return {
+      results: [...tagResults, ...pages.map((page): SearchResult => ({
+        type: "page",
+        id: page.id,
+        title: page.title,
+        titleParts: highlightTitle(page.title, `#${tag}`),
+        notebookId: page.section.notebook.id,
+        notebookTitle: page.section.notebook.title,
+        notebookColor: page.section.notebook.color,
+        notebookIcon: page.section.notebook.icon,
+        sectionId: page.section.id,
+        sectionTitle: page.section.title,
+        snippet: page.searchText.slice(0, 180),
+      })), ...quickNotes.map((note): SearchResult => ({
+        type: "quickNote", id: note.id,
+        title: note.title || note.body.split(/\s+/).slice(0, 6).join(" "),
+        titleParts: highlightTitle(note.title || note.body, query),
+        notebookId: "", notebookTitle: "", notebookColor: "default", notebookIcon: "notebook",
+        snippet: note.body.slice(0, 180),
+      }))].slice(skip, skip + take),
+      nextOffset: null,
+    };
+  }
   const rows = await db.$queryRaw<SearchRow[]>(Prisma.sql`
     WITH search_input AS (
       SELECT websearch_to_tsquery('simple', ${query}) AS query,

@@ -18,4 +18,13 @@ describe("BlockNote search normalization", () => {
     expect(snippet.startsWith("…")).toBe(true);
     expect(snippet.endsWith("…")).toBe(true);
   });
+
+  it("indexes nested tabs and collapse content without derived TOC duplication", () => {
+    const content = [
+      { type: "tabs", children: [{ type: "tabPanel", props: { label: "Linux" }, children: [{ type: "paragraph", content: [{ type: "text", text: "Docker compose" }] }] }] },
+      { type: "toggleListItem", content: [{ type: "text", text: "VPN" }], children: [{ type: "paragraph", content: [{ type: "text", text: "WireGuard" }] }] },
+      { type: "tableOfContents", props: { title: "Оглавление" } },
+    ];
+    expect(extractBlockNoteText(content)).toBe("Linux Docker compose VPN WireGuard");
+  });
 });

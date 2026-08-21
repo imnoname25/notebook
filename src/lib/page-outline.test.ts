@@ -12,4 +12,13 @@ describe("page outline", () => {
   it("returns an empty outline without headings", () => {
     expect(extractPageOutline([{ type: "paragraph", content: [] }])).toEqual([]);
   });
+  it("includes headings nested in collapsible groups and tab panels", () => {
+    expect(extractPageOutline([
+      { id: "group", type: "toggleListItem", children: [{ id: "inside-collapse", type: "heading", props: { level: 2 }, content: [{ type: "text", text: "VPN" }] }] },
+      { id: "tabs", type: "tabs", children: [{ id: "linux", type: "tabPanel", props: { label: "Linux" }, children: [{ id: "inside-tab", type: "heading", props: { level: 3 }, content: [{ type: "text", text: "Docker" }] }] }] },
+    ])).toEqual([
+      { id: "inside-collapse", title: "VPN", level: 2 },
+      { id: "inside-tab", title: "Docker", level: 3 },
+    ]);
+  });
 });

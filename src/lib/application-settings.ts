@@ -44,6 +44,7 @@ export const settingsUpdateSchema = z.object({
   editorCompactMode: z.boolean().optional(),
   editorContentWidth: z.enum(EDITOR_WIDTHS).optional(),
   interfaceDensity: z.enum(INTERFACE_DENSITIES).optional(),
+  liveWidgetAllowedCidrs: z.string().max(2000).optional(),
 }).strict();
 
 export type SettingsUpdate = z.infer<typeof settingsUpdateSchema>;

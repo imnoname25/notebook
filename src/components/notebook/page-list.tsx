@@ -180,11 +180,12 @@ export function PageList(props: Props) {
                       props.notebookColor,
                     )}
                     data-list-view={viewMode}
+                    data-page-background={page.backgroundType}
                     aria-current={
                       props.activePageId === page.id ? "page" : undefined
                     }
                     className={cn(
-                      "notebook-page-row group flex rounded-md border-l-2 border-transparent",
+                      "notebook-page-row group flex rounded-lg border border-transparent",
                       props.activePageId === page.id
                         ? "text-accent-foreground"
                         : "hover:bg-accent/60",
@@ -256,6 +257,11 @@ export function PageList(props: Props) {
                         {viewMode === "preview" && (
                           <span className="mt-1 line-clamp-2 break-words text-[12.5px] leading-[1.35] text-muted-foreground">
                             {page.previewText || t("appearance.emptyPage")}
+                          </span>
+                        )}
+                        {viewMode === "preview" && page.tags && page.tags.length > 0 && (
+                          <span className="mt-1.5 flex min-w-0 gap-1 overflow-hidden">
+                            {page.tags.slice(0, 3).map((tag) => <span key={tag.normalized} className="notebook-tag-chip pointer-events-none max-w-24 truncate">#{tag.name}</span>)}
                           </span>
                         )}
                       </span>

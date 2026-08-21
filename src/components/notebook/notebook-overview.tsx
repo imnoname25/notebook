@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import Image from "next/image";
 import { ArrowLeft, Clock3, Loader2, Plus, Star } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { api } from "@/lib/client-api";
@@ -54,9 +55,14 @@ export function NotebookOverview({ notebook, revision, onSection, onPage, onAddS
     <main className="h-full min-h-0 overflow-y-auto bg-card px-5 pb-7 md:px-10 md:py-10">
       <div className="-mx-3 mb-3 flex h-14 items-center md:hidden"><Button variant="ghost" className="h-12 px-3 text-base" onClick={onBack}><ArrowLeft size={22}/>{t("quick.notebooks")}</Button></div>
       <div className="max-w-5xl">
-        <header className="flex items-center gap-4 border-b border-border/50 pb-7">
-          <span className={cn("flex size-14 items-center justify-center rounded-xl text-white", NOTEBOOK_COLOR_CLASSES[color])}><Icon size={28} /></span>
-          <div className="min-w-0"><p className="text-sm text-muted-foreground">{t("overview.title")}</p><h1 className="truncate text-2xl font-semibold md:text-3xl">{notebook.title}</h1><p className="mt-1 text-sm text-muted-foreground">{data?.notebook.pageCount ?? 0} {t("overview.pages")}</p></div>
+        <header
+          data-notebook-cover={notebook.coverType === "gradient" ? notebook.coverValue : undefined}
+          className={cn("notebook-overview-cover relative flex min-h-32 items-end gap-4 overflow-hidden rounded-2xl border border-border/50 p-5 md:min-h-44 md:p-7", notebook.coverType === "none" && "bg-card", notebook.coverType === "solid" && NOTEBOOK_COLOR_CLASSES[color])}
+        >
+          {notebook.coverType === "image" && notebook.coverUploadId && <Image unoptimized fill sizes="(min-width: 768px) 70vw, 100vw" src={`/api/uploads/${notebook.coverUploadId}`} alt="" className="object-cover"/>}
+          {notebook.coverType !== "none" && <span className="absolute inset-0 bg-gradient-to-t from-black/70 via-black/15 to-black/5"/>}
+          <span className={cn("relative flex size-14 shrink-0 items-center justify-center rounded-xl text-white shadow-sm", NOTEBOOK_COLOR_CLASSES[color])}><Icon size={28} /></span>
+          <div className={cn("relative min-w-0", notebook.coverType !== "none" && "text-white")}><p className={cn("text-sm", notebook.coverType === "none" ? "text-muted-foreground" : "text-white/75")}>{t("overview.title")}</p><h1 className="truncate text-2xl font-semibold tracking-tight md:text-3xl">{notebook.title}</h1><p className={cn("mt-1 text-sm", notebook.coverType === "none" ? "text-muted-foreground" : "text-white/75")}>{data?.notebook.pageCount ?? 0} {t("overview.pages")}</p></div>
         </header>
         <OverviewSection title={t("overview.sections")} action={<Button variant="ghost" size="sm" onClick={onAddSection}><Plus size={16} />{t("overview.createSection")}</Button>}>
           {sections.length ? <div className="grid gap-2 sm:grid-cols-2 xl:grid-cols-3">{sections.map((section) => <button key={section.id} onClick={() => onSection(section)} className="group flex min-h-14 items-center gap-3 rounded-lg border border-border/50 px-3 text-left hover:bg-accent/60 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"><SectionIcon value={section.icon} size={19} className={cn("shrink-0", ACCENT_DOT_CLASSES[resolveAppearanceAccent(null, section.color, notebook.color)])}/><span className="min-w-0 flex-1"><span className="block truncate font-medium" title={section.title}>{section.title}</span><span className="text-xs text-muted-foreground">{section.pageCount} {t("overview.pages")}</span></span></button>)}</div> : <Empty text={t("overview.noSections")} />}

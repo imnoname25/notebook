@@ -24,6 +24,8 @@ export function blockNoteToMarkdown(title: string, blocks: unknown[]) {
   const lines = [`# ${title}`, ""];
   for (const raw of blocks) {
     const block = record(raw); if (!block) continue; const type = String(block.type ?? "paragraph"); const text = inline(block.content);
+    const nested = Array.isArray(block.children) ? blockNoteToMarkdown("", block.children).replace(/^#\s*\n+/u, "") : "";
+    let childrenHandled = false;
     if (type === "heading") lines.push(`${"#".repeat(Math.max(1, Math.min(6, Number(record(block.props)?.level ?? 1))))} ${text}`);
     else if (type === "bulletListItem") lines.push(`- ${text}`);
     else if (type === "numberedListItem") lines.push(`1. ${text}`);
@@ -32,9 +34,18 @@ export function blockNoteToMarkdown(title: string, blocks: unknown[]) {
     else if (type === "codeBlock") lines.push(`\`\`\`${String(record(block.props)?.language ?? "")}\n${text}\n\`\`\``);
     else if (type === "image") lines.push(`![${String(record(block.props)?.caption ?? "image")}](${String(record(block.props)?.url ?? "")})`);
     else if (type === "table") lines.push(tableMarkdown(record(block.content) ?? {}));
-    else if (type === "callout") { const props = record(block.props); lines.push(`> **${String(props?.title || props?.kind || "Note")}** — ${text}`); }
-    else if (type === "toggle") lines.push(`<details>\n<summary>${text || "Детали"}</summary>\n\n${Array.isArray(block.children) ? blockNoteToMarkdown("", block.children).replace(/^#\s*\n+/, "") : ""}\n</details>`);
+    else if (type === "callout" || type === "banner") { const props = record(block.props); lines.push(`> **${String(props?.title || props?.kind || (type === "banner" ? "Banner" : "Note"))}** — ${text}`); }
+    else if (type === "toggle" || type === "toggleListItem") { lines.push(`<details>\n<summary>${text || "Детали"}</summary>\n\n${nested}\n</details>`); childrenHandled = true; }
+    else if (type === "bookmark") { const props = record(block.props); const url = String(props?.url ?? ""); lines.push(`**[${String(props?.title || url)}](${url})**${props?.description ? ` — ${String(props.description)}` : ""}`); }
+    else if (type === "liveWidget") { const props = record(block.props); lines.push(`> **${String(props?.title || "Live Widget")}** — ${String(props?.targetLabel || "")}`); }
+    else if (type === "divider") lines.push(text ? `--- **${text}** ---` : "---");
+    else if (type === "tabs") { lines.push(nested); childrenHandled = true; }
+    else if (type === "tabPanel") { lines.push(`## ${String(record(block.props)?.label || "Вкладка")}`, "", nested); childrenHandled = true; }
+    else if (type === "columns" || type === "columnPanel") { lines.push(nested); childrenHandled = true; }
+    else if (type === "tableOfContents") lines.push(`> **${String(record(block.props)?.title || "Оглавление")}** — формируется по заголовкам страницы`);
+    else if (type === "pageVariables") { childrenHandled = true; }
     else lines.push(text);
+    if (!childrenHandled && nested) lines.push(nested);
     lines.push("");
   }
   return lines.join("\n").trimEnd() + "\n";

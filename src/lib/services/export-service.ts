@@ -105,7 +105,8 @@ export async function buildPortableExport(
   if (options.notebookId && notebooks.length === 0)
     throw new ApiError(404, "Блокнот не найден");
   const attachmentIds = new Set<string>();
-  for (const notebook of notebooks)
+  for (const notebook of notebooks) {
+    if (notebook.coverUploadId) attachmentIds.add(notebook.coverUploadId);
     for (const section of notebook.sections)
       for (const page of section.pages) {
         if (page.coverUploadId) attachmentIds.add(page.coverUploadId);
@@ -120,6 +121,7 @@ export async function buildPortableExport(
             ),
           );
       }
+  }
   const uploads = await db.upload.findMany({
     where: options.backup
       ? { userId }
@@ -155,6 +157,9 @@ export async function buildPortableExport(
     title: notebook.title,
     icon: notebook.icon as PortableNotebook["icon"],
     color: notebook.color as PortableNotebook["color"],
+    coverType: notebook.coverType as PortableNotebook["coverType"],
+    coverValue: notebook.coverValue as PortableNotebook["coverValue"],
+    coverAttachmentKey: notebook.coverUploadId ? (uploadKey.get(notebook.coverUploadId) ?? null) : null,
     sortOrder: notebook.sortOrder,
     createdAt: date(notebook.createdAt),
     updatedAt: date(notebook.updatedAt),
@@ -264,6 +269,12 @@ export async function buildPortableExport(
         orderBy: { sortOrder: "asc" },
       })
     : [];
+  const quickNotes = options.notebookId
+    ? []
+    : await db.quickNote.findMany({
+        where: { userId },
+        orderBy: [{ isPinned: "desc" }, { updatedAt: "desc" }],
+      });
   const manifest: DataManifest = {
     format: options.backup ? BACKUP_FORMAT : EXPORT_FORMAT,
     version: DATA_FORMAT_VERSION,
@@ -286,6 +297,21 @@ export async function buildPortableExport(
               icon: templateIcon(template.icon),
               content: jsonBlocks(template.content),
               sortOrder: template.sortOrder,
+            })),
+          }
+        : {}),
+      ...(!options.notebookId
+        ? {
+            quickNotes: quickNotes.map((note) => ({
+              title: note.title,
+              body: note.body,
+              color: note.color as "neutral" | "amber" | "orange" | "green" | "blue" | "violet" | "pink",
+              icon: note.icon,
+              isPinned: note.isPinned,
+              status: note.status,
+              archivedAt: note.archivedAt ? date(note.archivedAt) : null,
+              createdAt: date(note.createdAt),
+              updatedAt: date(note.updatedAt),
             })),
           }
         : {}),

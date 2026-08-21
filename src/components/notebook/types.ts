@@ -14,6 +14,9 @@ export type Notebook = {
   title: string;
   icon: string;
   color: string;
+  coverType: "none" | "solid" | "gradient" | "image";
+  coverValue: string | null;
+  coverUploadId: string | null;
   sortOrder: number;
   sections: Section[];
 };
@@ -38,11 +41,13 @@ export type PageSummary = {
   revision: number;
   createdAt: string;
   updatedAt: string;
+  tags?: Array<{ name: string; normalized: string }>;
 };
 export type PageDocument = PageSummary & { content: unknown[] };
 export type EditorSaveController = {
   flush(manual?: boolean): Promise<void>;
   scrollToBlock(blockId: string): void;
+  insertLiveWidget(): void;
 };
 import type {
   PageAppearancePreset,

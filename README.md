@@ -21,6 +21,10 @@ Notebook — простая self-hosted цифровая записная кни
 - Capacitor Android-клиент с выбором self-hosted сервера и release APK pipeline;
 - отдельный ciphertext-only Vault API foundation без смешивания с заметками;
 - избранные страницы;
+- отдельные «Входящие» с быстрым capture overlay, цветом, закреплением, архивом и транзакционным преобразованием в обычную страницу (`Ctrl/Cmd + Shift + N`);
+- user-scoped хештеги из страниц и быстрых заметок, Tag View и агрегированный поиск по запросу `#тег` в quick switcher;
+- производный индекс внутренних ссылок, блок «Связи» с backlinks и детерминированными related pages без AI;
+- выразительные готовые стили страницы с согласованными preview, contrast и selected-state;
 - BlockNote: форматирование, заголовки H1–H3, списки, checklist, quote, code, ссылки, таблицы и изображения;
 - autosave заголовка и JSON-контента с debounce 750 мс и статусом сохранения;
 - локальные пользовательские uploads с проверкой MIME-сигнатуры и лимитом размера;
@@ -32,6 +36,8 @@ Notebook — простая self-hosted цифровая записная кни
 - независимые WebDAV и S3-compatible remote backup copies, remote retention/restore и operational notifications.
 
 Offline sync намеренно не входит в текущий MVP.
+
+Быстрые заметки принадлежат пользователю напрямую и не засоряют дерево Notebook → Section → Page. При выборе «Перенести в раздел» содержимое транзакционно становится обычной rich-text страницей, а исходная запись получает статус `CONVERTED` в архиве. Хештеги остаются частью исходного текста; производные `PageTag`/`QuickNoteTag` обновляются только в lifecycle сохранения. `PageLink` аналогично пересобирается при сохранении, restore, duplicate и import. Полный portable export формата v4 сохраняет быстрые заметки и их status; теги и ссылки восстанавливаются из содержимого.
 
 ## Архитектура
 
@@ -125,6 +131,8 @@ docker network create notebook-net
 После установки PostgreSQL template установите Notebook template, заполните `DATABASE_URL`, `APP_ORIGIN`, `SETTINGS_ENCRYPTION_KEY` и откройте кнопку WebUI. Первый администратор по-прежнему создаётся в браузере.
 
 Push в `main` публикует multi-arch `edge` и `sha-*`; release tag `v*` публикует version tags и `latest`. Перед публикацией CI поднимает чистый PostgreSQL, проверяет migrations, readiness и restart production image.
+
+Версия приложения задаётся только в корневом `package.json`. Для релиза используйте `npm run version:set -- X.Y.Z`: helper синхронизирует Android package metadata и Gradle `versionName`, обновляет служебные version-поля lock-файлов и увеличивает Android `versionCode` на единицу. `npm run version:check` проверяет общий контракт; stable tag `vX.Y.Z` дополнительно сверяется в Android и Docker workflows до сборки артефактов.
 
 `latest` — стабильный канал Unraid, `edge` — текущий `main` для тестирования. После release Unraid Docker Manager получает новый digest через `Check for Updates`; стандартная кнопка `Update` сохраняет env/path mappings, скачивает image и запускает встроенный `prisma migrate deploy`. Встроенного self-updater нет.
 
@@ -376,6 +384,14 @@ Appearance metadata входит в portable JSON/ZIP export формата v3, 
 - оглавление H1/H2/H3 вычисляется из текущего BlockNote JSON: на desktop доступна компактная правая панель, на mobile — bottom sheet, участвующий в Android Back contract;
 - разделы поддерживают curated Lucide-иконки из server-side allowlist; иконка сохраняется в portable export/import;
 - перемещение страницы в корзину и перенос страницы/раздела показывают краткий toast с обратным действием. Окончательное удаление намеренно не имеет Undo.
+
+## Live Widgets
+
+Страница может содержать компактные живые блоки: HTTP status, TCP connect, срок TLS-сертификата, значение из JSON, дату/время и обратный отсчёт. Добавьте блок через slash menu (`/status`, `/http`, `/tcp`, `/certificate`, `/json`, `/time`, `/countdown`) или команду «Новый Live Widget» в `Ctrl+K`.
+
+Сетевые проверки выполняются только сервером по конфигурации, уже сохранённой в Page content. Refresh API не принимает произвольный URL. По умолчанию разрешены только публичные адреса; администратор может явно добавить до 32 внутренних CIDR в «Настройки → Live Widgets». Loopback, link-local, multicast и известные metadata-адреса остаются запрещены независимо от allowlist. Credentials, custom headers, payload, port ranges, background scheduler и alerts не поддерживаются.
+
+Автообновление работает только пока страница открыта и видима. Portable export сохраняет конфигурацию, но не transient status/latency/checkedAt; после импорта блок снова имеет состояние «Неизвестно».
 
 ## Следующий этап
 

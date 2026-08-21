@@ -2,6 +2,9 @@ import { db } from "@/lib/db";
 import type { Prisma } from "@/generated/prisma/client";
 import { ApiError } from "@/lib/errors";
 import { descendantSectionIds } from "@/lib/services/trash-service";
+import { syncPageTags } from "@/lib/services/tag-service";
+import { syncPageLinks } from "@/lib/services/page-link-service";
+import { syncLiveWidgetIndex } from "@/lib/services/live-widget-service";
 
 async function normalizePages(tx: Prisma.TransactionClient, sectionId: string) {
   const pages = await tx.page.findMany({
@@ -139,7 +142,7 @@ export async function duplicatePage(userId: string, pageId: string) {
       },
       data: { sortOrder: { increment: 1 } },
     });
-    return tx.page.create({
+    const duplicate = await tx.page.create({
       data: {
         sectionId: page.sectionId,
         title: `${page.title} — копия`,
@@ -157,5 +160,9 @@ export async function duplicatePage(userId: string, pageId: string) {
         sortOrder: page.sortOrder + 1,
       },
     });
+    await syncPageTags(tx, userId, duplicate.id, `${duplicate.title} ${duplicate.searchText}`);
+    await syncPageLinks(tx, userId, duplicate.id, duplicate.content);
+    await syncLiveWidgetIndex(tx, duplicate.id, duplicate.content);
+    return duplicate;
   });
 }

@@ -7,8 +7,10 @@ export function extractBlockNoteText(value: unknown): string {
       return;
     }
     if (!node || typeof node !== "object") return;
+    const type = "type" in node && typeof node.type === "string" ? node.type : null;
+    if (type === "tableOfContents" || type === "pageVariables") return;
     for (const [key, child] of Object.entries(node)) {
-      if ((key === "text" || key === "title") && typeof child === "string") fragments.push(child);
+      if ((key === "text" || key === "title" || key === "label" || key === "description" || key === "url" || key === "targetLabel") && typeof child === "string") fragments.push(child);
       else visit(child);
     }
   }

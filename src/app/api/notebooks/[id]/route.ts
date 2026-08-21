@@ -11,9 +11,21 @@ export async function PATCH(request: NextRequest, { params }: Context) {
     validateRequestOrigin(request);
     const [user, { id }] = await Promise.all([requireUser(), params]);
     const input = notebookUpdateSchema.parse(await readJson(request));
-    const updated = await db.notebook.updateMany({ where: { id, userId: user.id, deletedAt: null }, data: input });
-    if (!updated.count) throw new ApiError(404, "Блокнот не найден");
-    return NextResponse.json({ notebook: await db.notebook.findUniqueOrThrow({ where: { id } }) });
+    const notebook = await db.notebook.findFirst({ where: { id, userId: user.id, deletedAt: null }, select: { id: true } });
+    if (!notebook) throw new ApiError(404, "Блокнот не найден");
+    if (input.coverUploadId) {
+      const upload = await db.upload.findFirst({ where: { id: input.coverUploadId, userId: user.id, pageId: null }, select: { id: true } });
+      if (!upload) throw new ApiError(400, "Обложка должна принадлежать текущему пользователю");
+    }
+    const { coverUploadId, ...data } = input;
+    const updated = await db.notebook.update({
+      where: { id },
+      data: {
+        ...data,
+        ...(coverUploadId === undefined ? {} : { coverUpload: coverUploadId ? { connect: { id: coverUploadId } } : { disconnect: true } }),
+      },
+    });
+    return NextResponse.json({ notebook: updated });
   } catch (error) { return apiError(error); }
 }
 

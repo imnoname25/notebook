@@ -1,7 +1,7 @@
 "use client";
 
 import dynamic from "next/dynamic";
-import { ArrowLeft, FileText, ListTree, Loader2 } from "lucide-react";
+import { ArrowLeft, FileText, ListTree, Loader2, Plus } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { t } from "@/lib/i18n/messages";
 import { resolveAppearanceAccent } from "@/lib/content-appearance";
@@ -43,6 +43,7 @@ export function EditorPane({
   onOutlineChange,
   onOutlineToggle,
   onOutlineSelect,
+  onCreatePage,
 }: {
   page: PageDocument | null;
   notebook: Notebook | null;
@@ -60,9 +61,10 @@ export function EditorPane({
   onOutlineChange(items: PageOutlineItem[]): void;
   onOutlineToggle(): void;
   onOutlineSelect(id: string): void;
+  onCreatePage(): void;
 }) {
   return (
-    <main className="flex h-full min-h-0 min-w-0 flex-col bg-card">
+    <main className="flex h-full min-h-0 min-w-0 flex-col bg-card shadow-[inset_1px_0_0_color-mix(in_srgb,var(--border)_45%,transparent)]">
       <div className="notebook-no-print flex h-16 shrink-0 items-center border-b border-border/50 px-2 md:hidden">
         <Button variant="ghost" className="h-12 px-3 text-base" onClick={onBack}>
           <ArrowLeft size={22} />
@@ -72,7 +74,7 @@ export function EditorPane({
       {page && (
         <nav
           aria-label="Хлебные крошки"
-        className="notebook-breadcrumbs flex min-w-0 items-center gap-1.5 overflow-hidden border-b border-border/45 px-4 py-2 text-[13.5px] text-muted-foreground/90 md:px-12 md:text-[13px]"
+        className="notebook-breadcrumbs flex min-w-0 items-center gap-1.5 overflow-hidden border-b border-border/45 bg-card/80 px-4 py-2 text-[13.5px] text-muted-foreground/90 backdrop-blur md:px-12 md:text-[13px]"
         >
           <button
           className="max-w-[38%] truncate hover:text-foreground md:max-w-[28%]"
@@ -132,6 +134,7 @@ export function EditorPane({
             <p className="mt-1 text-sm leading-6 text-muted-foreground">
               {t("empty.selectPageDescription")}
             </p>
+            {section && <Button className="mt-5" onClick={onCreatePage}><Plus size={16}/>{t("empty.createPage")}</Button>}
           </div>
         </div>
       )}

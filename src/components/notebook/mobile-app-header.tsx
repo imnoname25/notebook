@@ -11,6 +11,7 @@ import {
   Server,
   Settings,
   ShieldCheck,
+  StickyNote,
   Sun,
   X,
 } from "lucide-react";
@@ -28,6 +29,7 @@ type MobileAppHeaderProps = {
   androidClient: boolean;
   onMenu(): void;
   onSearch(): void;
+  onQuickNotes(): void;
   onMenuOpenChange(open: boolean): void;
   onSettings(): void;
   onTheme(): void;
@@ -112,6 +114,16 @@ export function MobileAppHeader(props: MobileAppHeaderProps) {
             {props.isAdmin && (
               <NotificationCenter onError={props.onError} trigger="menu" />
             )}
+            <button
+              className="flex min-h-12 w-full items-center gap-3 rounded-lg px-3 text-base hover:bg-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+              onClick={() => {
+                close();
+                props.onQuickNotes();
+              }}
+            >
+              <StickyNote size={20} />
+              <span>{t("quickNotes.title")}</span>
+            </button>
             <button
               className="flex min-h-12 w-full items-center gap-3 rounded-lg px-3 text-base hover:bg-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
               onClick={() => {

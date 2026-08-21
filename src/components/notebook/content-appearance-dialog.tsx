@@ -394,7 +394,7 @@ export function PageAppearanceDialog({
               label={t("appearance.presets")}
               getLabel={(item) => PAGE_PRESET_LABELS[item]}
               onChange={applyPreset}
-              previewClass={(item) => `appearance-preset-${item}`}
+              previewClass={(item) => `appearance-preset-card appearance-preset-${item}`}
             />
             <fieldset>
               <legend className="mb-2 text-sm font-medium">

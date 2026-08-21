@@ -1,6 +1,6 @@
 {
   "name": "notebook",
-  "version": "0.4.0",
+  "version": "0.5.0",
   "private": true,
   "scripts": {
     "dev": "next dev",
@@ -12,6 +12,9 @@
     "test:watch": "vitest",
     "test:integration": "vitest run --config vitest.integration.config.mts",
     "test:e2e": "playwright test",
+    "check": "npm run version:check && npm run lint && npm run typecheck && npm test && npm run build",
+    "version:check": "node android-client/scripts/validate-client.mjs",
+    "version:set": "node scripts/set-version.mjs",
     "benchmark:search": "tsx scripts/search-benchmark.ts",
     "validate:docker": "node scripts/validate-docker-packaging.mjs",
     "validate:unraid": "node scripts/validate-unraid-templates.mjs",
