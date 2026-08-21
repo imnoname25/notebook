@@ -10,7 +10,7 @@ const [config, gradle, app, activity, sessionPlugin, manifest, packageJson] = aw
   readFile(new URL("../package.json", import.meta.url), "utf8").then(JSON.parse),
 ]);
 if (!config.includes('appId: "ru.metroom.notebook"')) throw new Error("Нестабильный package ID");
-if (!gradle.includes("versionName \"0.2.0\"") || !gradle.includes("versionCode 2")) throw new Error("Android version не синхронизирована");
+if (!gradle.includes("versionName \"0.4.0\"") || !gradle.includes("versionCode 4")) throw new Error("Android version не синхронизирована");
 if (!app.includes('/api/health/live')) throw new Error("Нет проверки совместимости сервера");
 if (!app.includes("SUPPORTED_SERVER_API_VERSION = 1")) throw new Error("Версия server API не зафиксирована");
 if (!app.includes('import { normalizeServerUrl }')) throw new Error("Server URL validation отсутствует");
