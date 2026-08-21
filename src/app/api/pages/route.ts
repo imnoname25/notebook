@@ -5,6 +5,7 @@ import { pageCreateSchema } from "@/lib/validation";
 import { extractBlockNoteText } from "@/lib/blocknote-text";
 import { validateTemplateContent } from "@/lib/page-templates";
 import type { Prisma } from "@/generated/prisma/client";
+import { PAGE_APPEARANCE_PRESETS, pagePresetAppearance, valueFromAllowlist } from "@/lib/content-appearance";
 
 export async function GET(request: NextRequest) {
   try {
@@ -13,8 +14,8 @@ export async function GET(request: NextRequest) {
     if (!sectionId) throw new ApiError(400, "Не указан sectionId");
     const section = await db.section.findFirst({ where: { id: sectionId, deletedAt: null, notebook: { userId: user.id, deletedAt: null } }, select: { id: true } });
     if (!section) throw new ApiError(404, "Раздел не найден");
-    const pages = await db.page.findMany({ where: { sectionId, deletedAt: null }, orderBy: [{ sortOrder: "asc" }, { createdAt: "asc" }], select: { id: true, sectionId: true, title: true, icon: true, color: true, coverUploadId: true, sortOrder: true, isFavorite: true, revision: true, createdAt: true, updatedAt: true } });
-    return NextResponse.json({ pages });
+    const pages = await db.page.findMany({ where: { sectionId, deletedAt: null }, orderBy: [{ sortOrder: "asc" }, { createdAt: "asc" }], select: { id: true, sectionId: true, title: true, icon: true, color: true, coverUploadId: true, backgroundType: true, backgroundColor: true, backgroundGradient: true, backgroundPattern: true, backgroundUploadId: true, backgroundPosition: true, backgroundOverlay: true, appearancePreset: true, searchText: true, sortOrder: true, isFavorite: true, revision: true, createdAt: true, updatedAt: true } });
+    return NextResponse.json({ pages: pages.map(({ searchText, ...page }) => ({ ...page, previewText: searchText.slice(0, 240) })) });
   } catch (error) { return apiError(error); }
 }
 
@@ -28,8 +29,11 @@ export async function POST(request: NextRequest) {
     const template = input.templateId ? await db.pageTemplate.findFirst({ where: { id: input.templateId, userId: user.id }, select: { name: true, content: true } }) : null;
     if (input.templateId && !template) throw new ApiError(404, "Шаблон не найден");
     const content = template ? validateTemplateContent(template.content) : [{ type: "paragraph", content: [] }];
+    const preferences = await db.userSettings.findUnique({ where: { userId: user.id }, select: { defaultPagePreset: true } });
+    const preset = valueFromAllowlist(preferences?.defaultPagePreset, PAGE_APPEARANCE_PRESETS, "default");
+    const appearance = pagePresetAppearance(preset);
     const last = await db.page.aggregate({ where: { sectionId: input.sectionId, deletedAt: null }, _max: { sortOrder: true } });
-    const page = await db.page.create({ data: { sectionId: input.sectionId, title: input.title ?? template?.name ?? "Без названия", sortOrder: (last._max.sortOrder ?? -1) + 1, content: content as Prisma.InputJsonValue, searchText: extractBlockNoteText(content) } });
+    const page = await db.page.create({ data: { sectionId: input.sectionId, title: input.title ?? template?.name ?? "Без названия", sortOrder: (last._max.sortOrder ?? -1) + 1, content: content as Prisma.InputJsonValue, searchText: extractBlockNoteText(content), ...appearance } });
     return NextResponse.json({ page }, { status: 201 });
   } catch (error) { return apiError(error); }
 }

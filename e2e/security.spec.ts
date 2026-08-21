@@ -39,6 +39,10 @@ test("new sensitive APIs require authentication", async ({ request }) => {
     request.post("/api/vault/profile", { data: {} }),
     request.get("/api/vault/items"),
     request.get("/api/vault/folders"),
+    request.get("/api/recent"),
+    request.post("/api/recent", { data: { pageId: "foreign" } }),
+    request.get("/api/notebooks/foreign/overview"),
+    request.get("/api/navigation/quick"),
   ];
   for (const response of await Promise.all(calls)) expect(response.status()).toBe(401);
 });

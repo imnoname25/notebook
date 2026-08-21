@@ -26,6 +26,8 @@ describe("critical creation contracts", () => {
   it("validates root and nested section creation", () => {
     expect(sectionCreateSchema.parse({ notebookId: "notebook-1", title: "Серверы", parentId: null }).parentId).toBeNull();
     expect(sectionCreateSchema.parse({ notebookId: "notebook-1", title: "Unraid", parentId: "section-1" }).parentId).toBe("section-1");
+    expect(sectionCreateSchema.parse({ notebookId: "notebook-1", title: "Mail", icon: "mail" }).icon).toBe("mail");
+    expect(() => sectionCreateSchema.parse({ notebookId: "notebook-1", title: "Unsafe", icon: "arbitrary-component" })).toThrow();
   });
 
   it("requires a section for page creation", () => {

@@ -1,6 +1,13 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore } from "react";
+import {
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+  useSyncExternalStore,
+} from "react";
 import {
   BookOpen,
   Download,
@@ -21,7 +28,7 @@ import { EditorPane } from "./editor-pane";
 import { NotebookSidebar } from "./notebook-sidebar";
 import { PageList } from "./page-list";
 import { SearchDialog } from "./search-dialog";
-import { TrashView } from "./trash-view";
+import { TrashView, type TrashItem } from "./trash-view";
 import { AppearanceDialog } from "./appearance-dialog";
 import {
   PageAppearanceDialog,
@@ -34,6 +41,9 @@ import { SettingsDialog } from "./settings-dialog";
 import { NotificationCenter } from "./notification-center";
 import { MobileAppHeader } from "./mobile-app-header";
 import { PrintDialog } from "./print-dialog";
+import { NotebookOverview } from "./notebook-overview";
+import { MobileOutlineSheet } from "./page-outline";
+import { UndoToast } from "./undo-toast";
 import {
   TemplateManager,
   TemplatePicker,
@@ -55,9 +65,25 @@ import {
   type NotebookColor,
   type NotebookIconId,
 } from "@/lib/notebook-appearance";
-import { MOBILE_BACK_PROTOCOL_VERSION, mobileBackActionLog, mobileViewLogLevel, resolveMobileBack, type MobileBackResult, type MobileView } from "@/lib/mobile-navigation";
+import {
+  MOBILE_BACK_PROTOCOL_VERSION,
+  mobileBackActionLog,
+  mobileViewLogLevel,
+  resolveMobileBack,
+  type MobileBackResult,
+  type MobileView,
+} from "@/lib/mobile-navigation";
 import { t } from "@/lib/i18n/messages";
 import { flushNativeAuthCookies } from "@/lib/native-android";
+import type { PageOutlineItem } from "@/lib/page-outline";
+import { createReversibleAction, type ReversibleAction } from "@/lib/reversible-action";
+import {
+  PAGE_LIST_VIEWS,
+  SECTION_ACCENT_INTENSITIES,
+  valueFromAllowlist,
+  type PageListView,
+  type SectionAccentIntensity,
+} from "@/lib/content-appearance";
 
 type ActionTarget =
   | { type: "notebook"; item: Notebook }
@@ -76,6 +102,7 @@ type MobileBackRuntimeState = {
   appearanceSection: Section | null;
   dataSettingsOpen: boolean;
   historyOpen: boolean;
+  outlineOpen: boolean;
   mobileMenuOpen: boolean;
   mobileView: MobileView;
   moveTarget: MoveTarget | null;
@@ -88,8 +115,15 @@ type MobileBackRuntimeState = {
 };
 const noClientSubscription = () => () => undefined;
 const androidClientSnapshot = () => {
-  const capacitor = (globalThis as typeof globalThis & { Capacitor?: { isNativePlatform?(): boolean } }).Capacitor;
-  return Boolean(capacitor?.isNativePlatform?.() || new URLSearchParams(window.location.search).get("client") === "android");
+  const capacitor = (
+    globalThis as typeof globalThis & {
+      Capacitor?: { isNativePlatform?(): boolean };
+    }
+  ).Capacitor;
+  return Boolean(
+    capacitor?.isNativePlatform?.() ||
+    new URLSearchParams(window.location.search).get("client") === "android",
+  );
 };
 export function NotebookApp({
   user,
@@ -136,6 +170,9 @@ export function NotebookApp({
   const [density, setDensity] = useState<"comfortable" | "compact">(
     "comfortable",
   );
+  const [sectionAccentIntensity, setSectionAccentIntensity] =
+    useState<SectionAccentIntensity>("moderate");
+  const [pageListView, setPageListView] = useState<PageListView>("standard");
   const [moveTarget, setMoveTarget] = useState<MoveTarget | null>(null);
   const [editorEpoch, setEditorEpoch] = useState(0);
   const [dataSettingsOpen, setDataSettingsOpen] = useState(false);
@@ -145,13 +182,39 @@ export function NotebookApp({
   const [templateManagerOpen, setTemplateManagerOpen] = useState(false);
   const [printOpen, setPrintOpen] = useState(false);
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
-  const androidClient = useSyncExternalStore(noClientSubscription, androidClientSnapshot, () => false);
+  const [outline, setOutline] = useState<PageOutlineItem[]>([]);
+  const [outlineOpen, setOutlineOpen] = useState(false);
+  const [outlineVisible, setOutlineVisible] = useState(false);
+  const [undoAction, setUndoAction] = useState<ReversibleAction | null>(null);
+  const androidClient = useSyncExternalStore(
+    noClientSubscription,
+    androidClientSnapshot,
+    () => false,
+  );
   const editorController = useRef<EditorSaveController | null>(null);
   const activePageRef = useRef<PageDocument | null>(null);
   const initialPageOpened = useRef(false);
   const mobileBackStateRef = useRef<MobileBackRuntimeState | null>(null);
+  const recentRecordedAt = useRef(new Map<string, number>());
 
-  mobileBackStateRef.current = { actionTarget, appearanceNotebook, appearancePage, appearanceSection, dataSettingsOpen, historyOpen, mobileMenuOpen, mobileView, moveTarget, printOpen, screen, searchOpen, settingsOpen, templateManagerOpen, templatePickerOpen };
+  mobileBackStateRef.current = {
+    actionTarget,
+    appearanceNotebook,
+    appearancePage,
+    appearanceSection,
+    dataSettingsOpen,
+    historyOpen,
+    outlineOpen,
+    mobileMenuOpen,
+    mobileView,
+    moveTarget,
+    printOpen,
+    screen,
+    searchOpen,
+    settingsOpen,
+    templateManagerOpen,
+    templatePickerOpen,
+  };
 
   const activeNotebook = useMemo(
     () => notebooks.find((item) => item.id === activeNotebookId) ?? null,
@@ -159,9 +222,7 @@ export function NotebookApp({
   );
   const activeSection = useMemo(
     () =>
-      activeNotebook?.sections.find((item) => item.id === activeSectionId) ??
-      activeNotebook?.sections[0] ??
-      null,
+      activeNotebook?.sections.find((item) => item.id === activeSectionId) ?? null,
     [activeNotebook, activeSectionId],
   );
   const ActiveNotebookIcon =
@@ -186,6 +247,12 @@ export function NotebookApp({
     },
     [],
   );
+  const recordOpenedPage = useCallback((pageId: string) => {
+    const now = Date.now();
+    if (now - (recentRecordedAt.current.get(pageId) ?? 0) < 30_000) return;
+    recentRecordedAt.current.set(pageId, now);
+    void api("/api/recent", jsonOptions("POST", { pageId })).then(() => setWorkspaceRevision((value) => value + 1)).catch(() => undefined);
+  }, []);
   const loadNotebooks = useCallback(async () => {
     try {
       const result = await api<{ notebooks: Notebook[] }>("/api/notebooks");
@@ -219,15 +286,55 @@ export function NotebookApp({
     };
   }, [report]);
   useEffect(() => {
-    void api<{ settings: { interfaceDensity: "comfortable" | "compact" } }>(
-      "/api/account/preferences",
-    )
-      .then(({ settings }) => setDensity(settings.interfaceDensity))
+    void api<{
+      settings: {
+        interfaceDensity: "comfortable" | "compact";
+        sectionAccentIntensity: string;
+        pageListView: string;
+      };
+    }>("/api/account/preferences")
+      .then(({ settings }) => {
+        setDensity(settings.interfaceDensity);
+        setSectionAccentIntensity(
+          valueFromAllowlist(
+            settings.sectionAccentIntensity,
+            SECTION_ACCENT_INTENSITIES,
+            "moderate",
+          ),
+        );
+        setPageListView(
+          valueFromAllowlist(
+            settings.pageListView,
+            PAGE_LIST_VIEWS,
+            "standard",
+          ),
+        );
+      })
       .catch(() => undefined);
     const listener = (event: Event) =>
       setDensity((event as CustomEvent<"comfortable" | "compact">).detail);
     window.addEventListener("notebook:density", listener);
-    return () => window.removeEventListener("notebook:density", listener);
+    const appearanceListener = (event: Event) => {
+      const next = (
+        event as CustomEvent<{
+          sectionAccentIntensity: SectionAccentIntensity;
+          pageListView: PageListView;
+        }>
+      ).detail;
+      setSectionAccentIntensity(next.sectionAccentIntensity);
+      setPageListView(next.pageListView);
+    };
+    window.addEventListener(
+      "notebook:appearance-preferences",
+      appearanceListener,
+    );
+    return () => {
+      window.removeEventListener("notebook:density", listener);
+      window.removeEventListener(
+        "notebook:appearance-preferences",
+        appearanceListener,
+      );
+    };
   }, []);
   useEffect(() => {
     if (!initialLocation || initialPageOpened.current || notebooks.length === 0)
@@ -238,9 +345,10 @@ export function NotebookApp({
         activePageRef.current = page;
         setActivePage(page);
         setMobileView("editor");
+        recordOpenedPage(page.id);
       })
       .catch(report);
-  }, [initialLocation, notebooks.length, report]);
+  }, [initialLocation, notebooks.length, recordOpenedPage, report]);
   useEffect(() => {
     const sectionId = activeSection?.id;
     if (!sectionId) return;
@@ -289,12 +397,35 @@ export function NotebookApp({
       ).page;
       activePageRef.current = result;
       setActivePage(result);
+      setOutline([]);
+      setOutlineOpen(false);
+      recordOpenedPage(result.id);
       if (history !== "none") setPageUrl(result.id, history);
     } catch (cause) {
       report(cause);
     } finally {
       setPageLoading(false);
     }
+  }
+
+  function openNotebookOverview(notebookId: string) {
+    setActiveNotebookId(notebookId);
+    setActiveSectionId(null);
+    activePageRef.current = null;
+    setActivePage(null);
+    setOutline([]);
+    window.history.replaceState(null, "", "/app");
+    setMobileView("pages");
+  }
+
+  function openSection(section: Section) {
+    setActiveNotebookId(section.notebookId);
+    setActiveSectionId(section.id);
+    activePageRef.current = null;
+    setActivePage(null);
+    setOutline([]);
+    window.history.replaceState(null, "", "/app");
+    setMobileView("pages");
   }
 
   const openPageById = useCallback(
@@ -316,13 +447,16 @@ export function NotebookApp({
         setActiveSectionId(page.sectionId);
         activePageRef.current = page;
         setActivePage(page);
+        setOutline([]);
+        setOutlineOpen(false);
+        recordOpenedPage(page.id);
         setMobileView("editor");
         if (history !== "none") setPageUrl(page.id, history);
       } finally {
         setPageLoading(false);
       }
     },
-    [loadNotebooks, notebooks],
+    [loadNotebooks, notebooks, recordOpenedPage],
   );
 
   useEffect(() => {
@@ -348,9 +482,10 @@ export function NotebookApp({
       const state = mobileBackStateRef.current;
       if (!state) return "UNHANDLED";
       const hasOverlay =
+        Boolean(state.actionTarget) ||
         state.mobileMenuOpen ||
         state.searchOpen ||
-        Boolean(state.actionTarget) ||
+        state.outlineOpen ||
         state.historyOpen ||
         Boolean(state.appearanceNotebook) ||
         Boolean(state.appearanceSection) ||
@@ -366,12 +501,16 @@ export function NotebookApp({
         screen: state.screen,
         view: state.mobileView,
       });
-      console.debug("mobileBack:", { currentLevel: mobileViewLogLevel(state.mobileView), action: mobileBackActionLog(action) });
+      console.debug("mobileBack:", {
+        currentLevel: mobileViewLogLevel(state.mobileView),
+        action: mobileBackActionLog(action),
+      });
       if (action === "system") return "UNHANDLED";
       if (action === "close-overlay") {
-        if (state.mobileMenuOpen) setMobileMenuOpen(false);
+        if (state.actionTarget) setActionTarget(null);
+        else if (state.mobileMenuOpen) setMobileMenuOpen(false);
         else if (state.searchOpen) setSearchOpen(false);
-        else if (state.actionTarget) setActionTarget(null);
+        else if (state.outlineOpen) setOutlineOpen(false);
         else if (state.historyOpen) setHistoryOpen(false);
         else if (state.appearanceNotebook) setAppearanceNotebook(null);
         else if (state.appearanceSection) setAppearanceSection(null);
@@ -392,7 +531,8 @@ export function NotebookApp({
       if (action === "navigation") setMobileView("navigation");
       return "HANDLED";
     };
-    androidWindow.__NOTEBOOK_ANDROID_BACK_VERSION__ = MOBILE_BACK_PROTOCOL_VERSION;
+    androidWindow.__NOTEBOOK_ANDROID_BACK_VERSION__ =
+      MOBILE_BACK_PROTOCOL_VERSION;
     return () => {
       delete androidWindow.__NOTEBOOK_ANDROID_BACK__;
       delete androidWindow.__NOTEBOOK_ANDROID_BACK_VERSION__;
@@ -654,6 +794,13 @@ export function NotebookApp({
               setActivePage(null);
               window.history.pushState(null, "", "/app");
             }
+            setUndoAction(createReversibleAction(t("undo.trashed"), async () => {
+              await api("/api/trash/restore", jsonOptions("POST", { type: "page", id: target.item.id }));
+              setActiveNotebookId(activeNotebook?.id ?? null);
+              setActiveSectionId(target.item.sectionId);
+              setWorkspaceRevision((value) => value + 1);
+              await openPageById(target.item.id, "replace");
+            }));
           }
         } else await reorderPages(target.item, action === "up" ? -1 : 1);
       }
@@ -760,15 +907,14 @@ export function NotebookApp({
   async function openSearchResult(result: SearchResult) {
     setSearchOpen(false);
     setScreen("workspace");
-    setActiveNotebookId(result.notebookId);
     if (result.type === "notebook") {
-      setActiveSectionId(null);
-      setMobileView("navigation");
+      openNotebookOverview(result.notebookId);
       return;
     }
-    setActiveSectionId(result.sectionId ?? null);
     if (result.type === "section") {
-      setMobileView("pages");
+      const notebook = notebooks.find((item) => item.id === result.notebookId);
+      const section = notebook?.sections.find((item) => item.id === result.id);
+      if (section) openSection(section);
       return;
     }
     try {
@@ -792,12 +938,7 @@ export function NotebookApp({
     router.refresh();
   }
   function changeAndroidServer() {
-    if (
-      !window.confirm(
-        t("mobile.changeServerConfirm"),
-      )
-    )
-      return;
+    if (!window.confirm(t("mobile.changeServerConfirm"))) return;
     window.location.replace("https://localhost/?changeServer=1");
   }
 
@@ -820,6 +961,7 @@ export function NotebookApp({
     if (!target) return;
     try {
       if (target.type === "page") {
+        const sourceSectionId = target.currentSectionId;
         if (activePageRef.current?.id === target.id)
           await editorController.current?.flush(false);
         const { page } = await api<{ page: PageDocument }>(
@@ -836,7 +978,21 @@ export function NotebookApp({
         setActivePage(page);
         setMobileView("editor");
         setPageUrl(page.id, "replace");
+        setUndoAction(createReversibleAction(t("undo.moved"), async () => {
+          const { page: restored } = await api<{ page: PageDocument }>(
+            `/api/pages/${target.id}/move`,
+            jsonOptions("POST", { destinationSectionId: sourceSectionId }),
+          );
+          const sourceNotebook = notebooks.find((item) => item.sections.some((section) => section.id === sourceSectionId));
+          setActiveNotebookId(sourceNotebook?.id ?? null);
+          setActiveSectionId(sourceSectionId);
+          activePageRef.current = restored;
+          setActivePage(restored);
+          setWorkspaceRevision((value) => value + 1);
+          setPageUrl(restored.id, "replace");
+        }));
       } else {
+        const sourceNotebookId = target.currentNotebookId;
         await api(
           `/api/sections/${target.id}/move`,
           jsonOptions("POST", { destinationNotebookId: destinationId }),
@@ -845,6 +1001,13 @@ export function NotebookApp({
         setActiveNotebookId(destinationId);
         setActiveSectionId(target.id);
         setMobileView("pages");
+        setUndoAction(createReversibleAction(t("undo.sectionMoved"), async () => {
+          await api(`/api/sections/${target.id}/move`, jsonOptions("POST", { destinationNotebookId: sourceNotebookId }));
+          await loadNotebooks();
+          setActiveNotebookId(sourceNotebookId);
+          setActiveSectionId(target.id);
+          setWorkspaceRevision((value) => value + 1);
+        }));
       }
       setMoveTarget(null);
       setWorkspaceRevision((value) => value + 1);
@@ -1025,10 +1188,18 @@ export function NotebookApp({
       <div className="grid min-h-0 flex-1 md:grid-cols-[280px_320px_minmax(0,1fr)]">
         {screen === "trash" ? (
           <TrashView
+            key={workspaceRevision}
             onBack={() => setScreen("workspace")}
             onChanged={() => {
               void loadNotebooks();
               setWorkspaceRevision((value) => value + 1);
+            }}
+            onRestored={(item: TrashItem) => {
+              if (item.type !== "page") return;
+              setUndoAction(createReversibleAction(t("undo.restored"), async () => {
+                await api(`/api/pages/${item.id}`, jsonOptions("DELETE"));
+                setWorkspaceRevision((value) => value + 1);
+              }));
             }}
             onError={report}
           />
@@ -1045,13 +1216,12 @@ export function NotebookApp({
                 notebooks={notebooks}
                 activeNotebookId={activeNotebookId}
                 activeSectionId={activeSection?.id ?? null}
+                sectionAccentIntensity={sectionAccentIntensity}
                 onNotebookSelect={(id) => {
-                  setActiveNotebookId(id);
-                  setActiveSectionId(null);
+                  openNotebookOverview(id);
                 }}
                 onSectionSelect={(section) => {
-                  setActiveSectionId(section.id);
-                  setMobileView("pages");
+                  openSection(section);
                 }}
                 onAddNotebook={addNotebook}
                 onNotebookMenu={(item) =>
@@ -1075,11 +1245,24 @@ export function NotebookApp({
                 mobileView !== "pages" && "hidden md:block",
               )}
             >
-              <PageList
+              {activeNotebook && !activeSection ? <div className="h-full md:hidden"><NotebookOverview notebook={activeNotebook} revision={workspaceRevision} onSection={openSection} onPage={(id) => void openPageById(id).catch(report)} onAddSection={() => void addSection(activeNotebook.id)} onError={report} onBack={() => setMobileView("navigation")} /></div> : <PageList
                 section={activeSection}
                 pages={pages}
                 activePageId={activePage?.id ?? null}
                 loading={pagesLoading}
+                notebookColor={activeNotebook?.color}
+                viewMode={pageListView}
+                onViewModeChange={(mode) => {
+                  const previous = pageListView;
+                  setPageListView(mode);
+                  void api(
+                    "/api/account/preferences",
+                    jsonOptions("PATCH", { pageListView: mode }),
+                  ).catch((cause) => {
+                    setPageListView(previous);
+                    report(cause);
+                  });
+                }}
                 onBack={() => setMobileView("navigation")}
                 onAdd={addPage}
                 onAddFromTemplate={() => setTemplatePickerOpen(true)}
@@ -1097,7 +1280,7 @@ export function NotebookApp({
                     report(cause);
                   }
                 }}
-              />
+              />}
             </div>
             <div
               data-mobile-screen="editor"
@@ -1106,7 +1289,7 @@ export function NotebookApp({
                 mobileView !== "editor" && "hidden md:block",
               )}
             >
-              <EditorPane
+              {activeNotebook && !activeSection && !activePage ? <NotebookOverview notebook={activeNotebook} revision={workspaceRevision} onSection={openSection} onPage={(id) => void openPageById(id).catch(report)} onAddSection={() => void addSection(activeNotebook.id)} onError={report} onBack={() => setMobileView("navigation")} /> : <EditorPane
                 page={activePage}
                 notebook={activeNotebook}
                 section={activeSection}
@@ -1118,8 +1301,16 @@ export function NotebookApp({
                 }}
                 onSaved={pageSaved}
                 onController={registerEditorController}
-                onNotebookClick={() => setMobileView("navigation")}
-                onSectionClick={() => setMobileView("pages")}
+                onNotebookClick={() => activeNotebook && openNotebookOverview(activeNotebook.id)}
+                onSectionClick={() => activeSection && openSection(activeSection)}
+                outline={outline}
+                outlineVisible={outlineVisible}
+                onOutlineChange={setOutline}
+                onOutlineToggle={() => {
+                  if (window.matchMedia("(max-width: 767px)").matches) setOutlineOpen(true);
+                  else setOutlineVisible((value) => !value);
+                }}
+                onOutlineSelect={(id) => editorController.current?.scrollToBlock(id)}
                 onInternalNavigate={async (pageId) => {
                   try {
                     await openPageById(pageId);
@@ -1128,7 +1319,7 @@ export function NotebookApp({
                     throw cause;
                   }
                 }}
-              />
+              />}
             </div>
           </>
         )}
@@ -1317,6 +1508,7 @@ export function NotebookApp({
               ),
             );
           }}
+          onError={report}
         />
       )}
       {appearancePage && (
@@ -1325,14 +1517,16 @@ export function NotebookApp({
           onClose={() => setAppearancePage(null)}
           onSaved={(page) => {
             setPages((items) =>
-              items.map((item) => (item.id === page.id ? page : item)),
+              items.map((item) =>
+                item.id === page.id ? { ...item, ...page } : item,
+              ),
             );
             if (activePageRef.current?.id === page.id) {
               activePageRef.current = { ...activePageRef.current, ...page };
               setActivePage(activePageRef.current);
-              setEditorEpoch((value) => value + 1);
             }
           }}
+          onError={report}
         />
       )}
       <MoveDialog
@@ -1391,6 +1585,16 @@ export function NotebookApp({
         onError={report}
       />
       <PrintDialog open={printOpen} onOpenChange={setPrintOpen} />
+      <MobileOutlineSheet
+        open={outlineOpen}
+        items={outline}
+        onOpenChange={setOutlineOpen}
+        onSelect={(id) => {
+          setOutlineOpen(false);
+          editorController.current?.scrollToBlock(id);
+        }}
+      />
+      <UndoToast action={undoAction} onClose={() => setUndoAction(null)} onError={(cause) => { setUndoAction(null); report(cause); }} />
     </div>
   );
 }

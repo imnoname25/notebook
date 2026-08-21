@@ -34,20 +34,24 @@ model User {
   totpRecoveryCodes          TotpRecoveryCode[]
   vaultProfile               VaultProfile?
   settings                   UserSettings?
+  recentPages                RecentPage[]
 
   @@index([role, disabledAt])
 }
 
 model UserSettings {
-  userId                String   @id
-  interfaceDensity      String   @default("comfortable")
-  editorSpellcheck      Boolean  @default(true)
-  editorCodeLineNumbers Boolean  @default(false)
-  editorCompactMode     Boolean  @default(false)
-  editorContentWidth    String   @default("normal")
-  createdAt             DateTime @default(now())
-  updatedAt             DateTime @updatedAt
-  user                  User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  userId                 String   @id
+  interfaceDensity       String   @default("comfortable")
+  sectionAccentIntensity String   @default("moderate")
+  pageListView           String   @default("standard")
+  defaultPagePreset      String   @default("default")
+  editorSpellcheck       Boolean  @default(true)
+  editorCodeLineNumbers  Boolean  @default(false)
+  editorCompactMode      Boolean  @default(false)
+  editorContentWidth     String   @default("normal")
+  createdAt              DateTime @default(now())
+  updatedAt              DateTime @updatedAt
+  user                   User     @relation(fields: [userId], references: [id], onDelete: Cascade)
 }
 
 model AuthChallenge {
@@ -184,27 +188,49 @@ model Section {
   @@index([deletionGroupId])
 }
 
+model RecentPage {
+  id           String   @id @default(cuid())
+  userId       String
+  pageId       String
+  lastOpenedAt DateTime @default(now())
+  user         User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  page         Page     @relation(fields: [pageId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, pageId])
+  @@index([userId, lastOpenedAt])
+}
+
 model Page {
-  id              String        @id @default(cuid())
-  sectionId       String
-  icon            String?
-  color           String        @default("default")
-  coverUploadId   String?       @unique
-  title           String        @default("Без названия")
-  content         Json
-  searchText      String        @default("") @db.Text
-  sortOrder       Int           @default(0)
-  isFavorite      Boolean       @default(false)
-  revision        Int           @default(0)
-  createdAt       DateTime      @default(now())
-  updatedAt       DateTime      @updatedAt
-  deletedAt       DateTime?
-  deletionGroupId String?
-  isDeletionRoot  Boolean       @default(false)
-  section         Section       @relation(fields: [sectionId], references: [id], onDelete: Cascade)
-  versions        PageVersion[]
-  uploads         Upload[]      @relation("PageUploads")
-  coverUpload     Upload?       @relation("PageCover", fields: [coverUploadId], references: [id], onDelete: SetNull)
+  id                 String        @id @default(cuid())
+  sectionId          String
+  icon               String?
+  color              String        @default("default")
+  coverUploadId      String?       @unique
+  backgroundType     String        @default("default")
+  backgroundColor    String        @default("default")
+  backgroundGradient String?
+  backgroundPattern  String        @default("plain")
+  backgroundUploadId String?       @unique
+  backgroundPosition String        @default("center")
+  backgroundOverlay  String        @default("medium")
+  appearancePreset   String?
+  title              String        @default("Без названия")
+  content            Json
+  searchText         String        @default("") @db.Text
+  sortOrder          Int           @default(0)
+  isFavorite         Boolean       @default(false)
+  revision           Int           @default(0)
+  createdAt          DateTime      @default(now())
+  updatedAt          DateTime      @updatedAt
+  deletedAt          DateTime?
+  deletionGroupId    String?
+  isDeletionRoot     Boolean       @default(false)
+  section            Section       @relation(fields: [sectionId], references: [id], onDelete: Cascade)
+  versions           PageVersion[]
+  uploads            Upload[]      @relation("PageUploads")
+  coverUpload        Upload?       @relation("PageCover", fields: [coverUploadId], references: [id], onDelete: SetNull)
+  backgroundUpload   Upload?       @relation("PageBackground", fields: [backgroundUploadId], references: [id], onDelete: SetNull)
+  recentFor          RecentPage[]
 
   @@index([sectionId, deletedAt, sortOrder])
   @@index([deletionGroupId])
@@ -225,18 +251,19 @@ model PageVersion {
 }
 
 model Upload {
-  id           String   @id @default(cuid())
-  userId       String
-  pageId       String?
-  storageName  String   @unique
-  originalName String
-  mimeType     String
-  size         Int
-  sha256       String?
-  createdAt    DateTime @default(now())
-  user         User     @relation(fields: [userId], references: [id], onDelete: Cascade)
-  page         Page?    @relation("PageUploads", fields: [pageId], references: [id], onDelete: SetNull)
-  coverFor     Page?    @relation("PageCover")
+  id            String   @id @default(cuid())
+  userId        String
+  pageId        String?
+  storageName   String   @unique
+  originalName  String
+  mimeType      String
+  size          Int
+  sha256        String?
+  createdAt     DateTime @default(now())
+  user          User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  page          Page?    @relation("PageUploads", fields: [pageId], references: [id], onDelete: SetNull)
+  coverFor      Page?    @relation("PageCover")
+  backgroundFor Page?    @relation("PageBackground")
 
   @@index([userId])
   @@index([userId, createdAt])

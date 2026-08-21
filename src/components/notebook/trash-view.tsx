@@ -5,9 +5,9 @@ import { ArrowLeft, BookOpen, FileText, Folder, Loader2, RotateCcw, Trash2 } fro
 import { Button } from "@/components/ui/button";
 import { api, jsonOptions } from "@/lib/client-api";
 
-type TrashItem = { type: "notebook" | "section" | "page"; id: string; title: string; deletedAt: string; notebookTitle?: string; sectionTitle?: string };
+export type TrashItem = { type: "notebook" | "section" | "page"; id: string; title: string; deletedAt: string; notebookTitle?: string; sectionTitle?: string };
 
-export function TrashView({ onBack, onChanged, onError }: { onBack(): void; onChanged(): void; onError(error: unknown): void }) {
+export function TrashView({ onBack, onChanged, onRestored, onError }: { onBack(): void; onChanged(): void; onRestored?(item: TrashItem): void; onError(error: unknown): void }) {
   const [items, setItems] = useState<TrashItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [busyId, setBusyId] = useState<string | null>(null);
@@ -26,7 +26,7 @@ export function TrashView({ onBack, onChanged, onError }: { onBack(): void; onCh
 
   async function restore(item: TrashItem) {
     setBusyId(item.id);
-    try { await api("/api/trash/restore", jsonOptions("POST", { type: item.type, id: item.id })); await load(); onChanged(); }
+    try { await api("/api/trash/restore", jsonOptions("POST", { type: item.type, id: item.id })); await load(); onChanged(); onRestored?.(item); }
     catch (error) { onError(error); }
     finally { setBusyId(null); }
   }

@@ -6,14 +6,22 @@ import {
   FileText,
   GripVertical,
   LayoutTemplate,
+  List,
+  Rows3,
+  ScanText,
   Plus,
   Star,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { ACCENT_DOT_CLASSES, isAccentColor } from "@/lib/content-appearance";
+import {
+  ACCENT_DOT_CLASSES,
+  resolveAppearanceAccent,
+} from "@/lib/content-appearance";
 import { cn } from "@/lib/utils";
+import { t } from "@/lib/i18n/messages";
 import { SortableItem, SortableList } from "./sortable";
 import type { PageSummary, Section } from "./types";
+import type { PageListView } from "@/lib/content-appearance";
 
 type Props = {
   section: Section | null;
@@ -21,6 +29,8 @@ type Props = {
   activePageId: string | null;
   loading: boolean;
   density?: "comfortable" | "compact";
+  notebookColor?: string;
+  viewMode?: PageListView;
   onBack(): void;
   onAdd(): void;
   onAddFromTemplate(): void;
@@ -28,10 +38,12 @@ type Props = {
   onMenu(page: PageSummary): void;
   onFavorite(page: PageSummary): void;
   onReorder(ids: string[]): void;
+  onViewModeChange(mode: PageListView): void;
 };
 
 export function PageList(props: Props) {
   const ordered = [...props.pages].sort((a, b) => a.sortOrder - b.sortOrder);
+  const viewMode = props.viewMode ?? "standard";
   return (
     <aside
       data-density={props.density}
@@ -56,6 +68,47 @@ export function PageList(props: Props) {
           <p className="text-[12.5px] text-muted-foreground">
             {ordered.length} стр.
           </p>
+        </div>
+        <div
+          className="hidden items-center rounded-md bg-muted/60 p-0.5 lg:flex"
+          aria-label={t("appearance.pageListView")}
+        >
+          {(
+            [
+              {
+                id: "compact",
+                label: t("appearance.listCompact"),
+                icon: List,
+              },
+              {
+                id: "standard",
+                label: t("appearance.listStandard"),
+                icon: Rows3,
+              },
+              {
+                id: "preview",
+                label: t("appearance.listPreview"),
+                icon: ScanText,
+              },
+            ] as const
+          ).map(({ id, label, icon: Icon }) => (
+            <button
+              key={id}
+              type="button"
+              className={cn(
+                "flex size-7 items-center justify-center rounded",
+                viewMode === id
+                  ? "bg-background text-foreground shadow-sm"
+                  : "text-muted-foreground hover:text-foreground",
+              )}
+              aria-label={label}
+              aria-pressed={viewMode === id}
+              title={label}
+              onClick={() => props.onViewModeChange(id)}
+            >
+              <Icon size={14} />
+            </button>
+          ))}
         </div>
         <Button
           variant="ghost"
@@ -121,10 +174,19 @@ export function PageList(props: Props) {
                     style={style}
                     data-page-title={page.title}
                     data-page-icon={page.icon ?? ""}
+                    data-page-color={resolveAppearanceAccent(
+                      page.color,
+                      props.section?.color,
+                      props.notebookColor,
+                    )}
+                    data-list-view={viewMode}
+                    aria-current={
+                      props.activePageId === page.id ? "page" : undefined
+                    }
                     className={cn(
-                      "group flex rounded-md border-l-2 border-transparent",
+                      "notebook-page-row group flex rounded-md border-l-2 border-transparent",
                       props.activePageId === page.id
-                        ? "border-l-primary bg-accent text-accent-foreground"
+                        ? "text-accent-foreground"
                         : "hover:bg-accent/60",
                       isDragging && "opacity-60 shadow-md",
                       isOver && !isDragging && "ring-1 ring-primary/40",
@@ -140,7 +202,14 @@ export function PageList(props: Props) {
                     </button>
                     <button
                       title={page.title}
-                      className="flex min-w-0 flex-1 items-center gap-2 px-1.5 py-1.5 text-left"
+                      className={cn(
+                        "flex min-w-0 flex-1 items-center gap-2 px-1.5 text-left",
+                        viewMode === "compact"
+                          ? "py-1"
+                          : viewMode === "preview"
+                            ? "py-2.5"
+                            : "py-1.5",
+                      )}
                       onClick={() => props.onSelect(page)}
                     >
                       {page.icon ? (
@@ -153,7 +222,11 @@ export function PageList(props: Props) {
                           className={cn(
                             "shrink-0",
                             ACCENT_DOT_CLASSES[
-                              isAccentColor(page.color) ? page.color : "default"
+                              resolveAppearanceAccent(
+                                page.color,
+                                props.section?.color,
+                                props.notebookColor,
+                              )
                             ],
                           )}
                         />
@@ -170,14 +243,21 @@ export function PageList(props: Props) {
                             />
                           )}
                         </span>
-                        <time className="mt-0.5 block text-[12.5px] text-muted-foreground">
-                          {new Intl.DateTimeFormat("ru", {
-                            day: "numeric",
-                            month: "short",
-                            hour: "2-digit",
-                            minute: "2-digit",
-                          }).format(new Date(page.updatedAt))}
-                        </time>
+                        {viewMode !== "compact" && (
+                          <time className="mt-0.5 block text-[12.5px] text-muted-foreground">
+                            {new Intl.DateTimeFormat("ru", {
+                              day: "numeric",
+                              month: "short",
+                              hour: "2-digit",
+                              minute: "2-digit",
+                            }).format(new Date(page.updatedAt))}
+                          </time>
+                        )}
+                        {viewMode === "preview" && (
+                          <span className="mt-1 line-clamp-2 break-words text-[12.5px] leading-[1.35] text-muted-foreground">
+                            {page.previewText || t("appearance.emptyPage")}
+                          </span>
+                        )}
                       </span>
                     </button>
                     <button

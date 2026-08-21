@@ -3,81 +3,1480 @@
 import { useCallback, useEffect, useState, useSyncExternalStore } from "react";
 import * as Dialog from "@radix-ui/react-dialog";
 import * as AlertDialog from "@radix-ui/react-alert-dialog";
-import { Archive, CheckCircle2, Database, Download, HardDrive, Loader2, RefreshCw, RotateCcw, Save, Settings, Trash2, UploadCloud, X } from "lucide-react";
+import {
+  Archive,
+  CheckCircle2,
+  Database,
+  Download,
+  HardDrive,
+  Loader2,
+  RefreshCw,
+  RotateCcw,
+  Save,
+  Settings,
+  Trash2,
+  UploadCloud,
+  X,
+} from "lucide-react";
 import { useTheme } from "next-themes";
 import { useRouter } from "next/navigation";
 import { Button, buttonVariants } from "@/components/ui/button";
 import { api, jsonOptions } from "@/lib/client-api";
 import { cn } from "@/lib/utils";
 import { TwoFactorSettings } from "@/components/auth/two-factor-settings";
-import { PasswordSettings, ProfileSettings, UserManagement, type AccountUser } from "@/components/auth/account-settings";
+import {
+  PasswordSettings,
+  ProfileSettings,
+  UserManagement,
+  type AccountUser,
+} from "@/components/auth/account-settings";
 import { t } from "@/lib/i18n/messages";
+import {
+  PAGE_APPEARANCE_PRESETS,
+  PAGE_PRESET_LABELS,
+  type PageAppearancePreset,
+  type PageListView,
+  type SectionAccentIntensity,
+} from "@/lib/content-appearance";
 import { flushNativeAuthCookies } from "@/lib/native-android";
 
-type SettingsData = { defaultTheme: "system" | "light" | "dark"; autosaveDelayMs: number; pageVersionIntervalMinutes: number; pageVersionRetentionDays: number; pageVersionMaxCount: number; backupEnabled: boolean; backupSchedule: "daily" | "every_3_days" | "weekly"; backupTime: string; backupRetentionCount: number; backupRetentionDays: number; backupConsecutiveFailures: number; lastScheduledBackupAt: string | null; webdavEnabled: boolean; webdavUrl: string | null; webdavUsername: string | null; webdavRemoteDirectory: string; webdavPasswordConfigured: boolean; s3Enabled: boolean; s3Endpoint: string | null; s3Region: string; s3Bucket: string | null; s3AccessKeyId: string | null; s3Prefix: string; s3ForcePathStyle: boolean; s3ProviderLabel: string | null; s3SecretAccessKeyConfigured: boolean; remoteRetentionCount: number; remoteRetentionDays: number; settingsEncryptionAvailable: boolean; editorSpellcheck: boolean; editorCodeLineNumbers: boolean; editorCompactMode: boolean; editorContentWidth: "narrow" | "normal" | "wide"; lastStorageAuditAt: string | null };
-type RemoteCopy = { id: string; provider: "webdav" | "s3"; status: string; remoteKey: string; size: number | null; errorCategory: string | null; uploadedAt: string | null };
-type Backup = { id: string; type: string; status: string; filename: string | null; size: number | null; sha256: string | null; remoteStatus: string; errorCategory: string | null; createdAt: string; completedAt: string | null; remoteCopies: RemoteCopy[] };
-type SystemInfo = { version: string; revision: string | null; channel: string | null; nodeVersion: string; environment: string; diagnostics: { ready: boolean; database: { status: string; responseTimeMs: number }; migrations: { status: string; applied: number | null; expected: number | null; failed: number | null }; fts: { status: string; vectorColumns: number; ginIndexes: number; indexedPages: number }; storage: Record<string, { status: string; writable: boolean; freeBytes: number | null }> }; counts: { pages: number; versions: number; attachments: number; templates: number; notifications: number; remoteBackups: number }; lastBackup: Backup | null };
-type Tab = "profile" | "security" | "users" | "general" | "editor" | "templates" | "backups" | "storage" | "system";
-const accountTabs: { id: Tab; label: string }[] = [{ id: "profile", label: t("account.profile") }, { id: "security", label: t("account.security") }];
-const adminTabs: { id: Tab; label: string }[] = [{ id: "users", label: t("account.users") }, { id: "general", label: "Общие" }, { id: "editor", label: "Редактор" }, { id: "templates", label: "Шаблоны" }, { id: "backups", label: "Резервные копии" }, { id: "storage", label: "Хранилище" }, { id: "system", label: "Система" }];
-const bytes = (value: number | null) => value === null ? "—" : new Intl.NumberFormat("ru", { style: "unit", unit: value >= 1_048_576 ? "megabyte" : "kilobyte", maximumFractionDigits: 1 }).format(value / (value >= 1_048_576 ? 1_048_576 : 1024));
+type SettingsData = {
+  defaultTheme: "system" | "light" | "dark";
+  autosaveDelayMs: number;
+  pageVersionIntervalMinutes: number;
+  pageVersionRetentionDays: number;
+  pageVersionMaxCount: number;
+  backupEnabled: boolean;
+  backupSchedule: "daily" | "every_3_days" | "weekly";
+  backupTime: string;
+  backupRetentionCount: number;
+  backupRetentionDays: number;
+  backupConsecutiveFailures: number;
+  lastScheduledBackupAt: string | null;
+  webdavEnabled: boolean;
+  webdavUrl: string | null;
+  webdavUsername: string | null;
+  webdavRemoteDirectory: string;
+  webdavPasswordConfigured: boolean;
+  s3Enabled: boolean;
+  s3Endpoint: string | null;
+  s3Region: string;
+  s3Bucket: string | null;
+  s3AccessKeyId: string | null;
+  s3Prefix: string;
+  s3ForcePathStyle: boolean;
+  s3ProviderLabel: string | null;
+  s3SecretAccessKeyConfigured: boolean;
+  remoteRetentionCount: number;
+  remoteRetentionDays: number;
+  settingsEncryptionAvailable: boolean;
+  editorSpellcheck: boolean;
+  editorCodeLineNumbers: boolean;
+  editorCompactMode: boolean;
+  editorContentWidth: "narrow" | "normal" | "wide";
+  lastStorageAuditAt: string | null;
+};
+type RemoteCopy = {
+  id: string;
+  provider: "webdav" | "s3";
+  status: string;
+  remoteKey: string;
+  size: number | null;
+  errorCategory: string | null;
+  uploadedAt: string | null;
+};
+type Backup = {
+  id: string;
+  type: string;
+  status: string;
+  filename: string | null;
+  size: number | null;
+  sha256: string | null;
+  remoteStatus: string;
+  errorCategory: string | null;
+  createdAt: string;
+  completedAt: string | null;
+  remoteCopies: RemoteCopy[];
+};
+type SystemInfo = {
+  version: string;
+  revision: string | null;
+  channel: string | null;
+  nodeVersion: string;
+  environment: string;
+  diagnostics: {
+    ready: boolean;
+    database: { status: string; responseTimeMs: number };
+    migrations: {
+      status: string;
+      applied: number | null;
+      expected: number | null;
+      failed: number | null;
+    };
+    fts: {
+      status: string;
+      vectorColumns: number;
+      ginIndexes: number;
+      indexedPages: number;
+    };
+    storage: Record<
+      string,
+      { status: string; writable: boolean; freeBytes: number | null }
+    >;
+  };
+  counts: {
+    pages: number;
+    versions: number;
+    attachments: number;
+    templates: number;
+    notifications: number;
+    remoteBackups: number;
+  };
+  lastBackup: Backup | null;
+};
+type Tab =
+  | "profile"
+  | "security"
+  | "appearance"
+  | "users"
+  | "general"
+  | "editor"
+  | "templates"
+  | "backups"
+  | "storage"
+  | "system";
+const accountTabs: { id: Tab; label: string }[] = [
+  { id: "profile", label: t("account.profile") },
+  { id: "security", label: t("account.security") },
+  { id: "appearance", label: t("appearance.settings") },
+];
+const adminTabs: { id: Tab; label: string }[] = [
+  { id: "users", label: t("account.users") },
+  { id: "general", label: "Общие" },
+  { id: "editor", label: "Редактор" },
+  { id: "templates", label: "Шаблоны" },
+  { id: "backups", label: "Резервные копии" },
+  { id: "storage", label: "Хранилище" },
+  { id: "system", label: "Система" },
+];
+const bytes = (value: number | null) =>
+  value === null
+    ? "—"
+    : new Intl.NumberFormat("ru", {
+        style: "unit",
+        unit: value >= 1_048_576 ? "megabyte" : "kilobyte",
+        maximumFractionDigits: 1,
+      }).format(value / (value >= 1_048_576 ? 1_048_576 : 1024));
 const noClientSubscription = () => () => undefined;
-const androidClientSnapshot = () => { const query = new URLSearchParams(window.location.search); const value = query.get("client") === "android" ? query.get("version") : null; return value && /^\d+\.\d+\.\d+$/.test(value) ? value : null; };
+const androidClientSnapshot = () => {
+  const query = new URLSearchParams(window.location.search);
+  const value = query.get("client") === "android" ? query.get("version") : null;
+  return value && /^\d+\.\d+\.\d+$/.test(value) ? value : null;
+};
 
-export function SettingsDialog({ user, open, onOpenChange, onDataOpen, onTemplatesOpen, onError }: { user: AccountUser; open: boolean; onOpenChange(open: boolean): void; onDataOpen(): void; onTemplatesOpen(): void; onError(error: unknown): void }) {
-  const androidClientVersion = useSyncExternalStore(noClientSubscription, androidClientSnapshot, () => null);
-  const { setTheme } = useTheme(); const router = useRouter(); const [tab, setTab] = useState<Tab>("profile"); const [settings, setSettings] = useState<SettingsData | null>(null); const [draft, setDraft] = useState<SettingsData | null>(null); const [backups, setBackups] = useState<Backup[]>([]); const [nextCursor, setNextCursor] = useState<string | null>(null); const [system, setSystem] = useState<SystemInfo | null>(null); const [password, setPassword] = useState(""); const [s3Secret, setS3Secret] = useState(""); const [busy, setBusy] = useState(""); const [message, setMessage] = useState("");
-  const load = useCallback(async () => { try { const [response, preferences] = await Promise.all([api<{ settings: SettingsData }>("/api/settings"), api<{ settings: Pick<SettingsData, "editorSpellcheck" | "editorCodeLineNumbers" | "editorCompactMode" | "editorContentWidth"> }>("/api/account/preferences")]); const merged = { ...response.settings, ...preferences.settings }; setSettings(merged); setDraft(merged); } catch (error) { onError(error); } }, [onError]);
-  const loadBackups = useCallback(async (cursor?: string) => { try { const response = await api<{ backups: Backup[]; nextCursor: string | null }>(`/api/backups?limit=20${cursor ? `&cursor=${encodeURIComponent(cursor)}` : ""}`); setBackups((current) => cursor ? [...current, ...response.backups] : response.backups); setNextCursor(response.nextCursor); } catch (error) { onError(error); } }, [onError]);
-  const loadSystem = useCallback(async () => { try { setSystem((await api<{ system: SystemInfo }>("/api/system")).system); } catch (error) { onError(error); } }, [onError]);
-  useEffect(() => { if (!open || user.role !== "ADMIN") return; void Promise.resolve().then(() => Promise.all([load(), loadBackups(), loadSystem()])); }, [open, user.role, load, loadBackups, loadSystem]);
-  async function save() { if (!draft) return; setBusy("save"); try { const payload = { defaultTheme: draft.defaultTheme, autosaveDelayMs: Number(draft.autosaveDelayMs), pageVersionIntervalMinutes: Number(draft.pageVersionIntervalMinutes), pageVersionRetentionDays: Number(draft.pageVersionRetentionDays), pageVersionMaxCount: Number(draft.pageVersionMaxCount), backupEnabled: draft.backupEnabled, backupSchedule: draft.backupSchedule, backupTime: draft.backupTime, backupRetentionCount: Number(draft.backupRetentionCount), backupRetentionDays: Number(draft.backupRetentionDays), webdavEnabled: draft.webdavEnabled, webdavUrl: draft.webdavUrl || null, webdavUsername: draft.webdavUsername || null, webdavRemoteDirectory: draft.webdavRemoteDirectory, ...(password ? { webdavPassword: password } : {}), s3Enabled: draft.s3Enabled, s3Endpoint: draft.s3Endpoint || null, s3Region: draft.s3Region, s3Bucket: draft.s3Bucket || null, s3AccessKeyId: draft.s3AccessKeyId || null, s3Prefix: draft.s3Prefix, s3ForcePathStyle: draft.s3ForcePathStyle, s3ProviderLabel: draft.s3ProviderLabel || null, ...(s3Secret ? { s3SecretAccessKey: s3Secret } : {}), remoteRetentionCount: Number(draft.remoteRetentionCount), remoteRetentionDays: Number(draft.remoteRetentionDays), editorSpellcheck: draft.editorSpellcheck, editorCodeLineNumbers: draft.editorCodeLineNumbers, editorCompactMode: draft.editorCompactMode, editorContentWidth: draft.editorContentWidth }; const [response] = await Promise.all([api<{ settings: SettingsData }>("/api/settings", jsonOptions("PATCH", payload)), api("/api/account/preferences", jsonOptions("PATCH", { editorSpellcheck: draft.editorSpellcheck, editorCodeLineNumbers: draft.editorCodeLineNumbers, editorCompactMode: draft.editorCompactMode, editorContentWidth: draft.editorContentWidth }))]); setSettings(response.settings); setDraft(response.settings); setPassword(""); setS3Secret(""); setTheme(response.settings.defaultTheme); setMessage("Настройки сохранены"); } catch (error) { onError(error); } finally { setBusy(""); } }
-  async function createBackup() { setBusy("backup"); try { const response = await api<{ backup: Backup }>("/api/backups", jsonOptions("POST")); setBackups((current) => [response.backup, ...current]); setMessage("Резервная копия создана"); await loadSystem(); } catch (error) { onError(error); } finally { setBusy(""); } }
-  async function testWebdav() { if (!draft) return; setBusy("webdav"); try { await api("/api/settings/webdav-test", jsonOptions("POST", { webdavUrl: draft.webdavUrl, webdavUsername: draft.webdavUsername, webdavRemoteDirectory: draft.webdavRemoteDirectory, ...(password ? { webdavPassword: password } : {}) })); setMessage("WebDAV подключение работает"); } catch (error) { onError(error); } finally { setBusy(""); } }
-  async function testS3() { if (!draft) return; setBusy("s3"); try { await api("/api/settings/s3-test", jsonOptions("POST", { s3Endpoint: draft.s3Endpoint, s3Region: draft.s3Region, s3Bucket: draft.s3Bucket, s3AccessKeyId: draft.s3AccessKeyId, s3Prefix: draft.s3Prefix, s3ForcePathStyle: draft.s3ForcePathStyle, ...(s3Secret ? { s3SecretAccessKey: s3Secret } : {}) })); setMessage("S3 подключение работает"); } catch (error) { onError(error); } finally { setBusy(""); } }
-  async function removeBackup(item: Backup) { if (!window.confirm("Удалить эту локальную резервную копию?")) return; try { await api(`/api/backups/${item.id}`, jsonOptions("DELETE")); setBackups((current) => current.filter((entry) => entry.id !== item.id)); } catch (error) { onError(error); } }
-  async function retry(item: Backup, provider: "webdav" | "s3" = "webdav") { setBusy(`${item.id}:${provider}`); try { const response = await api<{ backup: Backup }>(`/api/backups/${item.id}/retry?provider=${provider}`, jsonOptions("POST")); setBackups((current) => current.map((entry) => entry.id === item.id ? response.backup : entry)); } catch (error) { onError(error); } finally { setBusy(""); } }
-  async function restore(item: Backup) { if (window.prompt("Введите RESTORE, чтобы заменить текущие данные") !== "RESTORE" || !window.confirm("Текущие данные будут заменены. Продолжить?")) return; setBusy(item.id); try { await api(`/api/backups/${item.id}/restore`, { method: "POST", headers: { "x-notebook-confirmation": "RESTORE" } }); onOpenChange(false); router.push("/app"); router.refresh(); } catch (error) { onError(error); setBusy(""); } }
-  async function restoreRemote(item: Backup, provider: "webdav" | "s3") { if (window.prompt(`Введите RESTORE для загрузки и восстановления из ${provider}`) !== "RESTORE" || !window.confirm("Архив будет проверен до замены текущих данных. Продолжить?")) return; setBusy(item.id); try { await api(`/api/backups/${item.id}/remote-restore`, { ...jsonOptions("POST", { provider }), headers: { ...jsonOptions("POST", { provider }).headers, "x-notebook-confirmation": "RESTORE" } }); onOpenChange(false); router.push("/app"); router.refresh(); } catch (error) { onError(error); setBusy(""); } }
-  const visibleTabs = user.role === "ADMIN" ? [...accountTabs, ...adminTabs] : accountTabs;
-  const accountTab = tab === "profile" || tab === "security" || tab === "users";
-  const change = <K extends keyof SettingsData>(key: K, value: SettingsData[K]) => setDraft((current) => current ? { ...current, [key]: value } : current);
-  return <Dialog.Root open={open} onOpenChange={onOpenChange}><Dialog.Portal><Dialog.Overlay className="fixed inset-0 z-50 bg-black/35"/><Dialog.Content aria-describedby={undefined} className="fixed inset-0 z-50 flex min-w-0 flex-col overflow-hidden bg-card sm:inset-x-auto sm:left-1/2 sm:top-[4vh] sm:h-[92vh] sm:w-[min(96vw,940px)] sm:-translate-x-1/2 sm:rounded-2xl sm:shadow-2xl">
-    <header className="flex h-14 shrink-0 items-center gap-3 border-b border-border/60 px-4"><Settings size={18}/><Dialog.Title className="flex-1 font-semibold">Настройки</Dialog.Title>{message && <span className="hidden text-xs text-muted-foreground sm:block">{message}</span>}<Dialog.Close className="flex size-11 items-center justify-center rounded-lg hover:bg-accent" aria-label="Закрыть"><X size={18}/></Dialog.Close></header>
-    <div className="flex min-h-0 flex-1 flex-col sm:flex-row"><nav aria-label="Разделы настроек" className="flex shrink-0 gap-1 overflow-x-auto border-b border-border/60 p-2 sm:w-48 sm:flex-col sm:border-b-0 sm:border-r">{visibleTabs.map((item) => <button key={item.id} className={cn("h-11 shrink-0 rounded-lg px-3 text-left text-sm", tab === item.id ? "bg-accent font-medium" : "text-muted-foreground hover:bg-accent/60")} onClick={() => setTab(item.id)}>{item.label}</button>)}</nav>
-      <div className="min-w-0 flex-1 overflow-y-auto p-4 sm:p-6">{tab === "profile" && <ProfileSettings user={user} onError={onError}/>} {tab === "security" && <><PasswordSettings onError={onError}/><div className="mt-6"><TwoFactorSettings/></div><SecuritySessionActions onError={onError}/></>} {tab === "users" && user.role === "ADMIN" && <UserManagement currentUserId={user.id} onError={onError}/>} {!accountTab && (!draft ? <Loader2 className="animate-spin"/> : <>
-        {tab === "general" && <Section title="Общие"><Field label="Тема"><select value={draft.defaultTheme} onChange={(event) => change("defaultTheme", event.target.value as SettingsData["defaultTheme"])} className="input"><option value="system">Системная</option><option value="light">Светлая</option><option value="dark">Тёмная</option></select></Field><p className="text-sm text-muted-foreground">Настройки интерфейса хранятся централизованно для single-admin instance.</p></Section>}
-        {tab === "editor" && <Section title="Редактор"><Check label="Проверка орфографии" checked={draft.editorSpellcheck} onChange={(value) => change("editorSpellcheck", value)}/><Check label="Компактный режим" checked={draft.editorCompactMode} onChange={(value) => change("editorCompactMode", value)}/><Check label="Номера строк в блоках кода" checked={draft.editorCodeLineNumbers} onChange={(value) => change("editorCodeLineNumbers", value)}/><Field label="Ширина контента"><select className="input" value={draft.editorContentWidth} onChange={(event) => change("editorContentWidth", event.target.value as SettingsData["editorContentWidth"])}><option value="narrow">Узкая</option><option value="normal">Обычная</option><option value="wide">Широкая</option></select></Field><NumberField label={t("settings.autosave")} value={draft.autosaveDelayMs} min={500} max={5000} onChange={(value) => change("autosaveDelayMs", value)}/><div className="grid gap-3 sm:grid-cols-3"><NumberField label={t("settings.snapshotInterval")} value={draft.pageVersionIntervalMinutes} min={1} max={60} onChange={(value) => change("pageVersionIntervalMinutes", value)}/><NumberField label={t("settings.retentionDays")} value={draft.pageVersionRetentionDays} min={7} max={365} onChange={(value) => change("pageVersionRetentionDays", value)}/><NumberField label="Макс. версий" value={draft.pageVersionMaxCount} min={20} max={500} onChange={(value) => change("pageVersionMaxCount", value)}/></div></Section>}
-        {tab === "templates" && <Section title="Шаблоны страниц"><p className="text-sm text-muted-foreground">Встроенные и пользовательские шаблоны используют тот же BlockNote schema, что и обычные страницы.</p><Button variant="outline" onClick={onTemplatesOpen}>Открыть менеджер шаблонов</Button></Section>}
-        {tab === "backups" && <div className="space-y-5"><Section title="Автоматические backup"><Check label="Включить scheduler" checked={draft.backupEnabled} onChange={(value) => change("backupEnabled", value)}/>{draft.backupConsecutiveFailures >= 3 && <p className="rounded-lg bg-destructive/10 p-3 text-sm text-destructive">Последние backup завершаются ошибкой ({draft.backupConsecutiveFailures} подряд).</p>}<div className="grid gap-3 sm:grid-cols-2"><Field label="Расписание"><select className="input" value={draft.backupSchedule} onChange={(event) => change("backupSchedule", event.target.value as SettingsData["backupSchedule"])}><option value="daily">Ежедневно</option><option value="every_3_days">Каждые 3 дня</option><option value="weekly">Еженедельно</option></select></Field><Field label="Локальное время"><input className="input" type="time" value={draft.backupTime} onChange={(event) => change("backupTime", event.target.value)}/></Field><NumberField label="Максимум файлов" value={draft.backupRetentionCount} min={1} max={365} onChange={(value) => change("backupRetentionCount", value)}/><NumberField label="Максимум дней" value={draft.backupRetentionDays} min={1} max={3650} onChange={(value) => change("backupRetentionDays", value)}/></div></Section><Section title="WebDAV"><Check label="Загружать новые backup в WebDAV" checked={draft.webdavEnabled} onChange={(value) => change("webdavEnabled", value)}/>{!draft.settingsEncryptionAvailable && <p className="rounded-lg bg-muted p-3 text-sm">Для сохранения password задайте `SETTINGS_ENCRYPTION_KEY`. Локальные backup работают без него.</p>}<Field label="URL"><input className="input" value={draft.webdavUrl ?? ""} onChange={(event) => change("webdavUrl", event.target.value)}/></Field><div className="grid gap-3 sm:grid-cols-2"><Field label="Username"><input className="input" autoComplete="username" value={draft.webdavUsername ?? ""} onChange={(event) => change("webdavUsername", event.target.value)}/></Field><Field label={`Password${draft.webdavPasswordConfigured ? " · сохранён" : ""}`}><input className="input" type="password" autoComplete="new-password" value={password} onChange={(event) => setPassword(event.target.value)} disabled={!draft.settingsEncryptionAvailable}/></Field></div><Field label="Remote directory"><input className="input" value={draft.webdavRemoteDirectory} onChange={(event) => change("webdavRemoteDirectory", event.target.value)}/></Field><Button variant="outline" onClick={() => void testWebdav()} disabled={Boolean(busy)}>{busy === "webdav" ? <Loader2 className="animate-spin" size={15}/> : <UploadCloud size={15}/>}Проверить подключение</Button></Section><Section title="Локальные резервные копии"><Button onClick={() => void createBackup()} disabled={Boolean(busy)}>{busy === "backup" ? <Loader2 className="animate-spin" size={15}/> : <Archive size={15}/>}Создать резервную копию</Button><div className="mt-3 space-y-2">{backups.length === 0 && <p className="text-sm text-muted-foreground">Резервных копий пока нет</p>}{backups.map((item) => <article key={item.id} className="rounded-xl bg-muted/45 p-3"><div className="flex min-w-0 flex-wrap items-center gap-2"><div className="min-w-0 flex-1"><p className="truncate text-sm font-medium">{item.filename ?? `${item.type} · ${item.status}`}</p><p className="text-xs text-muted-foreground">{new Date(item.createdAt).toLocaleString("ru")} · {bytes(item.size)} · Local: {item.status} · WebDAV: {item.remoteStatus}</p></div>{item.filename && <a className={buttonVariants({ variant: "ghost", size: "icon", className: "size-11" })} href={`/api/backups/${item.id}`} aria-label="Скачать backup"><Download size={16}/></a>}{item.remoteStatus === "failed" && <Button variant="ghost" size="icon" className="size-11" onClick={() => void retry(item)} aria-label="Повторить WebDAV upload"><RefreshCw size={16}/></Button>}{item.status === "success" && <Button variant="ghost" size="icon" className="size-11" onClick={() => void restore(item)} aria-label="Восстановить"><RotateCcw size={16}/></Button>}<Button variant="ghost" size="icon" className="size-11 text-destructive" onClick={() => void removeBackup(item)} aria-label="Удалить backup"><Trash2 size={16}/></Button></div></article>)}</div>{nextCursor && <Button variant="ghost" onClick={() => void loadBackups(nextCursor)}>Показать ещё</Button>}</Section></div>}
-        {tab === "backups" && <><Section title="S3-compatible"><Check label="Загружать новые резервные копии в S3" checked={draft.s3Enabled} onChange={(value) => change("s3Enabled", value)}/><div className="grid gap-3 sm:grid-cols-2"><Field label="Endpoint · пусто для AWS"><input className="input" value={draft.s3Endpoint ?? ""} placeholder="https://s3.example.com" onChange={(event) => change("s3Endpoint", event.target.value)}/></Field><Field label="Регион"><input className="input" value={draft.s3Region} onChange={(event) => change("s3Region", event.target.value)}/></Field><Field label="Bucket"><input className="input" value={draft.s3Bucket ?? ""} onChange={(event) => change("s3Bucket", event.target.value)}/></Field><Field label="Префикс"><input className="input" value={draft.s3Prefix} onChange={(event) => change("s3Prefix", event.target.value)}/></Field><Field label="Access key ID"><input className="input" autoComplete="off" value={draft.s3AccessKeyId ?? ""} onChange={(event) => change("s3AccessKeyId", event.target.value)}/></Field><Field label={`Secret access key${draft.s3SecretAccessKeyConfigured ? " · сохранён" : ""}`}><input className="input" type="password" autoComplete="new-password" value={s3Secret} disabled={!draft.settingsEncryptionAvailable} onChange={(event) => setS3Secret(event.target.value)}/></Field></div><Check label="Path-style · MinIO" checked={draft.s3ForcePathStyle} onChange={(value) => change("s3ForcePathStyle", value)}/><Button variant="outline" onClick={() => void testS3()} disabled={Boolean(busy)}>{busy === "s3" ? <Loader2 className="animate-spin" size={15}/> : <UploadCloud size={15}/>}Проверить подключение</Button></Section><Section title="Хранение удалённых копий"><div className="grid gap-3 sm:grid-cols-2"><NumberField label="Максимум удалённых копий" value={draft.remoteRetentionCount} min={1} max={1000} onChange={(value) => change("remoteRetentionCount", value)}/><NumberField label="Максимум дней" value={draft.remoteRetentionDays} min={1} max={3650} onChange={(value) => change("remoteRetentionDays", value)}/></div><div className="space-y-2">{backups.flatMap((item) => item.remoteCopies.map((copy) => <article key={copy.id} className="rounded-xl bg-muted/45 p-3"><div className="flex flex-wrap items-center gap-2"><div className="min-w-0 flex-1"><p className="truncate text-sm font-medium">{item.filename ?? copy.remoteKey}</p><p className="text-xs text-muted-foreground">{copy.provider.toUpperCase()} · {copy.status}{copy.errorCategory ? ` · ${copy.errorCategory}` : ""}</p></div>{copy.status === "failed" && item.filename && <Button variant="ghost" size="sm" onClick={() => void retry(item, copy.provider)}><RefreshCw size={14}/>{t("settings.retry")}</Button>}{copy.status === "success" && !item.filename && <Button variant="ghost" size="sm" onClick={() => void restoreRemote(item, copy.provider)}><RotateCcw size={14}/>Скачать и восстановить</Button>}</div></article>))}</div></Section></>}
-        {tab === "storage" && <Section title="Хранилище"><p className="text-sm text-muted-foreground">Экспорт, импорт, application restore, вложения и storage audit находятся в существующем защищённом наборе инструментов.</p><Button className="mt-3" variant="outline" onClick={() => { onOpenChange(false); onDataOpen(); }}><HardDrive size={15}/>Открыть управление данными</Button>{settings?.lastStorageAuditAt && <p className="mt-3 text-xs text-muted-foreground">Последняя проверка: {new Date(settings.lastStorageAuditAt).toLocaleString("ru")}</p>}</Section>}
-        {tab === "system" && <Section title="Система"><Button variant="outline" onClick={() => void loadSystem()}><RefreshCw size={15}/>Обновить диагностику</Button>{system && <div className="mt-4 grid gap-3 sm:grid-cols-2"><Info icon={<CheckCircle2 size={17}/>} title={`Notebook ${system.version}`} value={`${system.nodeVersion} · ${system.environment}${system.channel ? ` · ${system.channel}` : ""}${system.revision ? ` · ${system.revision.slice(0, 12)}` : ""}`}/><Info icon={<Database size={17}/>} title="PostgreSQL" value={`${system.diagnostics.database.status} · ${system.diagnostics.database.responseTimeMs} мс`}/><Info icon={<Database size={17}/>} title="Миграции" value={`${system.diagnostics.migrations.status} · ${system.diagnostics.migrations.applied ?? "?"}/${system.diagnostics.migrations.expected ?? "?"}`}/>{Object.entries(system.diagnostics.storage).map(([name, item]) => <Info key={name} icon={<HardDrive size={17}/>} title={name} value={`${item.status} · свободно ${bytes(item.freeBytes)}`}/>) }<Info icon={<Archive size={17}/>} title="Данные" value={`${system.counts.pages} страниц · ${system.counts.versions} версий · ${system.counts.attachments} вложений`}/><Info icon={<RefreshCw size={17}/>} title="PWA" value={"serviceWorker" in navigator ? (navigator.serviceWorker.controller ? "активен" : "поддерживается") : "не поддерживается"}/></div>}</Section>}
-        {tab === "system" && system && <div className="mt-4 grid gap-3 sm:grid-cols-2"><Info icon={<Database size={17}/>} title="Полнотекстовый поиск" value={`${system.diagnostics.fts.status} · ${system.diagnostics.fts.indexedPages} страниц · ${system.diagnostics.fts.ginIndexes}/3 индекса`}/><Info icon={<Archive size={17}/>} title="Этап 6" value={`${system.counts.templates} шаблонов · ${system.counts.remoteBackups} remote copies · ${system.counts.notifications} уведомлений`}/></div>}
-        {tab === "system" && androidClientVersion && <div className="mt-3"><Info icon={<CheckCircle2 size={17}/>} title="Android-клиент" value={`Версия ${androidClientVersion}`}/></div>}
-        {tab === "general" && <InterfaceDensitySettings onError={onError}/>}
-        <div className="sticky bottom-0 mt-6 flex justify-end border-t border-border/60 bg-card py-3"><Button onClick={() => void save()} disabled={!draft || Boolean(busy)}>{busy === "save" ? <Loader2 className="animate-spin" size={15}/> : <Save size={15}/>}Сохранить настройки</Button></div>
-      </>)}</div>
-    </div>
-  </Dialog.Content></Dialog.Portal></Dialog.Root>;
-}
-
-function Section({ title, children }: { title: string; children: React.ReactNode }) { return <section className="space-y-4"><h2 className="text-lg font-semibold">{title}</h2>{children}</section>; }
-function Field({ label, children }: { label: string; children: React.ReactNode }) { return <label className="block text-sm"><span className="mb-1.5 block text-muted-foreground">{label}</span>{children}</label>; }
-function Check({ label, checked, onChange }: { label: string; checked: boolean; onChange(value: boolean): void }) { return <label className="flex min-h-11 items-center gap-3 rounded-lg px-2 hover:bg-muted/50"><input type="checkbox" checked={checked} onChange={(event) => onChange(event.target.checked)} className="size-4"/><span className="text-sm">{label}</span></label>; }
-function NumberField({ label, value, min, max, onChange }: { label: string; value: number; min: number; max: number; onChange(value: number): void }) { return <Field label={label}><input className="input" type="number" value={value} min={min} max={max} onChange={(event) => onChange(Number(event.target.value))}/></Field>; }
-function Info({ icon, title, value }: { icon: React.ReactNode; title: string; value: string }) { return <div className="flex gap-3 rounded-xl bg-muted/45 p-3"><span className="mt-0.5 text-muted-foreground">{icon}</span><div className="min-w-0"><p className="text-sm font-medium">{title}</p><p className="text-xs text-muted-foreground">{value}</p></div></div>; }
-
-function InterfaceDensitySettings({ onError }: { onError(error: unknown): void }) {
-  const [density, setDensity] = useState<"comfortable" | "compact">("comfortable");
-  useEffect(() => { void api<{ settings: { interfaceDensity: "comfortable" | "compact" } }>("/api/account/preferences").then(({ settings }) => setDensity(settings.interfaceDensity)).catch(onError); }, [onError]);
-  async function update(value: "comfortable" | "compact") { try { await api("/api/account/preferences", jsonOptions("PATCH", { interfaceDensity: value })); setDensity(value); window.dispatchEvent(new CustomEvent("notebook:density", { detail: value })); } catch (error) { onError(error); } }
-  return <Section title={t("appearance.density")}><div className="grid grid-cols-2 gap-2"><Button type="button" variant={density === "comfortable" ? "default" : "outline"} onClick={() => void update("comfortable")}>{t("appearance.comfortable")}</Button><Button type="button" variant={density === "compact" ? "default" : "outline"} onClick={() => void update("compact")}>{t("appearance.compact")}</Button></div></Section>;
-}
-
-function SecuritySessionActions({ onError }: { onError(error: unknown): void }) {
+export function SettingsDialog({
+  user,
+  open,
+  onOpenChange,
+  onDataOpen,
+  onTemplatesOpen,
+  onError,
+}: {
+  user: AccountUser;
+  open: boolean;
+  onOpenChange(open: boolean): void;
+  onDataOpen(): void;
+  onTemplatesOpen(): void;
+  onError(error: unknown): void;
+}) {
+  const androidClientVersion = useSyncExternalStore(
+    noClientSubscription,
+    androidClientSnapshot,
+    () => null,
+  );
+  const { setTheme } = useTheme();
   const router = useRouter();
-  async function logoutAll() { try { await api("/api/auth/logout-all", jsonOptions("POST")); await flushNativeAuthCookies(); router.replace("/login"); router.refresh(); } catch (error) { onError(error); } }
-  return <section className="mt-6 border-t border-border/60 pt-5"><h3 className="font-semibold">{t("security.sessions")}</h3><p className="mt-1 text-sm text-muted-foreground">{t("security.logoutAllDescription")}</p><AlertDialog.Root><AlertDialog.Trigger asChild><Button className="mt-3" variant="outline">{t("security.logoutAll")}</Button></AlertDialog.Trigger><AlertDialog.Portal><AlertDialog.Overlay className="fixed inset-0 z-[70] bg-black/40"/><AlertDialog.Content className="fixed left-1/2 top-1/2 z-[70] w-[min(92vw,440px)] -translate-x-1/2 -translate-y-1/2 rounded-xl bg-card p-5 shadow-2xl"><AlertDialog.Title className="font-semibold">{t("security.logoutAllConfirm")}</AlertDialog.Title><AlertDialog.Description className="mt-2 text-sm text-muted-foreground">{t("security.logoutAllDescription")}</AlertDialog.Description><div className="mt-5 flex justify-end gap-2"><AlertDialog.Cancel asChild><Button variant="ghost">{t("common.cancel")}</Button></AlertDialog.Cancel><AlertDialog.Action asChild><Button variant="destructive" onClick={() => void logoutAll()}>{t("security.logoutAll")}</Button></AlertDialog.Action></div></AlertDialog.Content></AlertDialog.Portal></AlertDialog.Root></section>;
+  const [tab, setTab] = useState<Tab>("profile");
+  const [settings, setSettings] = useState<SettingsData | null>(null);
+  const [draft, setDraft] = useState<SettingsData | null>(null);
+  const [backups, setBackups] = useState<Backup[]>([]);
+  const [nextCursor, setNextCursor] = useState<string | null>(null);
+  const [system, setSystem] = useState<SystemInfo | null>(null);
+  const [password, setPassword] = useState("");
+  const [s3Secret, setS3Secret] = useState("");
+  const [busy, setBusy] = useState("");
+  const [message, setMessage] = useState("");
+  const load = useCallback(async () => {
+    try {
+      const [response, preferences] = await Promise.all([
+        api<{ settings: SettingsData }>("/api/settings"),
+        api<{
+          settings: Pick<
+            SettingsData,
+            | "editorSpellcheck"
+            | "editorCodeLineNumbers"
+            | "editorCompactMode"
+            | "editorContentWidth"
+          >;
+        }>("/api/account/preferences"),
+      ]);
+      const merged = { ...response.settings, ...preferences.settings };
+      setSettings(merged);
+      setDraft(merged);
+    } catch (error) {
+      onError(error);
+    }
+  }, [onError]);
+  const loadBackups = useCallback(
+    async (cursor?: string) => {
+      try {
+        const response = await api<{
+          backups: Backup[];
+          nextCursor: string | null;
+        }>(
+          `/api/backups?limit=20${cursor ? `&cursor=${encodeURIComponent(cursor)}` : ""}`,
+        );
+        setBackups((current) =>
+          cursor ? [...current, ...response.backups] : response.backups,
+        );
+        setNextCursor(response.nextCursor);
+      } catch (error) {
+        onError(error);
+      }
+    },
+    [onError],
+  );
+  const loadSystem = useCallback(async () => {
+    try {
+      setSystem((await api<{ system: SystemInfo }>("/api/system")).system);
+    } catch (error) {
+      onError(error);
+    }
+  }, [onError]);
+  useEffect(() => {
+    if (!open || user.role !== "ADMIN") return;
+    void Promise.resolve().then(() =>
+      Promise.all([load(), loadBackups(), loadSystem()]),
+    );
+  }, [open, user.role, load, loadBackups, loadSystem]);
+  async function save() {
+    if (!draft) return;
+    setBusy("save");
+    try {
+      const payload = {
+        defaultTheme: draft.defaultTheme,
+        autosaveDelayMs: Number(draft.autosaveDelayMs),
+        pageVersionIntervalMinutes: Number(draft.pageVersionIntervalMinutes),
+        pageVersionRetentionDays: Number(draft.pageVersionRetentionDays),
+        pageVersionMaxCount: Number(draft.pageVersionMaxCount),
+        backupEnabled: draft.backupEnabled,
+        backupSchedule: draft.backupSchedule,
+        backupTime: draft.backupTime,
+        backupRetentionCount: Number(draft.backupRetentionCount),
+        backupRetentionDays: Number(draft.backupRetentionDays),
+        webdavEnabled: draft.webdavEnabled,
+        webdavUrl: draft.webdavUrl || null,
+        webdavUsername: draft.webdavUsername || null,
+        webdavRemoteDirectory: draft.webdavRemoteDirectory,
+        ...(password ? { webdavPassword: password } : {}),
+        s3Enabled: draft.s3Enabled,
+        s3Endpoint: draft.s3Endpoint || null,
+        s3Region: draft.s3Region,
+        s3Bucket: draft.s3Bucket || null,
+        s3AccessKeyId: draft.s3AccessKeyId || null,
+        s3Prefix: draft.s3Prefix,
+        s3ForcePathStyle: draft.s3ForcePathStyle,
+        s3ProviderLabel: draft.s3ProviderLabel || null,
+        ...(s3Secret ? { s3SecretAccessKey: s3Secret } : {}),
+        remoteRetentionCount: Number(draft.remoteRetentionCount),
+        remoteRetentionDays: Number(draft.remoteRetentionDays),
+        editorSpellcheck: draft.editorSpellcheck,
+        editorCodeLineNumbers: draft.editorCodeLineNumbers,
+        editorCompactMode: draft.editorCompactMode,
+        editorContentWidth: draft.editorContentWidth,
+      };
+      const [response] = await Promise.all([
+        api<{ settings: SettingsData }>(
+          "/api/settings",
+          jsonOptions("PATCH", payload),
+        ),
+        api(
+          "/api/account/preferences",
+          jsonOptions("PATCH", {
+            editorSpellcheck: draft.editorSpellcheck,
+            editorCodeLineNumbers: draft.editorCodeLineNumbers,
+            editorCompactMode: draft.editorCompactMode,
+            editorContentWidth: draft.editorContentWidth,
+          }),
+        ),
+      ]);
+      setSettings(response.settings);
+      setDraft(response.settings);
+      setPassword("");
+      setS3Secret("");
+      setTheme(response.settings.defaultTheme);
+      setMessage("Настройки сохранены");
+    } catch (error) {
+      onError(error);
+    } finally {
+      setBusy("");
+    }
+  }
+  async function createBackup() {
+    setBusy("backup");
+    try {
+      const response = await api<{ backup: Backup }>(
+        "/api/backups",
+        jsonOptions("POST"),
+      );
+      setBackups((current) => [response.backup, ...current]);
+      setMessage("Резервная копия создана");
+      await loadSystem();
+    } catch (error) {
+      onError(error);
+    } finally {
+      setBusy("");
+    }
+  }
+  async function testWebdav() {
+    if (!draft) return;
+    setBusy("webdav");
+    try {
+      await api(
+        "/api/settings/webdav-test",
+        jsonOptions("POST", {
+          webdavUrl: draft.webdavUrl,
+          webdavUsername: draft.webdavUsername,
+          webdavRemoteDirectory: draft.webdavRemoteDirectory,
+          ...(password ? { webdavPassword: password } : {}),
+        }),
+      );
+      setMessage("WebDAV подключение работает");
+    } catch (error) {
+      onError(error);
+    } finally {
+      setBusy("");
+    }
+  }
+  async function testS3() {
+    if (!draft) return;
+    setBusy("s3");
+    try {
+      await api(
+        "/api/settings/s3-test",
+        jsonOptions("POST", {
+          s3Endpoint: draft.s3Endpoint,
+          s3Region: draft.s3Region,
+          s3Bucket: draft.s3Bucket,
+          s3AccessKeyId: draft.s3AccessKeyId,
+          s3Prefix: draft.s3Prefix,
+          s3ForcePathStyle: draft.s3ForcePathStyle,
+          ...(s3Secret ? { s3SecretAccessKey: s3Secret } : {}),
+        }),
+      );
+      setMessage("S3 подключение работает");
+    } catch (error) {
+      onError(error);
+    } finally {
+      setBusy("");
+    }
+  }
+  async function removeBackup(item: Backup) {
+    if (!window.confirm("Удалить эту локальную резервную копию?")) return;
+    try {
+      await api(`/api/backups/${item.id}`, jsonOptions("DELETE"));
+      setBackups((current) => current.filter((entry) => entry.id !== item.id));
+    } catch (error) {
+      onError(error);
+    }
+  }
+  async function retry(item: Backup, provider: "webdav" | "s3" = "webdav") {
+    setBusy(`${item.id}:${provider}`);
+    try {
+      const response = await api<{ backup: Backup }>(
+        `/api/backups/${item.id}/retry?provider=${provider}`,
+        jsonOptions("POST"),
+      );
+      setBackups((current) =>
+        current.map((entry) =>
+          entry.id === item.id ? response.backup : entry,
+        ),
+      );
+    } catch (error) {
+      onError(error);
+    } finally {
+      setBusy("");
+    }
+  }
+  async function restore(item: Backup) {
+    if (
+      window.prompt("Введите RESTORE, чтобы заменить текущие данные") !==
+        "RESTORE" ||
+      !window.confirm("Текущие данные будут заменены. Продолжить?")
+    )
+      return;
+    setBusy(item.id);
+    try {
+      await api(`/api/backups/${item.id}/restore`, {
+        method: "POST",
+        headers: { "x-notebook-confirmation": "RESTORE" },
+      });
+      onOpenChange(false);
+      router.push("/app");
+      router.refresh();
+    } catch (error) {
+      onError(error);
+      setBusy("");
+    }
+  }
+  async function restoreRemote(item: Backup, provider: "webdav" | "s3") {
+    if (
+      window.prompt(
+        `Введите RESTORE для загрузки и восстановления из ${provider}`,
+      ) !== "RESTORE" ||
+      !window.confirm(
+        "Архив будет проверен до замены текущих данных. Продолжить?",
+      )
+    )
+      return;
+    setBusy(item.id);
+    try {
+      await api(`/api/backups/${item.id}/remote-restore`, {
+        ...jsonOptions("POST", { provider }),
+        headers: {
+          ...jsonOptions("POST", { provider }).headers,
+          "x-notebook-confirmation": "RESTORE",
+        },
+      });
+      onOpenChange(false);
+      router.push("/app");
+      router.refresh();
+    } catch (error) {
+      onError(error);
+      setBusy("");
+    }
+  }
+  const visibleTabs =
+    user.role === "ADMIN" ? [...accountTabs, ...adminTabs] : accountTabs;
+  const accountTab =
+    tab === "profile" ||
+    tab === "security" ||
+    tab === "appearance" ||
+    tab === "users";
+  const change = <K extends keyof SettingsData>(
+    key: K,
+    value: SettingsData[K],
+  ) =>
+    setDraft((current) => (current ? { ...current, [key]: value } : current));
+  return (
+    <Dialog.Root open={open} onOpenChange={onOpenChange}>
+      <Dialog.Portal>
+        <Dialog.Overlay className="fixed inset-0 z-50 bg-black/35" />
+        <Dialog.Content
+          aria-describedby={undefined}
+          className="fixed inset-0 z-50 flex min-w-0 flex-col overflow-hidden bg-card sm:inset-x-auto sm:left-1/2 sm:top-[4vh] sm:h-[92vh] sm:w-[min(96vw,940px)] sm:-translate-x-1/2 sm:rounded-2xl sm:shadow-2xl"
+        >
+          <header className="flex h-14 shrink-0 items-center gap-3 border-b border-border/60 px-4">
+            <Settings size={18} />
+            <Dialog.Title className="flex-1 font-semibold">
+              Настройки
+            </Dialog.Title>
+            {message && (
+              <span className="hidden text-xs text-muted-foreground sm:block">
+                {message}
+              </span>
+            )}
+            <Dialog.Close
+              className="flex size-11 items-center justify-center rounded-lg hover:bg-accent"
+              aria-label="Закрыть"
+            >
+              <X size={18} />
+            </Dialog.Close>
+          </header>
+          <div className="flex min-h-0 flex-1 flex-col sm:flex-row">
+            <nav
+              aria-label="Разделы настроек"
+              className="flex shrink-0 gap-1 overflow-x-auto border-b border-border/60 p-2 sm:w-48 sm:flex-col sm:border-b-0 sm:border-r"
+            >
+              {visibleTabs.map((item) => (
+                <button
+                  key={item.id}
+                  className={cn(
+                    "h-11 shrink-0 rounded-lg px-3 text-left text-sm",
+                    tab === item.id
+                      ? "bg-accent font-medium"
+                      : "text-muted-foreground hover:bg-accent/60",
+                  )}
+                  onClick={() => setTab(item.id)}
+                >
+                  {item.label}
+                </button>
+              ))}
+            </nav>
+            <div className="min-w-0 flex-1 overflow-y-auto p-4 sm:p-6">
+              {tab === "profile" && (
+                <ProfileSettings user={user} onError={onError} />
+              )}{" "}
+              {tab === "security" && (
+                <>
+                  <PasswordSettings onError={onError} />
+                  <div className="mt-6">
+                    <TwoFactorSettings />
+                  </div>
+                  <SecuritySessionActions onError={onError} />
+                </>
+              )}{" "}
+              {tab === "appearance" && (
+                <AppearancePreferencesSettings onError={onError} />
+              )}{" "}
+              {tab === "users" && user.role === "ADMIN" && (
+                <UserManagement currentUserId={user.id} onError={onError} />
+              )}{" "}
+              {!accountTab &&
+                (!draft ? (
+                  <Loader2 className="animate-spin" />
+                ) : (
+                  <>
+                    {tab === "general" && (
+                      <Section title="Общие">
+                        <Field label="Тема">
+                          <select
+                            value={draft.defaultTheme}
+                            onChange={(event) =>
+                              change(
+                                "defaultTheme",
+                                event.target
+                                  .value as SettingsData["defaultTheme"],
+                              )
+                            }
+                            className="input"
+                          >
+                            <option value="system">Системная</option>
+                            <option value="light">Светлая</option>
+                            <option value="dark">Тёмная</option>
+                          </select>
+                        </Field>
+                        <p className="text-sm text-muted-foreground">
+                          Настройки интерфейса хранятся централизованно для
+                          single-admin instance.
+                        </p>
+                      </Section>
+                    )}
+                    {tab === "editor" && (
+                      <Section title="Редактор">
+                        <Check
+                          label="Проверка орфографии"
+                          checked={draft.editorSpellcheck}
+                          onChange={(value) =>
+                            change("editorSpellcheck", value)
+                          }
+                        />
+                        <Check
+                          label="Компактный режим"
+                          checked={draft.editorCompactMode}
+                          onChange={(value) =>
+                            change("editorCompactMode", value)
+                          }
+                        />
+                        <Check
+                          label="Номера строк в блоках кода"
+                          checked={draft.editorCodeLineNumbers}
+                          onChange={(value) =>
+                            change("editorCodeLineNumbers", value)
+                          }
+                        />
+                        <Field label="Ширина контента">
+                          <select
+                            className="input"
+                            value={draft.editorContentWidth}
+                            onChange={(event) =>
+                              change(
+                                "editorContentWidth",
+                                event.target
+                                  .value as SettingsData["editorContentWidth"],
+                              )
+                            }
+                          >
+                            <option value="narrow">Узкая</option>
+                            <option value="normal">Обычная</option>
+                            <option value="wide">Широкая</option>
+                          </select>
+                        </Field>
+                        <NumberField
+                          label={t("settings.autosave")}
+                          value={draft.autosaveDelayMs}
+                          min={500}
+                          max={5000}
+                          onChange={(value) => change("autosaveDelayMs", value)}
+                        />
+                        <div className="grid gap-3 sm:grid-cols-3">
+                          <NumberField
+                            label={t("settings.snapshotInterval")}
+                            value={draft.pageVersionIntervalMinutes}
+                            min={1}
+                            max={60}
+                            onChange={(value) =>
+                              change("pageVersionIntervalMinutes", value)
+                            }
+                          />
+                          <NumberField
+                            label={t("settings.retentionDays")}
+                            value={draft.pageVersionRetentionDays}
+                            min={7}
+                            max={365}
+                            onChange={(value) =>
+                              change("pageVersionRetentionDays", value)
+                            }
+                          />
+                          <NumberField
+                            label="Макс. версий"
+                            value={draft.pageVersionMaxCount}
+                            min={20}
+                            max={500}
+                            onChange={(value) =>
+                              change("pageVersionMaxCount", value)
+                            }
+                          />
+                        </div>
+                      </Section>
+                    )}
+                    {tab === "templates" && (
+                      <Section title="Шаблоны страниц">
+                        <p className="text-sm text-muted-foreground">
+                          Встроенные и пользовательские шаблоны используют тот
+                          же BlockNote schema, что и обычные страницы.
+                        </p>
+                        <Button variant="outline" onClick={onTemplatesOpen}>
+                          Открыть менеджер шаблонов
+                        </Button>
+                      </Section>
+                    )}
+                    {tab === "backups" && (
+                      <div className="space-y-5">
+                        <Section title="Автоматические backup">
+                          <Check
+                            label="Включить scheduler"
+                            checked={draft.backupEnabled}
+                            onChange={(value) => change("backupEnabled", value)}
+                          />
+                          {draft.backupConsecutiveFailures >= 3 && (
+                            <p className="rounded-lg bg-destructive/10 p-3 text-sm text-destructive">
+                              Последние backup завершаются ошибкой (
+                              {draft.backupConsecutiveFailures} подряд).
+                            </p>
+                          )}
+                          <div className="grid gap-3 sm:grid-cols-2">
+                            <Field label="Расписание">
+                              <select
+                                className="input"
+                                value={draft.backupSchedule}
+                                onChange={(event) =>
+                                  change(
+                                    "backupSchedule",
+                                    event.target
+                                      .value as SettingsData["backupSchedule"],
+                                  )
+                                }
+                              >
+                                <option value="daily">Ежедневно</option>
+                                <option value="every_3_days">
+                                  Каждые 3 дня
+                                </option>
+                                <option value="weekly">Еженедельно</option>
+                              </select>
+                            </Field>
+                            <Field label="Локальное время">
+                              <input
+                                className="input"
+                                type="time"
+                                value={draft.backupTime}
+                                onChange={(event) =>
+                                  change("backupTime", event.target.value)
+                                }
+                              />
+                            </Field>
+                            <NumberField
+                              label="Максимум файлов"
+                              value={draft.backupRetentionCount}
+                              min={1}
+                              max={365}
+                              onChange={(value) =>
+                                change("backupRetentionCount", value)
+                              }
+                            />
+                            <NumberField
+                              label="Максимум дней"
+                              value={draft.backupRetentionDays}
+                              min={1}
+                              max={3650}
+                              onChange={(value) =>
+                                change("backupRetentionDays", value)
+                              }
+                            />
+                          </div>
+                        </Section>
+                        <Section title="WebDAV">
+                          <Check
+                            label="Загружать новые backup в WebDAV"
+                            checked={draft.webdavEnabled}
+                            onChange={(value) => change("webdavEnabled", value)}
+                          />
+                          {!draft.settingsEncryptionAvailable && (
+                            <p className="rounded-lg bg-muted p-3 text-sm">
+                              Для сохранения password задайте
+                              `SETTINGS_ENCRYPTION_KEY`. Локальные backup
+                              работают без него.
+                            </p>
+                          )}
+                          <Field label="URL">
+                            <input
+                              className="input"
+                              value={draft.webdavUrl ?? ""}
+                              onChange={(event) =>
+                                change("webdavUrl", event.target.value)
+                              }
+                            />
+                          </Field>
+                          <div className="grid gap-3 sm:grid-cols-2">
+                            <Field label="Username">
+                              <input
+                                className="input"
+                                autoComplete="username"
+                                value={draft.webdavUsername ?? ""}
+                                onChange={(event) =>
+                                  change("webdavUsername", event.target.value)
+                                }
+                              />
+                            </Field>
+                            <Field
+                              label={`Password${draft.webdavPasswordConfigured ? " · сохранён" : ""}`}
+                            >
+                              <input
+                                className="input"
+                                type="password"
+                                autoComplete="new-password"
+                                value={password}
+                                onChange={(event) =>
+                                  setPassword(event.target.value)
+                                }
+                                disabled={!draft.settingsEncryptionAvailable}
+                              />
+                            </Field>
+                          </div>
+                          <Field label="Remote directory">
+                            <input
+                              className="input"
+                              value={draft.webdavRemoteDirectory}
+                              onChange={(event) =>
+                                change(
+                                  "webdavRemoteDirectory",
+                                  event.target.value,
+                                )
+                              }
+                            />
+                          </Field>
+                          <Button
+                            variant="outline"
+                            onClick={() => void testWebdav()}
+                            disabled={Boolean(busy)}
+                          >
+                            {busy === "webdav" ? (
+                              <Loader2 className="animate-spin" size={15} />
+                            ) : (
+                              <UploadCloud size={15} />
+                            )}
+                            Проверить подключение
+                          </Button>
+                        </Section>
+                        <Section title="Локальные резервные копии">
+                          <Button
+                            onClick={() => void createBackup()}
+                            disabled={Boolean(busy)}
+                          >
+                            {busy === "backup" ? (
+                              <Loader2 className="animate-spin" size={15} />
+                            ) : (
+                              <Archive size={15} />
+                            )}
+                            Создать резервную копию
+                          </Button>
+                          <div className="mt-3 space-y-2">
+                            {backups.length === 0 && (
+                              <p className="text-sm text-muted-foreground">
+                                Резервных копий пока нет
+                              </p>
+                            )}
+                            {backups.map((item) => (
+                              <article
+                                key={item.id}
+                                className="rounded-xl bg-muted/45 p-3"
+                              >
+                                <div className="flex min-w-0 flex-wrap items-center gap-2">
+                                  <div className="min-w-0 flex-1">
+                                    <p className="truncate text-sm font-medium">
+                                      {item.filename ??
+                                        `${item.type} · ${item.status}`}
+                                    </p>
+                                    <p className="text-xs text-muted-foreground">
+                                      {new Date(item.createdAt).toLocaleString(
+                                        "ru",
+                                      )}{" "}
+                                      · {bytes(item.size)} · Local:{" "}
+                                      {item.status} · WebDAV:{" "}
+                                      {item.remoteStatus}
+                                    </p>
+                                  </div>
+                                  {item.filename && (
+                                    <a
+                                      className={buttonVariants({
+                                        variant: "ghost",
+                                        size: "icon",
+                                        className: "size-11",
+                                      })}
+                                      href={`/api/backups/${item.id}`}
+                                      aria-label="Скачать backup"
+                                    >
+                                      <Download size={16} />
+                                    </a>
+                                  )}
+                                  {item.remoteStatus === "failed" && (
+                                    <Button
+                                      variant="ghost"
+                                      size="icon"
+                                      className="size-11"
+                                      onClick={() => void retry(item)}
+                                      aria-label="Повторить WebDAV upload"
+                                    >
+                                      <RefreshCw size={16} />
+                                    </Button>
+                                  )}
+                                  {item.status === "success" && (
+                                    <Button
+                                      variant="ghost"
+                                      size="icon"
+                                      className="size-11"
+                                      onClick={() => void restore(item)}
+                                      aria-label="Восстановить"
+                                    >
+                                      <RotateCcw size={16} />
+                                    </Button>
+                                  )}
+                                  <Button
+                                    variant="ghost"
+                                    size="icon"
+                                    className="size-11 text-destructive"
+                                    onClick={() => void removeBackup(item)}
+                                    aria-label="Удалить backup"
+                                  >
+                                    <Trash2 size={16} />
+                                  </Button>
+                                </div>
+                              </article>
+                            ))}
+                          </div>
+                          {nextCursor && (
+                            <Button
+                              variant="ghost"
+                              onClick={() => void loadBackups(nextCursor)}
+                            >
+                              Показать ещё
+                            </Button>
+                          )}
+                        </Section>
+                      </div>
+                    )}
+                    {tab === "backups" && (
+                      <>
+                        <Section title="S3-compatible">
+                          <Check
+                            label="Загружать новые резервные копии в S3"
+                            checked={draft.s3Enabled}
+                            onChange={(value) => change("s3Enabled", value)}
+                          />
+                          <div className="grid gap-3 sm:grid-cols-2">
+                            <Field label="Endpoint · пусто для AWS">
+                              <input
+                                className="input"
+                                value={draft.s3Endpoint ?? ""}
+                                placeholder="https://s3.example.com"
+                                onChange={(event) =>
+                                  change("s3Endpoint", event.target.value)
+                                }
+                              />
+                            </Field>
+                            <Field label="Регион">
+                              <input
+                                className="input"
+                                value={draft.s3Region}
+                                onChange={(event) =>
+                                  change("s3Region", event.target.value)
+                                }
+                              />
+                            </Field>
+                            <Field label="Bucket">
+                              <input
+                                className="input"
+                                value={draft.s3Bucket ?? ""}
+                                onChange={(event) =>
+                                  change("s3Bucket", event.target.value)
+                                }
+                              />
+                            </Field>
+                            <Field label="Префикс">
+                              <input
+                                className="input"
+                                value={draft.s3Prefix}
+                                onChange={(event) =>
+                                  change("s3Prefix", event.target.value)
+                                }
+                              />
+                            </Field>
+                            <Field label="Access key ID">
+                              <input
+                                className="input"
+                                autoComplete="off"
+                                value={draft.s3AccessKeyId ?? ""}
+                                onChange={(event) =>
+                                  change("s3AccessKeyId", event.target.value)
+                                }
+                              />
+                            </Field>
+                            <Field
+                              label={`Secret access key${draft.s3SecretAccessKeyConfigured ? " · сохранён" : ""}`}
+                            >
+                              <input
+                                className="input"
+                                type="password"
+                                autoComplete="new-password"
+                                value={s3Secret}
+                                disabled={!draft.settingsEncryptionAvailable}
+                                onChange={(event) =>
+                                  setS3Secret(event.target.value)
+                                }
+                              />
+                            </Field>
+                          </div>
+                          <Check
+                            label="Path-style · MinIO"
+                            checked={draft.s3ForcePathStyle}
+                            onChange={(value) =>
+                              change("s3ForcePathStyle", value)
+                            }
+                          />
+                          <Button
+                            variant="outline"
+                            onClick={() => void testS3()}
+                            disabled={Boolean(busy)}
+                          >
+                            {busy === "s3" ? (
+                              <Loader2 className="animate-spin" size={15} />
+                            ) : (
+                              <UploadCloud size={15} />
+                            )}
+                            Проверить подключение
+                          </Button>
+                        </Section>
+                        <Section title="Хранение удалённых копий">
+                          <div className="grid gap-3 sm:grid-cols-2">
+                            <NumberField
+                              label="Максимум удалённых копий"
+                              value={draft.remoteRetentionCount}
+                              min={1}
+                              max={1000}
+                              onChange={(value) =>
+                                change("remoteRetentionCount", value)
+                              }
+                            />
+                            <NumberField
+                              label="Максимум дней"
+                              value={draft.remoteRetentionDays}
+                              min={1}
+                              max={3650}
+                              onChange={(value) =>
+                                change("remoteRetentionDays", value)
+                              }
+                            />
+                          </div>
+                          <div className="space-y-2">
+                            {backups.flatMap((item) =>
+                              item.remoteCopies.map((copy) => (
+                                <article
+                                  key={copy.id}
+                                  className="rounded-xl bg-muted/45 p-3"
+                                >
+                                  <div className="flex flex-wrap items-center gap-2">
+                                    <div className="min-w-0 flex-1">
+                                      <p className="truncate text-sm font-medium">
+                                        {item.filename ?? copy.remoteKey}
+                                      </p>
+                                      <p className="text-xs text-muted-foreground">
+                                        {copy.provider.toUpperCase()} ·{" "}
+                                        {copy.status}
+                                        {copy.errorCategory
+                                          ? ` · ${copy.errorCategory}`
+                                          : ""}
+                                      </p>
+                                    </div>
+                                    {copy.status === "failed" &&
+                                      item.filename && (
+                                        <Button
+                                          variant="ghost"
+                                          size="sm"
+                                          onClick={() =>
+                                            void retry(item, copy.provider)
+                                          }
+                                        >
+                                          <RefreshCw size={14} />
+                                          {t("settings.retry")}
+                                        </Button>
+                                      )}
+                                    {copy.status === "success" &&
+                                      !item.filename && (
+                                        <Button
+                                          variant="ghost"
+                                          size="sm"
+                                          onClick={() =>
+                                            void restoreRemote(
+                                              item,
+                                              copy.provider,
+                                            )
+                                          }
+                                        >
+                                          <RotateCcw size={14} />
+                                          Скачать и восстановить
+                                        </Button>
+                                      )}
+                                  </div>
+                                </article>
+                              )),
+                            )}
+                          </div>
+                        </Section>
+                      </>
+                    )}
+                    {tab === "storage" && (
+                      <Section title="Хранилище">
+                        <p className="text-sm text-muted-foreground">
+                          Экспорт, импорт, application restore, вложения и
+                          storage audit находятся в существующем защищённом
+                          наборе инструментов.
+                        </p>
+                        <Button
+                          className="mt-3"
+                          variant="outline"
+                          onClick={() => {
+                            onOpenChange(false);
+                            onDataOpen();
+                          }}
+                        >
+                          <HardDrive size={15} />
+                          Открыть управление данными
+                        </Button>
+                        {settings?.lastStorageAuditAt && (
+                          <p className="mt-3 text-xs text-muted-foreground">
+                            Последняя проверка:{" "}
+                            {new Date(
+                              settings.lastStorageAuditAt,
+                            ).toLocaleString("ru")}
+                          </p>
+                        )}
+                      </Section>
+                    )}
+                    {tab === "system" && (
+                      <Section title="Система">
+                        <Button
+                          variant="outline"
+                          onClick={() => void loadSystem()}
+                        >
+                          <RefreshCw size={15} />
+                          Обновить диагностику
+                        </Button>
+                        {system && (
+                          <div className="mt-4 grid gap-3 sm:grid-cols-2">
+                            <Info
+                              icon={<CheckCircle2 size={17} />}
+                              title={`Notebook ${system.version}`}
+                              value={`${system.nodeVersion} · ${system.environment}${system.channel ? ` · ${system.channel}` : ""}${system.revision ? ` · ${system.revision.slice(0, 12)}` : ""}`}
+                            />
+                            <Info
+                              icon={<Database size={17} />}
+                              title="PostgreSQL"
+                              value={`${system.diagnostics.database.status} · ${system.diagnostics.database.responseTimeMs} мс`}
+                            />
+                            <Info
+                              icon={<Database size={17} />}
+                              title="Миграции"
+                              value={`${system.diagnostics.migrations.status} · ${system.diagnostics.migrations.applied ?? "?"}/${system.diagnostics.migrations.expected ?? "?"}`}
+                            />
+                            {Object.entries(system.diagnostics.storage).map(
+                              ([name, item]) => (
+                                <Info
+                                  key={name}
+                                  icon={<HardDrive size={17} />}
+                                  title={name}
+                                  value={`${item.status} · свободно ${bytes(item.freeBytes)}`}
+                                />
+                              ),
+                            )}
+                            <Info
+                              icon={<Archive size={17} />}
+                              title="Данные"
+                              value={`${system.counts.pages} страниц · ${system.counts.versions} версий · ${system.counts.attachments} вложений`}
+                            />
+                            <Info
+                              icon={<RefreshCw size={17} />}
+                              title="PWA"
+                              value={
+                                "serviceWorker" in navigator
+                                  ? navigator.serviceWorker.controller
+                                    ? "активен"
+                                    : "поддерживается"
+                                  : "не поддерживается"
+                              }
+                            />
+                          </div>
+                        )}
+                      </Section>
+                    )}
+                    {tab === "system" && system && (
+                      <div className="mt-4 grid gap-3 sm:grid-cols-2">
+                        <Info
+                          icon={<Database size={17} />}
+                          title="Полнотекстовый поиск"
+                          value={`${system.diagnostics.fts.status} · ${system.diagnostics.fts.indexedPages} страниц · ${system.diagnostics.fts.ginIndexes}/3 индекса`}
+                        />
+                        <Info
+                          icon={<Archive size={17} />}
+                          title="Этап 6"
+                          value={`${system.counts.templates} шаблонов · ${system.counts.remoteBackups} remote copies · ${system.counts.notifications} уведомлений`}
+                        />
+                      </div>
+                    )}
+                    {tab === "system" && androidClientVersion && (
+                      <div className="mt-3">
+                        <Info
+                          icon={<CheckCircle2 size={17} />}
+                          title="Android-клиент"
+                          value={`Версия ${androidClientVersion}`}
+                        />
+                      </div>
+                    )}
+                    {tab === "general" && (
+                      <InterfaceDensitySettings onError={onError} />
+                    )}
+                    <div className="sticky bottom-0 mt-6 flex justify-end border-t border-border/60 bg-card py-3">
+                      <Button
+                        onClick={() => void save()}
+                        disabled={!draft || Boolean(busy)}
+                      >
+                        {busy === "save" ? (
+                          <Loader2 className="animate-spin" size={15} />
+                        ) : (
+                          <Save size={15} />
+                        )}
+                        Сохранить настройки
+                      </Button>
+                    </div>
+                  </>
+                ))}
+            </div>
+          </div>
+        </Dialog.Content>
+      </Dialog.Portal>
+    </Dialog.Root>
+  );
+}
+
+function Section({
+  title,
+  children,
+}: {
+  title: string;
+  children: React.ReactNode;
+}) {
+  return (
+    <section className="space-y-4">
+      <h2 className="text-lg font-semibold">{title}</h2>
+      {children}
+    </section>
+  );
+}
+function Field({
+  label,
+  children,
+}: {
+  label: string;
+  children: React.ReactNode;
+}) {
+  return (
+    <label className="block text-sm">
+      <span className="mb-1.5 block text-muted-foreground">{label}</span>
+      {children}
+    </label>
+  );
+}
+function Check({
+  label,
+  checked,
+  onChange,
+}: {
+  label: string;
+  checked: boolean;
+  onChange(value: boolean): void;
+}) {
+  return (
+    <label className="flex min-h-11 items-center gap-3 rounded-lg px-2 hover:bg-muted/50">
+      <input
+        type="checkbox"
+        checked={checked}
+        onChange={(event) => onChange(event.target.checked)}
+        className="size-4"
+      />
+      <span className="text-sm">{label}</span>
+    </label>
+  );
+}
+function NumberField({
+  label,
+  value,
+  min,
+  max,
+  onChange,
+}: {
+  label: string;
+  value: number;
+  min: number;
+  max: number;
+  onChange(value: number): void;
+}) {
+  return (
+    <Field label={label}>
+      <input
+        className="input"
+        type="number"
+        value={value}
+        min={min}
+        max={max}
+        onChange={(event) => onChange(Number(event.target.value))}
+      />
+    </Field>
+  );
+}
+function Info({
+  icon,
+  title,
+  value,
+}: {
+  icon: React.ReactNode;
+  title: string;
+  value: string;
+}) {
+  return (
+    <div className="flex gap-3 rounded-xl bg-muted/45 p-3">
+      <span className="mt-0.5 text-muted-foreground">{icon}</span>
+      <div className="min-w-0">
+        <p className="text-sm font-medium">{title}</p>
+        <p className="text-xs text-muted-foreground">{value}</p>
+      </div>
+    </div>
+  );
+}
+
+type AppearancePreferences = {
+  sectionAccentIntensity: SectionAccentIntensity;
+  pageListView: PageListView;
+  defaultPagePreset: PageAppearancePreset;
+};
+function AppearancePreferencesSettings({
+  onError,
+}: {
+  onError(error: unknown): void;
+}) {
+  const [settings, setSettings] = useState<AppearancePreferences | null>(null);
+  useEffect(() => {
+    void api<{ settings: AppearancePreferences }>("/api/account/preferences")
+      .then(({ settings }) => setSettings(settings))
+      .catch(onError);
+  }, [onError]);
+  async function update<K extends keyof AppearancePreferences>(
+    key: K,
+    value: AppearancePreferences[K],
+  ) {
+    if (!settings) return;
+    const previous = settings;
+    const next = { ...settings, [key]: value };
+    setSettings(next);
+    try {
+      await api(
+        "/api/account/preferences",
+        jsonOptions("PATCH", { [key]: value }),
+      );
+      window.dispatchEvent(
+        new CustomEvent("notebook:appearance-preferences", { detail: next }),
+      );
+    } catch (error) {
+      setSettings(previous);
+      onError(error);
+    }
+  }
+  if (!settings) return <Loader2 className="animate-spin" />;
+  return (
+    <Section title={t("appearance.settings")}>
+      <Field label={t("appearance.sectionIntensity")}>
+        <select
+          className="input"
+          value={settings.sectionAccentIntensity}
+          onChange={(event) =>
+            void update(
+              "sectionAccentIntensity",
+              event.target.value as SectionAccentIntensity,
+            )
+          }
+        >
+          <option value="minimal">{t("appearance.intensityMinimal")}</option>
+          <option value="moderate">{t("appearance.intensityModerate")}</option>
+          <option value="expressive">{t("appearance.intensityExpressive")}</option>
+        </select>
+      </Field>
+      <Field label={t("appearance.pageListView")}>
+        <select
+          className="input"
+          value={settings.pageListView}
+          onChange={(event) =>
+            void update("pageListView", event.target.value as PageListView)
+          }
+        >
+          <option value="compact">{t("appearance.listCompact")}</option>
+          <option value="standard">{t("appearance.listStandard")}</option>
+          <option value="preview">{t("appearance.listPreview")}</option>
+        </select>
+      </Field>
+      <Field label={t("appearance.defaultPageStyle")}>
+        <select
+          className="input"
+          value={settings.defaultPagePreset}
+          onChange={(event) =>
+            void update(
+              "defaultPagePreset",
+              event.target.value as PageAppearancePreset,
+            )
+          }
+        >
+          {PAGE_APPEARANCE_PRESETS.map((preset) => (
+            <option key={preset} value={preset}>
+              {PAGE_PRESET_LABELS[preset]}
+            </option>
+          ))}
+        </select>
+      </Field>
+      <p className="text-sm leading-6 text-muted-foreground">
+        {t("appearance.preferencesHint")}
+      </p>
+    </Section>
+  );
+}
+
+function InterfaceDensitySettings({
+  onError,
+}: {
+  onError(error: unknown): void;
+}) {
+  const [density, setDensity] = useState<"comfortable" | "compact">(
+    "comfortable",
+  );
+  useEffect(() => {
+    void api<{ settings: { interfaceDensity: "comfortable" | "compact" } }>(
+      "/api/account/preferences",
+    )
+      .then(({ settings }) => setDensity(settings.interfaceDensity))
+      .catch(onError);
+  }, [onError]);
+  async function update(value: "comfortable" | "compact") {
+    try {
+      await api(
+        "/api/account/preferences",
+        jsonOptions("PATCH", { interfaceDensity: value }),
+      );
+      setDensity(value);
+      window.dispatchEvent(
+        new CustomEvent("notebook:density", { detail: value }),
+      );
+    } catch (error) {
+      onError(error);
+    }
+  }
+  return (
+    <Section title={t("appearance.density")}>
+      <div className="grid grid-cols-2 gap-2">
+        <Button
+          type="button"
+          variant={density === "comfortable" ? "default" : "outline"}
+          onClick={() => void update("comfortable")}
+        >
+          {t("appearance.comfortable")}
+        </Button>
+        <Button
+          type="button"
+          variant={density === "compact" ? "default" : "outline"}
+          onClick={() => void update("compact")}
+        >
+          {t("appearance.compact")}
+        </Button>
+      </div>
+    </Section>
+  );
+}
+
+function SecuritySessionActions({
+  onError,
+}: {
+  onError(error: unknown): void;
+}) {
+  const router = useRouter();
+  async function logoutAll() {
+    try {
+      await api("/api/auth/logout-all", jsonOptions("POST"));
+      await flushNativeAuthCookies();
+      router.replace("/login");
+      router.refresh();
+    } catch (error) {
+      onError(error);
+    }
+  }
+  return (
+    <section className="mt-6 border-t border-border/60 pt-5">
+      <h3 className="font-semibold">{t("security.sessions")}</h3>
+      <p className="mt-1 text-sm text-muted-foreground">
+        {t("security.logoutAllDescription")}
+      </p>
+      <AlertDialog.Root>
+        <AlertDialog.Trigger asChild>
+          <Button className="mt-3" variant="outline">
+            {t("security.logoutAll")}
+          </Button>
+        </AlertDialog.Trigger>
+        <AlertDialog.Portal>
+          <AlertDialog.Overlay className="fixed inset-0 z-[70] bg-black/40" />
+          <AlertDialog.Content className="fixed left-1/2 top-1/2 z-[70] w-[min(92vw,440px)] -translate-x-1/2 -translate-y-1/2 rounded-xl bg-card p-5 shadow-2xl">
+            <AlertDialog.Title className="font-semibold">
+              {t("security.logoutAllConfirm")}
+            </AlertDialog.Title>
+            <AlertDialog.Description className="mt-2 text-sm text-muted-foreground">
+              {t("security.logoutAllDescription")}
+            </AlertDialog.Description>
+            <div className="mt-5 flex justify-end gap-2">
+              <AlertDialog.Cancel asChild>
+                <Button variant="ghost">{t("common.cancel")}</Button>
+              </AlertDialog.Cancel>
+              <AlertDialog.Action asChild>
+                <Button variant="destructive" onClick={() => void logoutAll()}>
+                  {t("security.logoutAll")}
+                </Button>
+              </AlertDialog.Action>
+            </div>
+          </AlertDialog.Content>
+        </AlertDialog.Portal>
+      </AlertDialog.Root>
+    </section>
+  );
 }

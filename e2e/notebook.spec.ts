@@ -44,9 +44,9 @@ test("first user can write, search, restore and reorder notes", async ({ page })
   await page.getByRole("button", { name: `Избранное: ${title}` }).click();
 
   await page.keyboard.press("Control+K");
-  const search = page.getByPlaceholder("Поиск по заметкам…");
+  const search = page.getByPlaceholder("Поиск или быстрый переход…");
   await search.fill(title);
-  const searchDialog = page.getByRole("dialog", { name: "Глобальный поиск" });
+  const searchDialog = page.getByRole("dialog", { name: "Быстрый переход" });
   await expect(searchDialog.getByText(title, { exact: true })).toBeVisible();
   await searchDialog.getByText(title, { exact: true }).click();
   await expect(page.getByPlaceholder("Название страницы")).toHaveValue(title);
@@ -124,4 +124,36 @@ test("notebook appearance survives reload", async ({ page }) => {
   await page.reload();
   await expect(page.locator('[data-notebook-title="Работа"]')).toHaveAttribute("data-notebook-color", "violet");
   await expect(page.locator('[data-notebook-title="Работа"]')).toHaveAttribute("data-notebook-icon", "home");
+});
+
+test("overview, recent, outline, quick switcher and undo form one workflow", async ({ page }) => {
+  await login(page);
+  const suffix = Date.now();
+  const notebook = await page.request.post("/api/notebooks", { data: { title: `Daily ${suffix}` } }).then((response) => response.json());
+  const section = await page.request.post("/api/sections", { data: { notebookId: notebook.notebook.id, title: `Notes ${suffix}`, icon: "document" } }).then((response) => response.json());
+  const created = await page.request.post("/api/pages", { data: { sectionId: section.section.id, title: `Outline ${suffix}` } }).then((response) => response.json());
+  await page.request.patch(`/api/pages/${created.page.id}`, { data: { expectedRevision: 0, content: [{ id: "heading-one", type: "heading", props: { level: 1 }, content: [{ type: "text", text: "Главный заголовок", styles: {} }] }, { type: "paragraph", content: [{ type: "text", text: "Рабочая заметка", styles: {} }] }] } });
+  await page.goto(`/pages/${created.page.id}`);
+  await expect(page.getByRole("button", { name: "Оглавление" })).toBeVisible();
+  await page.getByRole("button", { name: "Оглавление" }).click();
+  await expect(page.getByRole("navigation", { name: "Оглавление" })).toContainText("Главный заголовок");
+  await page.keyboard.press("Control+K");
+  await expect(page.getByRole("dialog", { name: "Быстрый переход" })).toBeVisible();
+  await expect(page.getByText(`Outline ${suffix}`, { exact: true }).first()).toBeVisible();
+  await page.keyboard.press("Escape");
+  await page.setViewportSize({ width: 390, height: 844 });
+  await page.getByRole("button", { name: "Оглавление" }).click();
+  await expect(page.getByRole("dialog", { name: "Оглавление" })).toBeVisible();
+  expect(await page.evaluate(() => (window as Window & { __NOTEBOOK_ANDROID_BACK__?: () => string }).__NOTEBOOK_ANDROID_BACK__?.())).toBe("HANDLED");
+  await expect(page.getByRole("dialog", { name: "Оглавление" })).toBeHidden();
+  await page.setViewportSize({ width: 1366, height: 900 });
+  await page.getByRole("button", { name: new RegExp(`Действия страницы Outline ${suffix}`) }).click();
+  page.once("dialog", (dialog) => dialog.accept());
+  await page.getByRole("button", { name: "Переместить в корзину" }).click();
+  await expect(page.getByRole("status")).toContainText("Страница перемещена в корзину");
+  await page.getByRole("button", { name: "Отменить" }).click();
+  await expect(page.getByPlaceholder("Название страницы")).toHaveValue(`Outline ${suffix}`);
+  await page.getByRole("button", { name: `Daily ${suffix}`, exact: true }).click();
+  await expect(page.getByRole("heading", { name: `Daily ${suffix}` })).toBeVisible();
+  await expect(page.getByText("Недавние", { exact: true })).toBeVisible();
 });

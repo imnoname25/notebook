@@ -11,6 +11,14 @@ export type PageSaveInput = {
   icon?: string | null;
   color?: string;
   coverUploadId?: string | null;
+  backgroundType?: string;
+  backgroundColor?: string;
+  backgroundGradient?: string | null;
+  backgroundPattern?: string;
+  backgroundUploadId?: string | null;
+  backgroundPosition?: string;
+  backgroundOverlay?: string;
+  appearancePreset?: string | null;
   expectedRevision?: number;
   snapshotReason?: "interval" | "manual";
 };
@@ -33,12 +41,24 @@ export async function savePage(userId: string, pageId: string, input: PageSaveIn
       const cover = await tx.upload.findFirst({ where: { id: input.coverUploadId, userId, pageId }, select: { id: true } });
       if (!cover) throw new ApiError(400, "Обложка должна принадлежать этой странице");
     }
+    if (input.backgroundUploadId) {
+      const background = await tx.upload.findFirst({ where: { id: input.backgroundUploadId, userId, pageId }, select: { id: true } });
+      if (!background) throw new ApiError(400, "Фон должен принадлежать этой странице");
+    }
     const data: Prisma.PageUpdateInput = {
       ...(input.title === undefined ? {} : { title: input.title }),
       ...(input.isFavorite === undefined ? {} : { isFavorite: input.isFavorite }),
       ...(input.icon === undefined ? {} : { icon: input.icon }),
       ...(input.color === undefined ? {} : { color: input.color }),
       ...(input.coverUploadId === undefined ? {} : { coverUpload: input.coverUploadId ? { connect: { id: input.coverUploadId } } : { disconnect: true } }),
+      ...(input.backgroundType === undefined ? {} : { backgroundType: input.backgroundType }),
+      ...(input.backgroundColor === undefined ? {} : { backgroundColor: input.backgroundColor }),
+      ...(input.backgroundGradient === undefined ? {} : { backgroundGradient: input.backgroundGradient }),
+      ...(input.backgroundPattern === undefined ? {} : { backgroundPattern: input.backgroundPattern }),
+      ...(input.backgroundUploadId === undefined ? {} : { backgroundUpload: input.backgroundUploadId ? { connect: { id: input.backgroundUploadId } } : { disconnect: true } }),
+      ...(input.backgroundPosition === undefined ? {} : { backgroundPosition: input.backgroundPosition }),
+      ...(input.backgroundOverlay === undefined ? {} : { backgroundOverlay: input.backgroundOverlay }),
+      ...(input.appearancePreset === undefined ? {} : { appearancePreset: input.appearancePreset }),
       ...(input.content === undefined ? {} : { content: input.content as Prisma.InputJsonValue, searchText: extractBlockNoteText(input.content) }),
       ...(documentChanged ? { revision: { increment: 1 } } : {}),
     };

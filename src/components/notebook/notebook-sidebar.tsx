@@ -4,14 +4,16 @@ import {
   ChevronDown,
   ChevronRight,
   Ellipsis,
-  Folder,
   FolderPlus,
   GripVertical,
   Plus,
   Trash2,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { ACCENT_DOT_CLASSES, isAccentColor } from "@/lib/content-appearance";
+import {
+  ACCENT_DOT_CLASSES,
+  resolveAppearanceAccent,
+} from "@/lib/content-appearance";
 import {
   isNotebookColor,
   isNotebookIcon,
@@ -21,12 +23,15 @@ import {
 import { cn } from "@/lib/utils";
 import { SortableItem, SortableList } from "./sortable";
 import type { Notebook, Section } from "./types";
+import type { SectionAccentIntensity } from "@/lib/content-appearance";
+import { SectionIcon } from "./section-icon";
 
 type Props = {
   notebooks: Notebook[];
   activeNotebookId: string | null;
   activeSectionId: string | null;
   density?: "comfortable" | "compact";
+  sectionAccentIntensity?: SectionAccentIntensity;
   onNotebookSelect(id: string): void;
   onSectionSelect(section: Section): void;
   onAddNotebook(): void;
@@ -51,6 +56,8 @@ function SectionTree({
   onAdd,
   onMenu,
   onReorder,
+  intensity,
+  notebookColor,
   depth = 0,
 }: {
   notebookId: string;
@@ -61,6 +68,8 @@ function SectionTree({
   onAdd(parentId: string): void;
   onMenu(section: Section): void;
   onReorder(notebookId: string, parentId: string | null, ids: string[]): void;
+  intensity: SectionAccentIntensity;
+  notebookColor: string;
   depth?: number;
 }) {
   const siblings = sections
@@ -91,11 +100,17 @@ function SectionTree({
             >
               <div
                 data-nav-row="section"
+                data-section-color={resolveAppearanceAccent(
+                  null,
+                  section.color,
+                  notebookColor,
+                )}
+                aria-current={activeId === section.id ? "page" : undefined}
                 className={cn(
-                  "group flex items-center rounded-md text-[14px] font-medium",
+                  "notebook-section-row group flex items-center rounded-md text-[14px] font-medium",
                   activeId === section.id
-                    ? "bg-accent text-accent-foreground"
-                    : "text-muted-foreground hover:bg-accent/60 hover:text-foreground",
+                    ? "text-accent-foreground"
+                    : "text-muted-foreground hover:text-foreground",
                 )}
                 style={{ paddingLeft: 4 + depth * 10 }}
               >
@@ -112,12 +127,17 @@ function SectionTree({
                   className="flex min-h-11 min-w-0 flex-1 items-center gap-2 px-1 py-1 text-left md:min-h-9"
                   onClick={() => onSelect(section)}
                 >
-                  <Folder
+                  <SectionIcon
+                    value={section.icon}
                     size={15}
                     className={cn(
                       "shrink-0",
                       ACCENT_DOT_CLASSES[
-                        isAccentColor(section.color) ? section.color : "default"
+                        resolveAppearanceAccent(
+                          null,
+                          section.color,
+                          notebookColor,
+                        )
                       ],
                     )}
                   />
@@ -147,6 +167,8 @@ function SectionTree({
                 onAdd={onAdd}
                 onMenu={onMenu}
                 onReorder={onReorder}
+                intensity={intensity}
+                notebookColor={notebookColor}
                 depth={depth + 1}
               />
             </div>
@@ -164,6 +186,7 @@ export function NotebookSidebar(props: Props) {
   return (
     <aside
       data-density={props.density}
+      data-section-intensity={props.sectionAccentIntensity ?? "moderate"}
       className="notebook-sidebar flex h-full min-h-0 flex-col bg-sidebar p-2 md:border-r md:border-border/60"
     >
       <div className="mb-1 flex h-9 items-center justify-between px-1.5">
@@ -229,8 +252,9 @@ export function NotebookSidebar(props: Props) {
                   >
                     <div
                       data-nav-row="notebook"
+                      aria-current={active ? "page" : undefined}
                       className={cn(
-                        "group flex items-center rounded-md",
+                        "notebook-notebook-row group flex items-center rounded-md",
                         active
                           ? "bg-sidebar-accent text-sidebar-accent-foreground"
                           : "hover:bg-sidebar-accent/60",
@@ -285,6 +309,8 @@ export function NotebookSidebar(props: Props) {
                           }
                           onMenu={props.onSectionMenu}
                           onReorder={props.onSectionReorder}
+                          intensity={props.sectionAccentIntensity ?? "moderate"}
+                          notebookColor={notebook.color}
                         />
                         <button
                           className="ml-6 mt-0.5 flex min-h-11 items-center gap-2 rounded-md px-2 text-[13.5px] text-muted-foreground hover:bg-accent hover:text-foreground md:min-h-9"

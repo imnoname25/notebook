@@ -1,6 +1,12 @@
 "use client";
 
-import { useCallback, useEffect, useRef, useState } from "react";
+import {
+  useCallback,
+  useEffect,
+  useRef,
+  useState,
+  type CSSProperties,
+} from "react";
 import "@blocknote/core/fonts/inter.css";
 import { SuggestionMenuController, useCreateBlockNote } from "@blocknote/react";
 import { BlockNoteView } from "@blocknote/shadcn";
@@ -13,6 +19,17 @@ import { cn } from "@/lib/utils";
 import { notebookBlockNoteDictionary } from "@/lib/i18n/blocknote";
 import { t } from "@/lib/i18n/messages";
 import type { EditorSaveController, PageDocument } from "./types";
+import { extractPageOutline, type PageOutlineItem } from "@/lib/page-outline";
+import {
+  ACCENT_COLORS,
+  PAGE_BACKGROUND_OVERLAYS,
+  PAGE_BACKGROUND_POSITIONS,
+  PAGE_BACKGROUND_TYPES,
+  PAGE_GRADIENTS,
+  PAGE_PATTERNS,
+  valueFromAllowlist,
+  type AccentColor,
+} from "@/lib/content-appearance";
 import {
   normalizeEditorBlocks,
   notebookEditorSchema,
@@ -44,14 +61,18 @@ const defaultPreferences: EditorPreferences = {
 };
 export function RichTextEditor({
   page,
+  resolvedAccent,
   onSaved,
   onController,
   onInternalNavigate,
+  onOutlineChange,
 }: {
   page: PageDocument;
+  resolvedAccent: AccentColor;
   onSaved(page: PageDocument): void;
   onController(controller: EditorSaveController | null): void;
   onInternalNavigate(pageId: string): Promise<void>;
+  onOutlineChange(items: PageOutlineItem[]): void;
 }) {
   const { resolvedTheme } = useTheme();
   const [title, setTitle] = useState(page.title);
@@ -59,6 +80,7 @@ export function RichTextEditor({
   const [preferences, setPreferences] = useState(defaultPreferences);
   const editorRoot = useRef<HTMLDivElement | null>(null);
   const timer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const outlineTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const requestSequence = useRef(0);
   const serverRevision = useRef(page.revision);
   const queue = useRef<Promise<void>>(Promise.resolve());
@@ -173,6 +195,16 @@ export function RichTextEditor({
     [persist],
   );
 
+  const scheduleOutline = useCallback(() => {
+    if (outlineTimer.current) clearTimeout(outlineTimer.current);
+    outlineTimer.current = setTimeout(() => onOutlineChange(extractPageOutline(editor.document)), 200);
+  }, [editor, onOutlineChange]);
+
+  useEffect(() => {
+    onOutlineChange(extractPageOutline(editor.document));
+    return () => { if (outlineTimer.current) clearTimeout(outlineTimer.current); };
+  }, [editor, onOutlineChange]);
+
   useEffect(() => {
     const saveNow = () => {
       void flush(true).catch(() => undefined);
@@ -182,7 +214,13 @@ export function RichTextEditor({
   }, [flush]);
 
   useEffect(() => {
-    onController({ flush });
+    onController({
+      flush,
+      scrollToBlock(blockId) {
+        const block = Array.from(editorRoot.current?.querySelectorAll<HTMLElement>("[data-id]") ?? []).find((node) => node.dataset.id === blockId);
+        block?.scrollIntoView({ behavior: "smooth", block: "start" });
+      },
+    });
     return () => onController(null);
   }, [flush, onController]);
 
@@ -216,7 +254,48 @@ export function RichTextEditor({
   }, [editor]);
 
   return (
-    <div className="flex min-h-0 flex-1 flex-col">
+    <div
+      className="notebook-page-surface relative flex min-h-0 flex-1 flex-col overflow-hidden"
+      data-background-type={valueFromAllowlist(
+        page.backgroundType,
+        PAGE_BACKGROUND_TYPES,
+        "default",
+      )}
+      data-background-color={
+        valueFromAllowlist(page.backgroundColor, ACCENT_COLORS, "default") ===
+        "default"
+          ? resolvedAccent
+          : valueFromAllowlist(page.backgroundColor, ACCENT_COLORS, "default")
+      }
+      data-background-gradient={valueFromAllowlist(
+        page.backgroundGradient,
+        PAGE_GRADIENTS,
+        "dusk",
+      )}
+      data-background-pattern={valueFromAllowlist(
+        page.backgroundPattern,
+        PAGE_PATTERNS,
+        "plain",
+      )}
+      data-background-position={valueFromAllowlist(
+        page.backgroundPosition,
+        PAGE_BACKGROUND_POSITIONS,
+        "center",
+      )}
+      data-background-overlay={valueFromAllowlist(
+        page.backgroundOverlay,
+        PAGE_BACKGROUND_OVERLAYS,
+        "medium",
+      )}
+      data-page-accent={resolvedAccent}
+      style={
+        page.backgroundType === "image" && page.backgroundUploadId
+          ? ({
+              "--notebook-page-background-image": `url(/api/uploads/${page.backgroundUploadId})`,
+            } as CSSProperties)
+          : undefined
+      }
+    >
       {page.coverUploadId && (
         <div className="notebook-page-cover relative mx-5 mt-4 h-[clamp(180px,20vh,240px)] shrink-0 overflow-hidden rounded-lg md:mx-8">
           <Image
@@ -230,9 +309,9 @@ export function RichTextEditor({
         </div>
       )}
       <div
-      data-testid="page-editor-header"
-      data-page-icon={page.icon ?? ""}
-      className="notebook-editor-header flex w-full shrink-0 flex-col items-start gap-1 pt-6 md:flex-row md:items-center md:gap-4 md:pt-10"
+        data-testid="page-editor-header"
+        data-page-icon={page.icon ?? ""}
+        className="notebook-editor-header flex w-full shrink-0 flex-col items-start gap-1 pt-6 md:flex-row md:items-center md:gap-4 md:pt-10"
       >
         <h1 className="notebook-print-title hidden">{title}</h1>
         <input
@@ -246,13 +325,13 @@ export function RichTextEditor({
             });
           }}
           placeholder={t("editor.pageTitlePlaceholder")}
-        className="notebook-page-title-input w-full min-w-0 bg-transparent text-[32px] font-semibold leading-tight tracking-tight outline-none placeholder:text-muted-foreground/50 md:flex-1 md:text-3xl"
+          className="notebook-page-title-input w-full min-w-0 bg-transparent text-[32px] font-semibold leading-tight tracking-tight outline-none placeholder:text-muted-foreground/50 md:flex-1 md:text-3xl"
         />
         <time className="notebook-print-date hidden">
           Изменено {new Date(page.updatedAt).toLocaleString("ru")}
         </time>
-      <span
-        className="flex min-h-6 shrink-0 items-center gap-1 text-[13.5px] text-muted-foreground/90 md:text-[12.5px]"
+        <span
+          className="flex min-h-6 shrink-0 items-center gap-1 text-[13.5px] text-muted-foreground/90 md:text-[12.5px]"
           aria-live="polite"
         >
           {status === "saving" && (
@@ -322,12 +401,13 @@ export function RichTextEditor({
           editor={editor}
           slashMenu={false}
           theme={resolvedTheme === "dark" ? "dark" : "light"}
-          onChange={() =>
+          onChange={() => {
+            scheduleOutline();
             schedule({
               title: title.trim() || t("editor.untitled"),
               content: editor.document,
-            })
-          }
+            });
+          }}
         >
           <SuggestionMenuController
             triggerCharacter="/"

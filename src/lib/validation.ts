@@ -1,6 +1,7 @@
 import { z } from "zod";
 import { NOTEBOOK_COLORS, NOTEBOOK_ICONS } from "@/lib/notebook-appearance";
-import { ACCENT_COLORS, isPageIcon } from "@/lib/content-appearance";
+import { ACCENT_COLORS, isPageIcon, PAGE_APPEARANCE_PRESETS, PAGE_BACKGROUND_OVERLAYS, PAGE_BACKGROUND_POSITIONS, PAGE_BACKGROUND_TYPES, PAGE_GRADIENTS, PAGE_LIST_VIEWS, PAGE_PATTERNS, SECTION_ACCENT_INTENSITIES } from "@/lib/content-appearance";
+import { SECTION_ICONS } from "@/lib/section-icons";
 
 const title = z.string().trim().min(1).max(200);
 export const PASSWORD_MIN_LENGTH = 8;
@@ -16,10 +17,19 @@ export const twoFactorSetupSchema = z.object({ password: z.string().min(8).max(1
 export const twoFactorDisableSchema = twoFactorSetupSchema.extend({ code: z.string().trim().min(6).max(32) }).strict();
 export const notebookCreateSchema = z.object({ title, icon: z.enum(NOTEBOOK_ICONS).optional(), color: z.enum(NOTEBOOK_COLORS).optional() }).strict();
 export const notebookUpdateSchema = notebookCreateSchema.partial().strict();
-export const sectionCreateSchema = z.object({ notebookId: z.string().min(1), parentId: z.string().min(1).nullable().optional(), title, icon: z.string().max(40).nullable().optional(), color: z.enum(ACCENT_COLORS).optional() });
-export const sectionUpdateSchema = z.object({ title, icon: z.string().max(40).nullable(), color: z.enum(ACCENT_COLORS), parentId: z.string().min(1).nullable() }).partial().strict();
+export const sectionCreateSchema = z.object({ notebookId: z.string().min(1), parentId: z.string().min(1).nullable().optional(), title, icon: z.enum(SECTION_ICONS).nullable().optional(), color: z.enum(ACCENT_COLORS).optional() }).strict();
+export const sectionUpdateSchema = z.object({ title, icon: z.enum(SECTION_ICONS).nullable(), color: z.enum(ACCENT_COLORS), parentId: z.string().min(1).nullable() }).partial().strict();
+export const recentPageSchema = z.object({ pageId: z.string().min(1) }).strict();
+export const recentListSchema = z.object({ limit: z.coerce.number().int().min(1).max(20).default(12), notebookId: z.string().min(1).optional() });
 export const pageCreateSchema = z.object({ sectionId: z.string().min(1), title: title.optional(), templateId: z.string().min(1).optional() }).strict();
-export const pageUpdateSchema = z.object({ title, content: z.array(z.record(z.string(), z.unknown())), isFavorite: z.boolean(), icon: z.string().max(16).nullable().refine(isPageIcon, "Некорректная иконка"), color: z.enum(ACCENT_COLORS), coverUploadId: z.string().min(1).nullable(), expectedRevision: z.number().int().min(0), snapshotReason: z.enum(["interval", "manual"]) }).partial().strict();
+export const pageUpdateSchema = z.object({
+  title, content: z.array(z.record(z.string(), z.unknown())), isFavorite: z.boolean(),
+  icon: z.string().max(16).nullable().refine(isPageIcon, "Некорректная иконка"), color: z.enum(ACCENT_COLORS), coverUploadId: z.string().min(1).nullable(),
+  backgroundType: z.enum(PAGE_BACKGROUND_TYPES), backgroundColor: z.enum(ACCENT_COLORS), backgroundGradient: z.enum(PAGE_GRADIENTS).nullable(),
+  backgroundPattern: z.enum(PAGE_PATTERNS), backgroundUploadId: z.string().min(1).nullable(), backgroundPosition: z.enum(PAGE_BACKGROUND_POSITIONS),
+  backgroundOverlay: z.enum(PAGE_BACKGROUND_OVERLAYS), appearancePreset: z.enum(PAGE_APPEARANCE_PRESETS).nullable(),
+  expectedRevision: z.number().int().min(0), snapshotReason: z.enum(["interval", "manual"]),
+}).partial().strict();
 export const pageMoveSchema = z.object({ destinationSectionId: z.string().min(1) });
 export const sectionMoveSchema = z.object({ destinationNotebookId: z.string().min(1) });
 export const versionListSchema = z.object({ limit: z.coerce.number().int().min(1).max(50).default(25), cursor: z.string().min(1).optional() });
@@ -49,6 +59,9 @@ export const accountPreferencesSchema = z.object({
   editorCodeLineNumbers: z.boolean().optional(),
   editorCompactMode: z.boolean().optional(),
   editorContentWidth: z.enum(["narrow", "normal", "wide"]).optional(),
+  sectionAccentIntensity: z.enum(SECTION_ACCENT_INTENSITIES).optional(),
+  pageListView: z.enum(PAGE_LIST_VIEWS).optional(),
+  defaultPagePreset: z.enum(PAGE_APPEARANCE_PRESETS).optional(),
 }).strict();
 
 export const userRoleSchema = z.enum(["ADMIN", "USER"]);

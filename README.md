@@ -94,23 +94,23 @@ npm run dev
 
 Основные переменные:
 
-| Переменная | Назначение |
-| --- | --- |
-| `DATABASE_URL` | PostgreSQL connection string |
-| `APP_ORIGIN` | публичный origin без завершающего `/`; задайте `https://notes.example.com` за HTTPS proxy |
-| `UPLOAD_DIR` | каталог изображений, в контейнере `/data/uploads` |
-| `BACKUP_DIR` | приватный каталог локальных backup, в контейнере `/data/backups` |
-| `MAX_UPLOAD_SIZE_MB` | лимит одного изображения, по умолчанию 10 |
-| `SETTINGS_ENCRYPTION_KEY` | ровно 32 случайных байта в hex/base64 для AES-256-GCM шифрования WebDAV/S3 credentials и TOTP secret |
-| `POSTGRES_PASSWORD` | пароль Compose PostgreSQL |
-| `NOTEBOOK_PORT` | опубликованный порт Compose, по умолчанию 3000 |
-| `POSTGRES_DATA_PATH` | persistent PostgreSQL bind mount, на Unraid `/mnt/user/appdata/notebook/postgres` |
-| `UPLOAD_DATA_PATH` | persistent uploads bind mount, на Unraid `/mnt/user/appdata/notebook/uploads` |
-| `BACKUP_DATA_PATH` | persistent operational backups, на Unraid `/mnt/user/appdata/notebook/backups` |
-| `PUID` / `PGID` | UID/GID процесса Notebook после startup, для стандартного Unraid `99:100` |
-| `UMASK` | маска создаваемых приложением файлов, по умолчанию `002` |
-| `FIX_PERMISSIONS` | одноразовая рекурсивная коррекция владельца uploads/backups; обычно `0` |
-| `DATABASE_WAIT_TIMEOUT_SECONDS` | ограниченный startup timeout ожидания PostgreSQL, по умолчанию 90 секунд |
+| Переменная                      | Назначение                                                                                           |
+| ------------------------------- | ---------------------------------------------------------------------------------------------------- |
+| `DATABASE_URL`                  | PostgreSQL connection string                                                                         |
+| `APP_ORIGIN`                    | публичный origin без завершающего `/`; задайте `https://notes.example.com` за HTTPS proxy            |
+| `UPLOAD_DIR`                    | каталог изображений, в контейнере `/data/uploads`                                                    |
+| `BACKUP_DIR`                    | приватный каталог локальных backup, в контейнере `/data/backups`                                     |
+| `MAX_UPLOAD_SIZE_MB`            | лимит одного изображения, по умолчанию 10                                                            |
+| `SETTINGS_ENCRYPTION_KEY`       | ровно 32 случайных байта в hex/base64 для AES-256-GCM шифрования WebDAV/S3 credentials и TOTP secret |
+| `POSTGRES_PASSWORD`             | пароль Compose PostgreSQL                                                                            |
+| `NOTEBOOK_PORT`                 | опубликованный порт Compose, по умолчанию 3000                                                       |
+| `POSTGRES_DATA_PATH`            | persistent PostgreSQL bind mount, на Unraid `/mnt/user/appdata/notebook/postgres`                    |
+| `UPLOAD_DATA_PATH`              | persistent uploads bind mount, на Unraid `/mnt/user/appdata/notebook/uploads`                        |
+| `BACKUP_DATA_PATH`              | persistent operational backups, на Unraid `/mnt/user/appdata/notebook/backups`                       |
+| `PUID` / `PGID`                 | UID/GID процесса Notebook после startup, для стандартного Unraid `99:100`                            |
+| `UMASK`                         | маска создаваемых приложением файлов, по умолчанию `002`                                             |
+| `FIX_PERMISSIONS`               | одноразовая рекурсивная коррекция владельца uploads/backups; обычно `0`                              |
+| `DATABASE_WAIT_TIMEOUT_SECONDS` | ограниченный startup timeout ожидания PostgreSQL, по умолчанию 90 секунд                             |
 
 `APP_ORIGIN=https://...` включает флаг `secure` у session cookie. За Nginx Proxy Manager передавайте обычные `Host`, `X-Forwarded-Host` и `X-Forwarded-Proto`.
 
@@ -233,11 +233,11 @@ FTS migration выполняет backfill через stored generated columns; �
 
 Markdown export учитывает Callout, Toggle, code language, tables и internal links. Standalone HTML export выдаёт ZIP с `index.html`, минимальным CSS и private images рядом в `attachments/`; HTML генерируется только из валидированного BlockNote JSON и не вставляет raw note HTML.
 
-| Сочетание | Действие |
-| --- | --- |
-| `Ctrl/Cmd + K` | открыть глобальный поиск |
+| Сочетание      | Действие                                                                           |
+| -------------- | ---------------------------------------------------------------------------------- |
+| `Ctrl/Cmd + K` | открыть глобальный поиск                                                           |
 | `Ctrl/Cmd + N` | создать страницу в текущем разделе, если фокус не находится в поле ввода/редакторе |
-| `Ctrl/Cmd + S` | немедленно выполнить pending autosave и snapshot изменённой страницы |
+| `Ctrl/Cmd + S` | немедленно выполнить pending autosave и snapshot изменённой страницы               |
 
 ## Перенос данных и вложения
 
@@ -256,9 +256,9 @@ Markdown export учитывает Callout, Toggle, code language, tables и int
 
 Переменные лимитов:
 
-| Переменная | Назначение |
-| --- | --- |
-| `MAX_IMPORT_SIZE_MB` | Максимальный размер входящего JSON/ZIP, по умолчанию 250 MiB |
+| Переменная                   | Назначение                                                      |
+| ---------------------------- | --------------------------------------------------------------- |
+| `MAX_IMPORT_SIZE_MB`         | Максимальный размер входящего JSON/ZIP, по умолчанию 250 MiB    |
 | `MAX_IMPORT_UNCOMPRESSED_MB` | Максимальный суммарный распакованный ZIP, по умолчанию 1024 MiB |
 
 ## Внутренние ссылки, deep links и PWA
@@ -326,7 +326,7 @@ WebDAV и S3 могут быть включены одновременно. У �
 
 Колокольчик в header показывает operational notifications: ошибки scheduled/local backup, повторные failures, WebDAV/S3 upload, критичный storage audit и результат restore. Активные одинаковые warnings deduplicated; success разрешает warning, прочитанные записи старше 90 дней и записи сверх 200 очищаются opportunistically. Email/webhook/realtime transport намеренно отсутствуют.
 
-Application backup v2 дополнительно сохраняет custom templates. Restore продолжает принимать backup v1; обычный notebook/page export остаётся совместимым с v1 и не включает settings, sessions, notification/remote metadata, Vault или secrets. Потеря `SETTINGS_ENCRYPTION_KEY` делает сохранённые WebDAV/S3 credentials и TOTP secret нерасшифровываемыми — храните ключ вместе с конфигурацией deployment, отдельно от backup archive.
+Application backup v3 сохраняет custom templates и типизированное оформление страниц; restore продолжает принимать backup v1/v2. Обычный notebook/page export v3 не включает settings, sessions, notification/remote metadata, Vault или secrets, а importer по-прежнему принимает старый page export v1. Потеря `SETTINGS_ENCRYPTION_KEY` делает сохранённые WebDAV/S3 credentials и TOTP secret нерасшифровываемыми — храните ключ вместе с конфигурацией deployment, отдельно от backup archive.
 
 ## Диагностика и health
 
@@ -356,7 +356,26 @@ Paste использует официальный BlockNote pipeline: plain text
 - настройка плотности переключает комфортный и компактный режим;
 - выход на всех устройствах перенесён из top bar в `Настройки → Безопасность` и требует подтверждения.
 
-Appearance metadata входит в portable JSON/ZIP export. Старые архивы без новых optional-полей продолжают импортироваться со значениями по умолчанию.
+### Appearance 2.0
+
+- акцент страницы наследуется по цепочке `Page → Section → Notebook → тема`, если на текущем уровне выбран вариант по умолчанию;
+- раздел использует цветную иконку, левую полосу и читаемый selected/hover tint; глобальная настройка предлагает минимальную, умеренную и выразительную интенсивность;
+- единая панель «Оформление страницы» управляет emoji, акцентом, обложкой, шириной, фоном и сбросом без перезагрузки редактора;
+- фон страницы типизирован: нейтральный, сплошной, мягкий tint, один из восьми градиентов, защищённое изображение либо CSS-паттерн (линейка, сетка, точки, бумага, blueprint);
+- изображение фона использует тот же authenticated upload endpoint, MIME/signature/size validation и ownership boundary, что изображения редактора; положение и затемнение выбираются из allowlist;
+- доступны пресеты Minimal, Paper, Dark Grid, Warm Notes, Ocean и Focus. В `Настройки → Оформление` можно выбрать стиль новых страниц по умолчанию;
+- список страниц имеет режимы «Компактный», «Обычный» и «С превью»; preview берётся из уже нормализованного `searchText`, appearance metadata в FTS не попадает.
+
+Appearance metadata входит в portable JSON/ZIP export формата v3, включая ссылку на фоновое вложение. Импорт продолжает читать v1/v2: отсутствующие поля получают нейтральные значения по умолчанию. Application backup автоматически включает связанные файлы из `/data/uploads`.
+
+### Навигация и ежедневная работа
+
+- выбор блокнота открывает спокойный обзор с разделами, количеством страниц, избранным и недавно открытыми страницами;
+- `RecentPage` хранит только `pageId` и время реального открытия, синхронизируется между web и Android, ограничивается последними 20 элементами и не входит в portable export;
+- `Ctrl/Cmd + K` открывает быстрый переход: до ввода показаны недавние, избранные, блокноты и разделы, после ввода используется существующий PostgreSQL FTS;
+- оглавление H1/H2/H3 вычисляется из текущего BlockNote JSON: на desktop доступна компактная правая панель, на mobile — bottom sheet, участвующий в Android Back contract;
+- разделы поддерживают curated Lucide-иконки из server-side allowlist; иконка сохраняется в portable export/import;
+- перемещение страницы в корзину и перенос страницы/раздела показывают краткий toast с обратным действием. Окончательное удаление намеренно не имеет Undo.
 
 ## Следующий этап
 

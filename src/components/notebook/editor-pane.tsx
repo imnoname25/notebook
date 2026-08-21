@@ -1,15 +1,18 @@
 "use client";
 
 import dynamic from "next/dynamic";
-import { ArrowLeft, FileText, Loader2 } from "lucide-react";
+import { ArrowLeft, FileText, ListTree, Loader2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { t } from "@/lib/i18n/messages";
+import { resolveAppearanceAccent } from "@/lib/content-appearance";
 import type {
   EditorSaveController,
   Notebook,
   PageDocument,
   Section,
 } from "./types";
+import type { PageOutlineItem } from "@/lib/page-outline";
+import { OutlineList } from "./page-outline";
 
 const RichTextEditor = dynamic(
   () => import("./rich-text-editor").then((module) => module.RichTextEditor),
@@ -35,6 +38,11 @@ export function EditorPane({
   onNotebookClick,
   onSectionClick,
   onInternalNavigate,
+  outline,
+  outlineVisible,
+  onOutlineChange,
+  onOutlineToggle,
+  onOutlineSelect,
 }: {
   page: PageDocument | null;
   notebook: Notebook | null;
@@ -47,6 +55,11 @@ export function EditorPane({
   onNotebookClick(): void;
   onSectionClick(): void;
   onInternalNavigate(pageId: string): Promise<void>;
+  outline: PageOutlineItem[];
+  outlineVisible: boolean;
+  onOutlineChange(items: PageOutlineItem[]): void;
+  onOutlineToggle(): void;
+  onOutlineSelect(id: string): void;
 }) {
   return (
     <main className="flex h-full min-h-0 min-w-0 flex-col bg-card">
@@ -89,6 +102,7 @@ export function EditorPane({
           >
             {page.title}
           </span>
+          {outline.length > 0 && <button type="button" onClick={onOutlineToggle} className="ml-auto flex size-10 shrink-0 items-center justify-center rounded-md text-muted-foreground hover:bg-accent hover:text-foreground md:size-8" aria-label={t("outline.title")} aria-pressed={outlineVisible}><ListTree size={17}/></button>}
         </nav>
       )}
       {loading ? (
@@ -96,13 +110,18 @@ export function EditorPane({
           <Loader2 className="animate-spin" />
         </div>
       ) : page ? (
-        <RichTextEditor
-          key={`${page.id}:${editorEpoch}`}
-          page={page}
-          onSaved={onSaved}
-          onController={onController}
-          onInternalNavigate={onInternalNavigate}
-        />
+        <div className="flex min-h-0 min-w-0 flex-1">
+          <RichTextEditor
+            key={`${page.id}:${editorEpoch}`}
+            page={page}
+            resolvedAccent={resolveAppearanceAccent(page.color, section?.color, notebook?.color)}
+            onSaved={onSaved}
+            onController={onController}
+            onInternalNavigate={onInternalNavigate}
+            onOutlineChange={onOutlineChange}
+          />
+          {outlineVisible && outline.length > 0 && <aside className="notebook-no-print hidden w-56 shrink-0 overflow-y-auto border-l border-border/50 p-3 lg:block"><p className="mb-2 px-2 text-xs font-semibold uppercase tracking-wide text-muted-foreground">{t("outline.title")}</p><OutlineList items={outline} onSelect={onOutlineSelect}/></aside>}
+        </div>
       ) : (
         <div className="flex flex-1 items-center justify-center p-8 text-center">
           <div className="max-w-xs">
