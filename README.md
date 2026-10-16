@@ -324,6 +324,8 @@ Editor settings: browser spellcheck, compact spacing, narrow/normal/wide content
 
 Manual и scheduled backup создаются существующим versioned application-backup сервисом в `/data/backups`. Каждый файл получает private `BackupRecord`, SHA-256 и размер. Доступны download, delete, typed-confirmation restore и повторный WebDAV upload.
 
+`BACKUP_DIR` и его родители должны быть реальными каталогами без symlink/junction, доступными на запись только приложению и администратору. Backup filename проверяется по правилам Windows и POSIX на любой ОС; разрешено только переносимое имя файла без каталогов, URL/percent encoding, NTFS streams и device names. Проверка `lstat` отклоняет существующие ссылки, включая dangling links; она не заменяет права доступа, защищающие каталог от одновременной подмены локальным процессом.
+
 Scheduler поддерживает daily, every 3 days и weekly в локальном времени хоста. После перезапуска он создаёт максимум один overdue backup без backlog. После успешного backup retention оставляет не более заданного количества и возраста файлов. Backup, WebDAV upload, restore, import и storage cleanup используют общий process-local lock.
 
 Scheduler является singleton только внутри Node.js процесса. Не запускайте несколько replicas Notebook на одной БД: без distributed lock каждая replica сможет выполнить scheduled job. Redis/distributed scheduling намеренно не добавлены.
