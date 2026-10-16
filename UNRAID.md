@@ -78,9 +78,128 @@ Published image tags are intended to be:
 - `edge` and `sha-<commit>` for `main` builds;
 - `v1.2.3`, `1.2` and `latest` for a release tag such as `v1.2.3`.
 
-`latest` is convenient for Unraid, while the version and SHA tags provide immutable rollback references.
+`latest` is convenient for Unraid; record the image digest for a fixed rollback reference. Version/SHA tags remain registry tags and are not intrinsically immutable.
 
-For normal installations use `ghcr.io/imnoname25/notebook:latest` (`stable`). Use `ghcr.io/imnoname25/notebook:edge` only for testing current `main`. After a stable `v*` release, open **Docker → Check for Updates → notebook → Update**. Unraid retains all environment variables and path mappings, pulls the new digest and recreates only the application container. Startup waits for PostgreSQL and runs `prisma migrate deploy` before the non-root server starts. Create an application backup before schema-changing releases; Notebook intentionally has no self-updater.
+For normal installations use `ghcr.io/imnoname25/notebook:latest` (`stable`). `main`/`edge` are testing channels; main also publishes full `sha-<commit>` tags. Before any update use the migration review and backup procedure below. Startup runs `prisma migrate deploy` before the non-root server starts, so clicking **Update** is already permission to apply the candidate migrations. Disable external auto-update tools for Notebook until this review has happened. Notebook has no self-updater.
+
+## Безопасное ручное обновление и откат
+
+Production deploy из GitHub Actions не подключён. CI проверяет миграции на чистой временной
+БД: это проверка установки, а не доказательство безопасности upgrade существующих данных.
+Entrypoint остаётся единственным местом `prisma migrate deploy`; не запускать candidate
+image против production БД «только для проверки» — даже старт контейнера применит миграции.
+
+### До остановки приложения
+
+1. Дождаться успешных Docker и Android workflow нужного релиза. Выбрать конкретный
+   `ghcr.io/imnoname25/notebook@sha256:...` из GHCR; не использовать плавающий latest для
+   согласования и последующей установки. Скачать его через `docker pull <digest>`.
+2. Зафиксировать текущие image ID/digest и reference без вывода environment:
+
+   ```bash
+   docker inspect --format '{{.Image}}' notebook
+   docker image inspect --format '{{json .RepoDigests}}' "$(docker inspect --format '{{.Image}}' notebook)"
+   ```
+
+   Сохранить digest и существующий XML template/Compose configuration в защищённом месте.
+   Не удалять предыдущий image и не выполнять image prune до окончания периода наблюдения.
+3. Сравнить `prisma/migrations` текущего и candidate image. Candidate можно создать через
+   `docker create --name notebook-update-review --entrypoint /bin/true <digest>` и прочитать
+   `docker cp notebook-update-review:/app/prisma/migrations ./candidate-migrations` БЕЗ запуска.
+   Текущие файлы доступны через `docker cp notebook:/app/prisma/migrations ./current-migrations`.
+   Удалить только этот временный review-контейнер: `docker rm notebook-update-review`.
+   Проверить новые SQL, отсутствие изменения старых миграций, destructive DROP/TRUNCATE,
+   ALTER TYPE, NOT NULL, unique constraints, data rewrites и длительные locks на больших таблицах.
+   Просмотреть связанные изменения приложения и Prisma schema. Отсутствие опасного ключевого
+   слова само по себе не означает безопасность миграции.
+4. Восстановить свежий SQL dump и копию uploads в отдельную тестовую БД/директории, применить
+   candidate на этих копиях, проверить данные, healthcheck и сценарий отката. Не подключать
+   staging к production mounts или remote backup targets. Зафиксировать одобрение миграций
+   именно для выбранного digest. При сомнении остановить обновление.
+
+### Согласованный safety backup
+
+В maintenance window остановить только Notebook, PostgreSQL оставить работающим. Имена
+ниже соответствуют XML templates; для Compose использовать имена контейнеров своей установки.
+Резервную копию хранить вне исходного backups mount, приватно, на persistent appdata:
+
+```bash
+set -eu
+umask 077
+safety_dir="/mnt/user/appdata/notebook-update-safety/$(date -u +%Y%m%dT%H%M%SZ)"
+mkdir -p "$safety_dir"
+docker stop notebook
+docker exec notebook-postgres sh -c 'pg_dump -U "$POSTGRES_USER" -d "$POSTGRES_DB" --format=custom' > "$safety_dir/database.dump"
+tar -czf "$safety_dir/uploads.tgz" -C /mnt/user/appdata/notebook/uploads .
+tar -czf "$safety_dir/backups.tgz" -C /mnt/user/appdata/notebook/backups .
+test -s "$safety_dir/database.dump"
+tar -tzf "$safety_dir/uploads.tgz" > /dev/null
+tar -tzf "$safety_dir/backups.tgz" > /dev/null
+```
+
+Проверить `pg_restore --list` и пробное восстановление dump в отдельную БД. При ошибке backup
+не продолжать update. Сохранить защищённую копию прежних env/XML отдельно; пароли,
+`SETTINGS_ENCRYPTION_KEY`, signing keys и другие секреты не менять и не выводить в логи.
+SQL dump содержит auth-данные: это приватный disaster-recovery backup, не portable application export.
+Не удалять PostgreSQL volume/bind directory, uploads или backups. Не использовать `down -v`.
+
+### Применение проверенного образа
+
+Для XML установки в **Edit → Repository** существующего Notebook контейнера задать
+проверенный digest. Сохранить container name, network, ports, env и все path mappings.
+Apply пересоздаёт только Notebook; PostgreSQL template не переустанавливать.
+
+Для уже существующей Compose установки использовать тот же project name, `.env` и compose
+directory. Сначала проверить конфигурацию без печати секретов и скачать image; затем
+явно задать согласованный digest (подстановка `<digest>` ниже обязательна):
+
+```bash
+export NOTEBOOK_UPDATE_IMAGE='ghcr.io/imnoname25/notebook@sha256:<digest>'
+docker compose -f docker-compose.yml -f docker-compose.update.yml config --quiet
+docker compose -f docker-compose.yml -f docker-compose.update.yml pull notebook
+docker compose -f docker-compose.yml -f docker-compose.update.yml up -d --no-deps --no-build --pull never --wait --wait-timeout 180 notebook
+```
+
+Overlay меняет только reference образа Notebook. PostgreSQL, volumes, uploads/backups и secrets
+остаются из существующей конфигурации. После успешного тестирования закрепить тот же digest
+в `NOTEBOOK_IMAGE` существующего `.env`, иначе следующий запуск без overlay может вернуть latest.
+`NOTEBOOK_UPDATE_IMAGE` требуется только overlay; не хранить в нём credentials.
+
+Проверить `docker inspect --format '{{.State.Health.Status}}' notebook` (ожидается `healthy`),
+`/api/health/ready`, вход, чтение/редактирование и загрузку существующего вложения.
+Healthcheck проверяет БД, migrations и writable storage. Если startup/health не прошёл,
+не считать update завершённым; сохранить безопасные diagnostics и оставить maintenance window открытым.
+
+### Откат
+
+Если проверено, что текущая schema и новые записи совместимы с прежним приложением,
+в XML Repository вернуть сохранённый прежний digest. Для Compose задать его в
+`NOTEBOOK_UPDATE_IMAGE` и повторить команду `up` выше. Не изменять mounts, DB credentials
+или encryption key. Дождаться readiness и повторить smoke-проверки.
+
+Если миграция несовместима или уже частично изменила данные, смены image недостаточно.
+Остановить Notebook. Перед восстановлением сделать отдельную копию текущего состояния
+для сохранения новых записей; согласовать потерю изменений после safety backup.
+Отдельно одобрить восстановление согласованной пары database dump + uploads в проверенные
+новые restore paths/БД, переключить mappings и вернуть прежний digest. Сохранить исходные
+production directories и backups до подтверждения восстановления. Автоматического down-migrate,
+SQL rollback или удаления volumes нет. Entrypoint не откатывает Prisma migrations.
+
+## Что нужно для будущего автоматического деплоя
+
+- Версия Unraid, архитектура CPU, режим установки (XML или Compose), фактические имена
+  контейнеров, compose project/directory и Docker network.
+- Существующие persistent пути PostgreSQL/uploads/backups, UID/GID и свободное место
+  для safety copies; проверенная процедура restore и допустимое maintenance window.
+- Текущий digest, выбранный stable channel, readiness URL, reverse proxy/TLS и правила доступа.
+- Отдельно одобренный канал доступа к Unraid (например, ограниченный SSH через private network),
+  host-key fingerprint и отдельные deployment credentials в GitHub Environment Secrets.
+  При private GHCR — read-only registry credential. Секреты передавать через защищённое хранилище, не чат.
+- Protected GitHub Environment с ручным approval миграций для точного digest, сериализация
+  deploy, backup/restore rehearsal, health timeout и политика совместимого отката.
+
+До отдельного решения не добавлять self-hosted runner/SSH secrets в workflows, не открывать
+Docker socket и не включать production auto-update.
 
 ## Persistent data and permissions
 

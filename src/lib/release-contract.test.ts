@@ -18,4 +18,18 @@ describe("release channel contract", () => {
     expect(android).toContain('dist/Notebook-${version}.apk');
     expect(android).toContain("softprops/action-gh-release@v2");
   });
+
+  it("installs the project's compile SDK without the retired tools package", () => {
+    const gradle = readFileSync("android-client/android/variables.gradle", "utf8");
+    const compileSdk = gradle.match(/compileSdkVersion\s*=\s*(\d+)/)?.[1];
+    expect(compileSdk).toBeDefined();
+    const packages = [...android.matchAll(/packages:\s*'([^']+)'/g)];
+    expect(packages).toHaveLength(2);
+    for (const [, list] of packages) {
+      const tokens = list.split(/\s+/);
+      expect(tokens).toContain(`platforms;android-${compileSdk}`);
+      expect(tokens).toContain("build-tools;35.0.0");
+      expect(tokens).not.toContain("tools");
+    }
+  });
 });

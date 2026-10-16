@@ -132,11 +132,11 @@ docker network create notebook-net
 
 После установки PostgreSQL template установите Notebook template, заполните `DATABASE_URL`, `APP_ORIGIN`, `SETTINGS_ENCRYPTION_KEY` и откройте кнопку WebUI. Первый администратор по-прежнему создаётся в браузере.
 
-Push в `main` публикует multi-arch `edge` и `sha-*`; release tag `v*` публикует version tags и `latest`. Перед публикацией CI поднимает чистый PostgreSQL, проверяет migrations, readiness и restart production image.
+Push в `main` после web checks и Docker smoke публикует multi-arch `main`, `edge`, короткий и полный `sha-*`; stable release tag `vX.Y.Z` публикует version tags и `latest`. CI проверяет lint, types, unit tests, build, секреты, packaging, migrations на чистом PostgreSQL, readiness и restart production image. Android workflow публикует debug APK в Actions Artifacts для main и подписанные APK/AAB в GitHub Releases для stable tags. Процесс и необходимые Secrets: [Git, CI и релизы](docs/automation.md).
 
 Версия приложения задаётся только в корневом `package.json`. Для релиза используйте `npm run version:set -- X.Y.Z`: helper синхронизирует Android package metadata и Gradle `versionName`, обновляет служебные version-поля lock-файлов и увеличивает Android `versionCode` на единицу. `npm run version:check` проверяет общий контракт; stable tag `vX.Y.Z` дополнительно сверяется в Android и Docker workflows до сборки артефактов.
 
-`latest` — стабильный канал Unraid, `edge` — текущий `main` для тестирования. После release Unraid Docker Manager получает новый digest через `Check for Updates`; стандартная кнопка `Update` сохраняет env/path mappings, скачивает image и запускает встроенный `prisma migrate deploy`. Встроенного self-updater нет.
+`latest` — стабильный канал Unraid, `edge`/`main` — текущий main для тестирования. До нажатия Update обязательны review миграций, rehearsal на копии БД и safety backup: startup запускает `prisma migrate deploy`. Обновление закрепляется на проверенном digest. [Порядок обновления и отката](UNRAID.md#безопасное-ручное-обновление-и-откат). Production auto-deploy не подключён.
 
 Compose сохранён для source/development deployment и использует те же env names и persistent paths:
 
@@ -164,15 +164,16 @@ PostgreSQL не публикует host-порт. При старте `notebook`
 npm run db:migrate
 ```
 
-Для обновления self-hosted установки сначала сделайте backup, затем:
+Для обновления сначала выполните [проверку миграций и backup](UNRAID.md#безопасное-ручное-обновление-и-откат). Для существующей Compose установки используйте opt-in overlay с проверенным digest:
 
 ```bash
-git pull
-docker compose build --pull notebook
-docker compose up -d
+export NOTEBOOK_UPDATE_IMAGE='ghcr.io/imnoname25/notebook@sha256:<reviewed-digest>'
+docker compose -f docker-compose.yml -f docker-compose.update.yml config --quiet
+docker compose -f docker-compose.yml -f docker-compose.update.yml pull notebook
+docker compose -f docker-compose.yml -f docker-compose.update.yml up -d --no-deps --no-build --pull never --wait --wait-timeout 180 notebook
 ```
 
-Совместимые миграции применятся автоматически. Не используйте `prisma db push` в production.
+Entrypoint применит миграции при старте; одобрение их безопасности должно предшествовать этой команде. Overlay не меняет PostgreSQL, persistent mounts или секреты. Optional `NOTEBOOK_UPDATE_IMAGE` описан в `.env.example`. Прежний digest сохранить для совместимого отката; при несовместимой schema нужен отдельно одобренный restore. Не используйте `prisma db push` в production.
 
 ## Backup и восстановление
 

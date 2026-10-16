@@ -11,6 +11,10 @@ on:
 permissions:
   contents: read
 
+concurrency:
+  group: docker-${{ github.ref }}
+  cancel-in-progress: false
+
 env:
   REGISTRY: ghcr.io
   IMAGE_NAME: ${{ github.repository_owner }}/notebook
@@ -18,9 +22,12 @@ env:
 jobs:
   validate:
     runs-on: ubuntu-latest
+    timeout-minutes: 20
     steps:
       - name: Check out repository
         uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
       - name: Set up Node.js
         uses: actions/setup-node@v6
         with:
@@ -28,10 +35,26 @@ jobs:
           cache: npm
       - name: Install dependencies
         run: npm ci --legacy-peer-deps
+      - name: Check new commits for secrets
+        env:
+          SCAN_BASE: ${{ github.event.before || github.event.pull_request.base.sha }}
+        run: |
+          set -Eeuo pipefail
+          range="-1"
+          if [[ "$SCAN_BASE" =~ ^[0-9a-f]{40}$ ]]; then
+            if [[ "$SCAN_BASE" == "0000000000000000000000000000000000000000" ]]; then
+              range="HEAD"
+            else
+              range="$SCAN_BASE..HEAD"
+            fi
+          fi
+          docker run --rm -v "$PWD:/repo" ghcr.io/gitleaks/gitleaks:v8.24.3 git /repo --redact --no-banner --log-opts="$range"
+      - name: Lint, typecheck, unit tests and production build
+        run: npm run check
       - name: Verify shared application version
         run: npm run version:check
       - name: Verify release tag and shared application version
-        if: startsWith(github.ref, 'refs/tags/v') && !contains(github.ref_name, '-')
+        if: startsWith(github.ref, 'refs/tags/')
         run: node scripts/check-release-version.mjs "$GITHUB_REF_NAME"
       - name: Validate Unraid templates
         run: npm run validate:unraid
@@ -41,6 +64,7 @@ jobs:
   smoke:
     needs: validate
     runs-on: ubuntu-latest
+    timeout-minutes: 30
     steps:
       - name: Check out repository
         uses: actions/checkout@v7
@@ -171,9 +195,10 @@ jobs:
           done
 
   publish:
-    if: github.event_name != 'pull_request'
+    if: github.event_name != 'pull_request' && (github.ref == 'refs/heads/main' || startsWith(github.ref, 'refs/tags/v'))
     needs: smoke
     runs-on: ubuntu-latest
+    timeout-minutes: 60
     permissions:
       contents: read
       packages: write
@@ -196,12 +221,14 @@ jobs:
         with:
           images: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}
           tags: |
+            type=raw,value=main,enable=${{ github.ref == 'refs/heads/main' }}
             type=raw,value=edge,enable={{is_default_branch}}
             type=semver,pattern=v{{version}}
             type=semver,pattern={{version}}
             type=semver,pattern={{major}}.{{minor}}
             type=raw,value=latest,enable=${{ startsWith(github.ref, 'refs/tags/v') && !contains(github.ref_name, '-') }}
             type=sha,prefix=sha-
+            type=sha,format=long,prefix=sha-
       - name: Build and publish multi-arch image
         uses: docker/build-push-action@v7
         with:

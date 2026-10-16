@@ -1,0 +1,5 @@
+# Opt-in overlay for an operator-reviewed update or compatible image rollback.
+# Never used by CI to deploy. Keep the same project name and .env as the installation.
+services:
+  notebook:
+    image: ${NOTEBOOK_UPDATE_IMAGE:?Set NOTEBOOK_UPDATE_IMAGE to the reviewed image digest}

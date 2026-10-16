@@ -26,13 +26,24 @@ export function parseGradleVersion(gradle) {
 }
 
 export async function readVersionState() {
-  const [rootText, androidText, gradle] = await Promise.all([
+  const [rootText, androidText, gradle, rootLockText, androidLockText] = await Promise.all([
     readFile(VERSION_PATHS.rootPackage, "utf8"),
     readFile(VERSION_PATHS.androidPackage, "utf8"),
     readFile(VERSION_PATHS.gradle, "utf8"),
+    readFile(VERSION_PATHS.rootLock, "utf8"),
+    readFile(VERSION_PATHS.androidLock, "utf8"),
   ]);
   const rootPackage = JSON.parse(rootText);
   const androidPackage = JSON.parse(androidText);
+  for (const [name, text, version] of [
+    ["package-lock.json", rootLockText, rootPackage.version],
+    ["android-client/package-lock.json", androidLockText, androidPackage.version],
+  ]) {
+    const lock = JSON.parse(text);
+    if (lock.version !== version || lock.packages?.[""]?.version !== version) {
+      throw new Error(`Version mismatch in ${name}; synchronize versions with npm run version:set`);
+    }
+  }
   const android = parseGradleVersion(gradle);
   return {
     rootVersion: rootPackage.version,

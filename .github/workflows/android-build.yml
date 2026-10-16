@@ -11,6 +11,10 @@ on:
 permissions:
   contents: read
 
+concurrency:
+  group: android-${{ github.ref }}
+  cancel-in-progress: false
+
 defaults:
   run:
     working-directory: android-client
@@ -18,8 +22,11 @@ defaults:
 jobs:
   checks:
     runs-on: ubuntu-latest
+    timeout-minutes: 30
     steps:
       - uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
       - uses: actions/setup-node@v6
         with:
           node-version: "24"
@@ -30,15 +37,37 @@ jobs:
           distribution: temurin
           java-version: "21"
       - uses: android-actions/setup-android@v3
+        with:
+          # API 36 from variables.gradle; Build Tools 35.0.0 is the AGP 8.13 default.
+          packages: 'platform-tools platforms;android-36 build-tools;35.0.0'
       - uses: gradle/actions/setup-gradle@v5
       - name: Verify shared application version
         working-directory: .
         run: npm run version:check
+      - name: Verify release tag
+        if: startsWith(github.ref, 'refs/tags/')
+        working-directory: .
+        run: node scripts/check-release-version.mjs "$GITHUB_REF_NAME"
+      - name: Check new commits for secrets
+        working-directory: .
+        env:
+          SCAN_BASE: ${{ github.event.before || github.event.pull_request.base.sha }}
+        run: |
+          set -Eeuo pipefail
+          range="-1"
+          if [[ "$SCAN_BASE" =~ ^[0-9a-f]{40}$ ]]; then
+            if [[ "$SCAN_BASE" == "0000000000000000000000000000000000000000" ]]; then
+              range="HEAD"
+            else
+              range="$SCAN_BASE..HEAD"
+            fi
+          fi
+          docker run --rm -v "$PWD:/repo" ghcr.io/gitleaks/gitleaks:v8.24.3 git /repo --redact --no-banner --log-opts="$range"
       - run: npm ci
       - run: npm run check
       - run: npx cap sync android
       - name: Lint, unit tests and debug APK
-        run: ./android/gradlew --no-daemon -p android lint test assembleDebug
+        run: ./android/gradlew --no-daemon -p android lintDebug testDebugUnitTest assembleDebug
       - name: Upload test APK
         uses: actions/upload-artifact@v6
         with:
@@ -50,6 +79,7 @@ jobs:
     if: startsWith(github.ref, 'refs/tags/v') && !contains(github.ref_name, '-')
     needs: checks
     runs-on: ubuntu-latest
+    timeout-minutes: 30
     permissions:
       contents: write
     steps:
@@ -64,10 +94,18 @@ jobs:
           distribution: temurin
           java-version: "21"
       - uses: android-actions/setup-android@v3
+        with:
+          packages: 'platform-tools platforms;android-36 build-tools;35.0.0'
       - uses: gradle/actions/setup-gradle@v5
       - name: Verify release tag and shared application version
         working-directory: .
         run: node scripts/check-release-version.mjs "$GITHUB_REF_NAME"
+      - name: Install web dependencies
+        working-directory: .
+        run: npm ci --legacy-peer-deps
+      - name: Validate web application before release
+        working-directory: .
+        run: npm run check
       - run: npm ci
       - run: npx cap sync android
       - name: Restore signing key
@@ -76,6 +114,7 @@ jobs:
         run: |
           set -Eeuo pipefail
           test -n "$ANDROID_KEYSTORE_BASE64"
+          umask 077
           printf '%s' "$ANDROID_KEYSTORE_BASE64" | base64 --decode > "$RUNNER_TEMP/notebook-release.jks"
       - name: Build signed universal APK and AAB
         env:
@@ -85,11 +124,18 @@ jobs:
           ANDROID_KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
         run: |
           set -Eeuo pipefail
-          ./android/gradlew --no-daemon -p android assembleRelease bundleRelease
+          ./android/gradlew --no-daemon -p android lintRelease testReleaseUnitTest assembleRelease bundleRelease
           version="${GITHUB_REF_NAME#v}"
           mkdir -p dist
           cp android/app/build/outputs/apk/release/app-release.apk "dist/Notebook-${version}.apk"
           cp android/app/build/outputs/bundle/release/app-release.aab "dist/Notebook-${version}.aab"
+          "$ANDROID_HOME/build-tools/35.0.0/apksigner" verify --verbose "dist/Notebook-${version}.apk"
+          # jarsigner can return zero for an unsigned archive; require its verification result.
+          verification="$(jarsigner -J-Duser.language=en -verify "dist/Notebook-${version}.aab")"
+          printf '%s\n' "$verification" | grep -q '^jar verified\.$'
+      - name: Remove temporary signing key
+        if: always()
+        run: rm -f "$RUNNER_TEMP/notebook-release.jks"
       - name: Publish APK in GitHub Release
         uses: softprops/action-gh-release@v2
         with:
