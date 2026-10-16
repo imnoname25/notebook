@@ -1,287 +1,239 @@
-# Обновление существующего notebook на Unraid
+# Notebook: production deployment на Unraid
 
-Это подготовленный механизм с ручным финальным Apply в штатном Unraid WebGUI.
-Он не подключён к production. Создавать/удалять/пересоздавать контейнеры, менять env или
-применять миграции в рамках подготовки запрещено. Команды ниже — инструкция для будущего,
-отдельно разрешённого maintenance window, а не команды, выполненные при разработке.
+Реализация для Unraid **7.3.2** подготовлена, но **не установлена и не включена**. До стендовых
+тестов и отдельного разрешения владельца production не обновлять. Push/release не запускают deploy.
 
-## Границы и архитектура
+## Архитектура и анализ рисков
 
 ```mermaid
-flowchart LR
-  B[Существующий Docker CI: проверки и GHCR digest] --> M[image.json: SHA и migration hashes]
-  M --> P[Unraid: backup и restore verification]
-  P --> R[Локальный review и upgrade/rollback rehearsal]
-  R --> A[GitHub Environment: ручное approval]
-  A --> I[approved intent artifact]
-  I --> V[Unraid: исходящий HTTPS и проверка approval]
-  V --> G[Оператор: существующий шаблон Unraid, только Repository]
-  G --> H[Сверка конфигурации, digest и readiness]
+sequenceDiagram
+    actor Owner as Владелец
+    participant GH as GitHub hosted jobs
+    participant VM as Отдельная runner VM в LAN
+    participant Host as Unraid gateway
+    Owner->>Host: Подготовка backup и review/rehearsal
+    Owner->>GH: workflow_dispatch с preparation/release ID
+    GH->>Owner: Environment production: подтверждение
+    GH->>VM: deliver после approve
+    VM->>Host: LAN SSH forced command: dispatch RUN_ID
+    Host->>GH: Независимая проверка approval/artifacts/code hashes
+    Host->>Host: Свежий dump + полный isolated restore
+    Host->>Host: Сохранить старый контейнер, создать notebook с digest
+    Host->>Host: Изменить Repository существующего XML, проверить health
 ```
 
-Cloud runner — только GitHub-hosted `ubuntu-latest`, без маршрута к LAN, SSH, Docker API
-или production secrets. Он выдаёт разрешение на пару previous/candidate digests и hash локального
-review. Сам Unraid забирает metadata исходящим HTTPS к GitHub. Постоянного poller, root runner,
-открытого Docker socket или входящего deploy endpoint нет. Локальный Python helper — доверенный
-административный инструмент; доступ к локальному Docker фактически равен root. Он запускается
-оператором, а не выполняет произвольные команды из GitHub artifacts.
+Выбрана **отдельная Linux x64 VM с non-root self-hosted runner и ограниченным LAN SSH**.
+На VM нет Docker/socket, sudo, production mounts, паролей БД, ключа приложения или GitHub read token
+сервера. Deliver не делает checkout и не скачивает код: только root-owned локальный launcher.
+На Unraid работает заранее проверенный локальный Python gateway. Он принимает только
+`dispatch RUN_ID`, сам проверяет approval, pins, private review и одноразовый ledger.
+User Scripts может вручную запускать подготовку; **он не принимает события GitHub**.
+Compose не используется. SSH/Docker API не открываются в интернет; Docker — только Unix socket.
 
-**Сохранить container ID при смене образа невозможно.** Обновление через Unraid сохраняет
-пользовательскую конфигурацию и persistent mappings, но создаёт новый container ID. Если под
-«не удалять контейнер» подразумевается запрет даже на будущее штатное пересоздание, image update
-невозможен: ограничиться preflight/backup/review. Этот helper намеренно не реализует apply,
-`docker run/create/rm`, stop/start, удаление данных или production restore. Финальная интеграция
-Unraid требует его версии, реального пользовательского XML и согласования семантики обновления.
+[GitHub предупреждает о компрометации self-hosted runners в публичных репозиториях](https://docs.github.com/en/actions/reference/security/secure-use).
+Labels/`if` не security boundary. Выделить runner только этому workflow/main через runner group
+restrictions, если доступны; не использовать в PR/build jobs. Защитить main/workflows review/ruleset.
+Firewall VM: исходящие GitHub HTTPS, DNS/NTP и SSH к одному Unraid, без доступа к БД/остальной LAN/
+admin UI. Предпочтительна одноразовая VM/ephemeral runner с пересозданием VM после job.
+Кража SSH-ключа не разрешает shell или неподтверждённый deploy: проверки выполняются на Unraid.
+Компрометация GitHub admin/reviewer или root Unraid остаётся за этой границей. Runner не размещать
+на самом Unraid, в privileged-контейнере или рядом с Docker socket.
 
-## Единственная допустимая конфигурация этой установки
+## Точная конфигурация
 
 | Параметр | Значение |
 | --- | --- |
-| Имя | `notebook` |
-| Registry | `ghcr.io/imnoname25/notebook` |
-| Network | `notebook-net` |
-| Port | host `3100` → container `3000/tcp` |
-| Uploads | `/mnt/user/appdata/note/uploads` → `/data/uploads`, rw |
-| Backups | `/mnt/user/appdata/note/backup` → `/data/backups`, rw |
-| APP_ORIGIN | `http://192.168.110.11:3100` |
-| TZ | `Asia/Yekaterinburg` |
-| PUID / PGID / UMASK | `99` / `100` / `002` |
+| App | `notebook`, сейчас `ghcr.io/imnoname25/notebook:latest` |
+| Target | `ghcr.io/imnoname25/notebook@sha256:<64 hex>` |
+| Network / port | `notebook-net`, host `3100` → container `3000` |
+| App XML | `/boot/config/plugins/dockerMan/templates-user/my-notebook.xml` |
+| PostgreSQL | `notebook-postgres`, `postgres:17-alpine`, database/role `notebook` |
+| PG mount | `/mnt/user/appdata/note/postgres` → `/var/lib/postgresql/data` |
+| PG XML | `/boot/config/plugins/dockerMan/templates-user/my-notebook-postgres.xml` |
+| Uploads | `/mnt/user/appdata/note/uploads` → `/data/uploads` |
+| Backups | `/mnt/user/appdata/note/backup` → `/data/backups` |
+| Env | `APP_ORIGIN=http://192.168.110.11:3100`, `TZ=Asia/Yekaterinburg`, `PUID=99`, `PGID=100`, `UMASK=002` |
 
-Repository XML в `unraid/notebook.xml` — generic template для новых установок с другими
-defaults; его нельзя накатывать поверх этой установки. Helper читает именно существующий
-пользовательский template с Unraid, сравнивает его с действующим контейнером и создаёт только
-приватные comparison copies. Оригинальный template он не записывает. `DATABASE_URL` и
-`SETTINGS_ENCRYPTION_KEY` не передаются в CI и не меняются. Effective HostConfig, все mounts
-и значения этих секретов сравниваются приватным fingerprint; raw inspect/Env не сохраняются.
+Сохраняются **весь Env**, неизменные `DATABASE_URL`/`SETTINGS_ENCRYPTION_KEY`, Config/HostConfig,
+mounts, user, entrypoint/cmd, healthcheck, labels, IP/ports, restart, capabilities/limits,
+network aliases/static IP. Используется [официальный Engine API](https://docs.docker.com/reference/api/engine/)
+(>=1.43, version определяется), не недокументированный Unraid PHP endpoint. Полный fingerprint
+проверяется **до первого старта** кандидата. Исключены только image reference и generated ID aliases;
+непереносимый параметр блокирует запуск. В текущем XML атомарно меняются только байты Repository.
+WebGUI продолжает управлять именем `notebook` и тем же XML. PostgreSQL не останавливается и не пересоздаётся.
 
-## Что ещё неизвестно — это блокирует подключение
+Не импортировать generic `unraid/notebook.xml`: defaults новых установок отличаются от production.
+На время транзакции запретить GUI Edit/Update/Start, другие writers и сторонние auto-updaters:
+flock не блокирует GUI. Отключить внешнее автообновление Notebook. Строгое сохранение Config может
+оставить informational `NOTEBOOK_VERSION`/`NOTEBOOK_GIT_SHA` и labels от прежнего контейнера;
+фактический image проверяется по digest и OCI revision **образа**. Новый image запускает существующий
+entrypoint с `prisma migrate deploy`; SQL проверяется до старта.
 
-- Версия Unraid, архитектура, путь к реально используемому пользовательскому XML и его формат.
-- Имя, image/version, actual persistent mount, socket directory PostgreSQL; имя database и
-  существующая роль для backup. Пароли/connection strings в чат не нужны.
-- Доступность `pg_dump`, `pg_restore`, `psql`, возможность локальной socket-аутентификации
-  без интерактивного пароля. Не угадывать роль из generic PostgreSQL template.
-- Отдельная подтверждённая пустая verification DB: имя контейнера, database/role/socket,
-  image той же major версии, network mode `none`, storage без пересечений с production.
-- Кто ещё пишет в Notebook DB/uploads, допустимое maintenance window и свободное место.
-- Наличие Python 3.11+ на Unraid, способ его поддерживаемой установки, User Scripts/других
-  плагинов и разрешённый локальный механизм запуска. Python не входит в наши предположения
-  о стандартной установке Unraid: сначала подтвердить его наличие; helper не устанавливает его.
-- Доступность GitHub Environment required reviewers для тарифа/видимости репозитория,
-  состав reviewers и допустимость будущего штатного пересоздания container ID.
+## Первоначальная настройка — после отдельного разрешения
 
-Пока эти данные не получены, `deployment.example.json` содержит `null`: preflight завершится
-ошибкой, а deployment approval workflow отключён отсутствующей Repository Variable.
+1. Уточнить **IP отдельной VM, actual LAN SSH port, host key fingerprint Unraid**, reviewer,
+   поддержку required reviewers и место rehearsal. Эти данные не предоставлены. Host key сверить
+   через доверенную консоль, одного `ssh-keyscan` недостаточно.
+2. На Unraid проверить Python **>=3.11** по `/usr/bin/python3`, CA/HTTPS GitHub/GHCR, Docker CLI/socket,
+   место под два dump/два uploads archive/развёрнутую БД с запасом. Python не считать стандартной
+   частью Unraid: доступность после reboot обеспечивает администратор. Только Python stdlib.
+   Preflight требует свободное место минимум `3 × pg_database_size + 2 × uploads size + 1 GiB`;
+   это консервативный резерв, а не гарантия при росте данных. Старые копии не удаляются для освобождения места.
+3. Создать root:root **0700** `/mnt/user/appdata/notebook-deploy-control` и `lib`, вне app mounts.
+   Скопировать проверенные `unraid/{approval,deploy_core,deploy,engine,executor,verification,gateway,gateway_entry}.py`
+   в `lib`, root-owned, не writable другим. `forced-command.sh` → control directory, mode 0700.
+   Никакого автоматического git pull/root execution workflow кода.
+4. `deployment.example.json` → control directory `deployment.local.json`, root 0600. Параметры
+   заполнены, **`execution_enabled: false` оставить**. `postgres_socket: null` читает фактический
+   `unix_socket_directories` через `postgres -C` стандартного контейнера. Custom command/multiple
+   sockets требуют явно проверенного пути. Backup использует Unix socket/`--no-password`, не меняет
+   auth/пароли. Если dump запрещён, процесс блокируется: нужны фактические socket/auth rules и
+   права существующей роли, а не предположение о trust.
+5. Fine-grained PAT **только на Unraid**: control directory `github-token`, root 0600, только repo
+   `imnoname25/notebook`, **Actions read, Contents read, Metadata read**, без write/admin, с expiry/
+   rotation. Read permissions соответствуют [Environment API](https://docs.github.com/en/rest/deployments/environments#get-an-environment)
+   и [approval API](https://docs.github.com/en/rest/actions/workflow-runs#get-the-review-history-for-a-workflow-run).
+   Private GHCR требует отдельный local root read-only Docker login; public image — нет.
+   Tokens не помещать в CLI args/User Scripts output/repo/artifacts.
+6. Заполнить `trusted_control_hashes` SHA-256 **проверенных исходных байтов**, ключи точно:
+   `.github/workflows/unraid-production-approval.yml`, `unraid/approval.py`, `unraid/deploy_core.py`.
+   Значения — 64 lowercase hex. Gateway сверяет Contents API на head_sha approved run. Изменение
+   этих файлов требует нового локального review/pins; будущий workflow не получает root execution
+   автоматически. Установленные модули обновлять только вручную после review.
+7. На VM создать отдельный Ed25519 key. Secret key 0600 только service user runner, родительский
+   каталог root-owned, не writable runner. `runner-dispatch.sh` → root-owned 0755
+   `/opt/notebook-deploy/dispatch`; `runner-ssh-config.example` → `/etc/notebook-deploy/ssh_config`,
+   заменить actual SSH port. До замены config намеренно не работает. `known_hosts` заполнить после
+   сверки host key, config/known_hosts root-owned 0644. Никакого agent forwarding.
+8. В persistent authorized_keys Unraid добавить public key (подставить actual IP VM):
 
-## Первоначальная настройка на Unraid
-
-1. После подтверждения prerequisites разместить проверенные файлы `deploy.py`, `deploy_core.py`,
-   `approval.py` в выбранном persistent административном каталоге, принадлежащем root и не
-   доступном на запись Notebook (`99:100`). Не исполнять скрипты из uploads/backups и не обновлять
-   их автоматически из входящей заявки. Все три файла должны быть одной проверенной версии.
-2. Скопировать `deployment.example.json` в приватный локальный config вне репозитория,
-   заполнить только полученные от администратора параметры. `template_path` — существующий
-   пользовательский XML, а не repository template. Никаких паролей/URL в config нет.
-   Роль/БД ограничены простыми identifiers; socket должен быть абсолютным локальным путём.
-   Config пример не выбирает PostgreSQL major автоматически.
-3. Подготовить отдельно verification контейнер и пустую БД утверждённым администратором способом.
-   Helper сам контейнеров/БД не создаёт и не удаляет. Он отвергает production container,
-   network mode кроме `none`, privileged mode, пересечения mounts, неподходящую major версию и
-   непустую БД. После пробного restore БД больше не пустая: следующий прогон требует новой
-   отдельно подготовленной пустой БД; helper никогда не делает `--clean`.
-4. Проверить local PostgreSQL socket auth выбранными ролями. Helper использует `--no-password`,
-   не принимает пароль в argv/JSON и не копирует production credentials. Если auth требует
-   секрета, администратор настраивает существующий поддерживаемый локальный механизм внутри
-   соответствующего контейнера; никаких изменений `DATABASE_URL` для этого не делается.
-5. На время обновления отключить внешние auto-update/backup jobs для Notebook и обеспечить
-   отсутствие других writers в его DB/uploads. Не менять владельца PostgreSQL directory.
-6. Выполнить только read-only проверку:
-
-   ```bash
-   python3 /PATH/TO/TRUSTED/deploy.py --config /PATH/TO/PRIVATE/config.json preflight
+   ```text
+   from="<VM_PRIVATE_IP>",restrict,command="/mnt/user/appdata/notebook-deploy-control/forced-command.sh" ssh-ed25519 <PUBLIC_KEY> notebook-deploy
    ```
 
-   В выводе только подтверждение конфигурации и доступные image digests. При неизвестной major
-   версии, unsupported XML или конфигурационном drift исправить/согласовать причину до backup.
+   Проверить [OpenSSH restrict/forced command](https://man.openbsd.org/sshd.8#AUTHORIZED_KEYS_FILE_FORMAT),
+   root forced commands и persistence authorized_keys после reboot Unraid. Не ослаблять global
+   root/password policy; если путь запрещён, нужен отдельно согласованный adapter. Ключу запрещены
+   shell/scp/SFTP/PTY/forwarding. Firewall принимает SSH только с VM, WAN не открывать.
+9. Зарегистрировать non-root runner с labels `self-hosted,linux,x64,notebook-production`, изолировать
+   как выше. Registration token не хранить в repo. User Scripts — только ручная локальная подготовка,
+   без расписания/webhook handler.
+10. Создать Environment **`production`**, branch `main`, required reviewers — конкретные User.
+    Проверить approval API тестовым запуском. Запретить self-review, если есть другой reviewer;
+    единственный владелец выбирает применимую политику. Без bypass. Если reviewers недоступны по
+    тарифу, workflow **блокируется**; Run не заменяет approval. До согласования другого подтверждения
+    остаётся локальное ручное обслуживание.
 
-### GitHub Environment, Secrets и Variables
+## GitHub Secrets / Variables
 
-Создать **Settings → Environments → production-unraid** до включения workflow. Добавить
-как минимум одного индивидуального Required Reviewer (team-only пока не поддерживается).
-Ограничить deployment branch `main`; запретить admin bypass. При двух независимых операторах
-включить Prevent self-review. Проверка helper не предполагает несуществующего REST-поля для
-admin bypass: она проверяет фактическую approval history и identity reviewer. Для private
-репозитория заранее проверить поддержку required reviewers текущим GitHub планом.
-
-| Где | Имя | Назначение |
+| Тип | Имя | Назначение |
 | --- | --- | --- |
-| Repository Actions Variable | `UNRAID_APPROVAL_ENABLED=true` | Включить только после настройки Environment и локального rehearsal; по умолчанию job skipped |
-| Автоматический GitHub token | `GITHUB_TOKEN` (`github.token`) | Только `contents: read`, `actions: read`; вручную Secret не создавать |
-| GitHub Environment Secrets | **Не нужны** | Здесь нет SSH, DB credentials, encryption key или root runner token |
-| Только Unraid, опциональный private file | read-only GitHub token | Для Actions artifacts/API; fine-grained repo Actions: read, Contents: read; mode 0600, путь через `--token-file` |
-| Только Unraid, если GHCR private | read-only `read:packages` credential | Настроить штатную registry auth Unraid; не копировать Docker auth в CI artifacts |
+| Repository Variable | `UNRAID_DEPLOY_ENABLED` | Только true включает manual workflow, по умолчанию unset/false |
+| Environment | `production` | Individual reviewers, branch main |
+| Новые Actions Secrets | **Нет** | SSH key только на VM, read token только на Unraid |
+| Hosted jobs | Автоматический GITHUB_TOKEN | Contents/Actions read; deliver permissions пустые |
+| Local profile | `execution_enabled` | Независимый host-side switch, по умолчанию false |
 
-Скачивание artifacts может требовать GitHub authentication даже у публичного репозитория.
-Токен хранить только локально в защищённом административном каталоге, вне Git, stdout и backup
-metadata. Скрипт читает token file в память; заголовок Authorization не пересылается blob-host.
-В `.env.example` перечислены только справочные имена новых настроек: runtime env приложения
-не добавляются. Не вводить `DATABASE_URL`, `SETTINGS_ENCRYPTION_KEY` или SQL dumps в GitHub.
+DATABASE_URL, SETTINGS_ENCRYPTION_KEY, PG credentials в GitHub не передавать. Android signing
+secrets и существующие GHCR publishing settings сохраняются.
 
-## Обновление: будущая процедура после отдельного разрешения
+## Подготовка и миграции
 
-1. Создать обычный stable release отдельно существующим механизмом. Дождаться успешных
-   Docker **и Android** workflow. Docker publish дополнительно выдаёт artifact
-   `notebook-image-<SHA>/image.json`: immutable digest, commit SHA, ref, version и hashes SQL.
-   Этот artifact появляется только после существующих CI gates и GHCR publish; он не содержит
-   credentials, dumps, XML или пользовательских данных. Старые runs без metadata не подходят:
-   нужен новый проверенный stable build, а не вручную придуманное соответствие digest → SHA.
-2. Скачать ровно `image.json` из выбранного успешного Docker run на Unraid. Сохранить bytes без
-   переформатирования. Зафиксировать предыдущий immutable digest из `preflight`; не угадывать
-   его по актуальному registry latest. Не делать image prune до завершения периода наблюдения.
-3. Открыть согласованное maintenance window; штатно остановить только `notebook` в Unraid GUI.
-   PostgreSQL оставить работающим. `FIX_PERMISSIONS` должен быть выключен: рекурсивный repair
-   при старте изменит владельца приватных deployment backups. Helper отвергает включённый repair.
-   Убедиться, что Notebook — единственный writer, отключены
-   любые внешние writers/jobs. Это операторское условие: helper не может доказать отсутствие
-   будущего внешнего подключения к БД. Флаг ниже — его явное подтверждение.
-4. Подготовить snapshot и проверить restore:
+1. Выбрать успешный **tag push** run существующего `docker-publish.yml` для `vX.Y.Z`.
+   `notebook-image-<sourceSHA>/image.json` содержит digest/version/source SHA/migration checksums.
+   Проверить source/release и CI checks; новый release создаётся только отдельной командой.
+2. В maintenance window без GUI updates/DB writers выполнить локально
+   `python3 /.../lib/deploy.py --config /.../deployment.local.json preflight`. Печатаются только
+   допустимые текущие RepoDigests. Прежний digest брать из **текущего image ID**, не разрешать latest
+   заново в registry — tag мог переместиться. Сохранить manifest в private local staging.
+3. Из доверенной консоли/User Scripts выполнить:
 
-   ```bash
-   python3 /PATH/TO/TRUSTED/deploy.py --config /PATH/TO/PRIVATE/config.json prepare \
-     --manifest /PATH/TO/image.json \
-     --previous-image 'ghcr.io/imnoname25/notebook@sha256:PREVIOUS_64_HEX' \
-     --exclusive-maintenance
+   ```sh
+   /usr/bin/python3 /mnt/user/appdata/notebook-deploy-control/lib/gateway.py prepare-review \
+     --manifest /PRIVATE_STAGING/image.json \
+     --previous-image ghcr.io/imnoname25/notebook@sha256:PREVIOUS_DIGEST
    ```
 
-   Результаты — только в `/mnt/user/appdata/note/backup/deployments/<PREPARATION_ID>/`, mode
-   directory 0700/files 0600. Внутри находятся custom-format `database.dump`, `uploads.tar.gz`,
-   hashes, приватный original XML и state. SQL dump содержит auth-данные: это operational DR
-   backup, не обычный application export. Не раздавать его через SMB, CI или публичный HTTP.
-   Не менять permissions всего backup mount ради helper. Свободное место заранее проверить.
+   Notebook останавливается только на время consistent backup и возобновляется прежним образом
+   для review (проверить healthy после возобновления). PG не останавливается. Проверяются Prisma
+   chain/checksums, unresolved migrations и другие DB clients. Dump проходит `pg_restore --list`
+   и **полный restore** в новый verifier того же local PG image ID, без сети/портов/production
+   mounts/secrets. Сравнивается history; uploads archive читается целиком, сохраняются hashes.
+   Dump/restore failure запрещает update.
+4. ID указывает `/mnt/user/appdata/note/backup/deployments/<ID>`, root 0700/files 0600. Dump/uploads/
+   XML/state приватны. Удаляется только собственный verifier по UUID+label; **его private bind data
+   сохраняется**. App/PG контейнеры, volumes и пользовательские данные не удаляются.
+5. Проверить **каждый SQL migration**. Prefix/checksum не доказывают SQL safety. На отдельном стенде
+   с dump/uploads и ограниченной сетью выполнить candidate upgrade, проверить данные/login/uploads,
+   затем прежнее приложение на новой схеме/новых записях. DROP/rename/type change/data rewrite
+   требуют особого анализа. Несовместимый rollback — отдельный DBA/restore plan с учётом потери новых
+   записей; этот механизм для него не подтверждать.
+6. После реальных rehearsal скопировать `review.example.json` → `review.json` в том же private
+   directory, сохранить hashes, выставить три флага true. Это **ручное удостоверение**, не SQL proof.
+   Сохранить закрытый отчёт стенда, посчитать SHA-256 review локально, XML/inspect/dump не печатать.
+   Для deploy snapshot действителен 24 часа. Execution делает новый backup; SQL review должен учитывать
+   новые данные, initial rehearsal не является проверкой будущего snapshot.
 
-   Helper требует остановленный Notebook, неизменную конфигурацию и отсутствие других DB
-   clients; делает `pg_dump`, проверяет `pg_restore --list`, реально восстанавливает все объекты
-   в отдельную пустую verification DB одной транзакцией и сверяет migration history. Архив
-   uploads полностью читается для проверки gzip/tar, SHA-256 вычисляется для обоих файлов.
-   Ошибка любого шага прерывает процедуру. Неполный backup не получает успешный state receipt.
+## Обновление
 
-5. Проверить SQL всех новых миграций по исходникам выбранного commit и manifest hashes.
-   Старые migration hashes должны полностью сохраняться и совпадать с DB `_prisma_migrations`;
-   unresolved migrations блокируют подготовку. Сравнение hashes — не доказательство безопасности:
-   проверить data rewrites, locks, DROP/ALTER/NOT NULL/unique constraints, время выполнения.
-   В изолированном rehearsal выполнить upgrade candidate на копии **этого dump + uploads**,
-   проверить данные/приложение, затем прежнее приложение на полученной schema и новые записи.
-   Не запускать candidate с production DATABASE_URL и не подключать rehearsal к production
-   mounts/network/remote backup providers. Поддерживаемый способ staging пока требует сведений
-   об Unraid/PostgreSQL и не выдуман инструментом.
-6. После фактических тестов создать приватный `review.json` на основе `review.example.json`,
-   оставив identity/hashes неизменными, и установить три booleans в true только по результату
-   SQL review, upgrade rehearsal и rollback rehearsal. Hash файла: `sha256sum review.json`.
-   Не загружать сам review/state/XML/dumps как artifacts. Если rollback совместимость не доказана,
-   этот ограниченный безопасный путь не выдаёт разрешения: подготовить отдельно одобряемый
-   restore-план с DBA, а не подставлять true.
-7. Запустить **Approve Unraid update** на main: inputs `publish_run_id` (Docker run),
-   `previous_image` и `review_sha256`. Validate job проверяет build identity, успешный stable-tag
-   run и reviewers. Job `approve` ждёт ручного решения Environment, проверяет реально записанную
-   approval и выпускает только `approved-unraid-update/approved-request.json`.
-   GitHub может отобразить Environment deployment как успешный — это означает выдачу intent,
-   а не здоровье приложения: реальный результат остаётся в локальном `update-healthy.json`.
-8. На Unraid проверить именно этот approval run:
+Только после стендовых сценариев и отдельного разрешения включить local `execution_enabled: true`
+и Repository Variable `UNRAID_DEPLOY_ENABLED=true`; до этого оставить выключенными.
 
-   ```bash
-   python3 /PATH/TO/TRUSTED/deploy.py --config /PATH/TO/PRIVATE/config.json authorize \
-     --preparation PREPARATION_ID --approval-run APPROVAL_RUN_ID \
-     --token-file /PATH/TO/PRIVATE/github-token
-   ```
+1. Actions → **Deploy Notebook to Unraid (manual)** → Run на main: `operation=deploy`,
+   `preparation_id=<ID>`, `publish_run_id=<stable Docker run ID>`, `previous_image=<прежний digest>`,
+   `review_sha256=<review hash>`. Проверить значения, подтвердить Environment production.
+2. Hosted jobs проверяют build/protection; artifact — только публичная заявка. VM передаёт run ID.
+   Gateway проверяет workflow/main/current attempt/approve job/recorded User review/control hashes,
+   возраст approval<=24h, manifest/review/pair/backup hashes. O_EXCL ledger потребляет ID **до любых
+   изменений**. Ошибка требует нового dispatch/approval; rerun прежнего ID запрещён.
+3. Pull digest, OCI source revision, healthy source/config/PG guard. Остановка Notebook, **свежий
+   dump + полный isolated restore + uploads backup**, проверка schema/config drift. До successful
+   backup новый контейнер не создаётся; при backup failure прежний образ возобновляется.
+4. Сохранить private Config snapshot; старый stopped контейнер → `notebook-retained-<transactionID>`,
+   restart off/network disconnected. Создать новый **notebook** с исходными настройками + digest,
+   fingerprint проверить **до старта**. Изменить Repository текущего XML, запустить; новая версия
+   получает исходную restart policy, persistent mounts и все Env.
+5. До 180 секунд ждать Docker healthy и HTTP 200 `/api/health/ready` LAN origin без redirects/proxy.
+   Проверить image/config/XML и PG ID/config/template, сохранить `success.json`. Старые containers/
+   images/backups остаются. **Не запускать retained containers** — те же persistent данные. Cleanup
+   возможен только отдельным решением владельца, автоматически не выполняется.
 
-   Helper получает workflow/artifacts через API, требует успешный manual run на main именно
-   approval workflow, фактическое approval нужного Environment от указанного reviewer, SHA-256
-   archive и точное имя ZIP entry, проверенный stable build, пару digests и review hash.
-   Никакие ZIP entries не извлекаются в filesystem. Intent и backup действуют максимум 24 часа.
-   Notebook должен оставаться в том же остановленном состоянии с тем же container ID с момента
-   backup; если он запускался, нужны новый backup/review/approval. Он повторно хеширует backups.
-   Сохраняются `approved.json`, `candidate.xml`, `rollback.xml` как приватные comparison copies.
-9. После отдельного подтверждения допустимости штатного пересоздания зайти в **Docker →
-   notebook → Edit**, изменить **только Repository** на выданный helper полный digest.
-   Не импортировать generic XML, не менять ports/env/mounts/network, не нажимать Remove.
-   Apply через штатный WebGUI сам выполнит update/recreation с тем же именем. Эта операция
-   включает entrypoint `prisma migrate deploy`: никакого «тестового старта» на production нет.
-   Локальный helper не нажимает Apply и не вызывает внутренние недокументированные Unraid PHP API.
-10. Проверить результат:
+## Ошибки и откат
 
-    ```bash
-    python3 /PATH/TO/TRUSTED/deploy.py --config /PATH/TO/PRIVATE/config.json verify \
-      --preparation PREPARATION_ID
-    ```
+В GitHub — только фиксированные коды/transaction ID. Private receipts: `failure-*.json`,
+`replacement-started.json`, `approval-source.json`, `success.json`, `automatic-rollback.json`.
+**container-private.json и XML содержат секреты**: только root, не artifacts/support. Raw Docker/
+SQL errors подавляются. Не публиковать raw inspect/logs/XML/SQL/exception text.
 
-    Проверяется effective image digest, Docker health `healthy`, HTTP 200 от readiness на
-    фиксированном `192.168.110.11:3100` без proxy/redirect, неизменные runtime settings/secrets и XML settings
-    (разрешено только изменение Repository). Timeout 180 секунд. Затем вручную проверить вход,
-    чтение/редактирование, autosave и старое вложение. Не закрывать maintenance window раньше.
+При ошибке кандидат stopped → `notebook-failed-<transactionID>`, restart off/network off. При history,
+строго равной fresh snapshot, без unresolved migrations создаётся прежний digest с исходными
+настройками, исправляется Repository, проверяется health. Workflow всё равно ошибочный; повторного
+update нет. При изменённой/частичной схеме прежнее приложение **не стартует**. Image rollback не
+является DB rollback. Автоматического production restore нет.
 
-## Ошибки и диагностика
+Поздний откат: **новый** workflow `operation=rollback`, исходные preparation/build ID, previous
+digest/review hash. Новое Environment approval, свежий verified backup; вернуть прежнее приложение
+можно только при history, равной исходной **до update**, без unresolved migrations. Release с новыми
+применёнными migrations этим путём откатить нельзя даже при предположении совместимости SQL:
+более широкий rollback требует отдельно согласованного восстановления.
 
-Никакого автоматического retry, restart или image rollback нет. В `failure-*.json` сохраняются
-только stage, фиксированный error code и UTC timestamp. На ошибках configuration/preflight до
-создания preparation directory такой же безопасный code выводится в stderr: при необходимости
-оператор сохраняет его в приватный local log. Raw docker logs, inspect JSON, Env, XML, HTTP bodies,
-psql errors и signed artifact URLs не логируются и не отправляются в GitHub. Они могут содержать
-секреты, поэтому автоматическая «redaction по regex» не используется как гарантия.
+При SSH/process interruption/reboot или recovery failure автоматически не повторять. Проверить
+private journal/IDs локально, остановить других writers, убедиться, что запущен максимум один
+Notebook. Сохранить текущую БД/uploads. Без schema change восстановить приложение через Unraid GUI
+по private snapshot/прежнему digest/XML с healthcheck. Retained container имеет выключенные network/
+restart — простого Start недостаточно. При schema change DBA проверяет restore отдельно и согласует
+точку/потерю новых записей. PG не пересоздавать, volumes не удалять, secrets не заменять. Обрыв Engine
+create может оставить stopped container: разбирать по ID/journal, не rm/prune.
 
-При restore failure verification DB оставляется как есть для локального анализа; ничего не
-удаляется. При health failure остановить дальнейшие действия, оставить maintenance window,
-выбрать одобренный recovery path. Если приложение после Apply работает, но health/config check
-не прошёл, оператор штатно останавливает его в GUI; helper сам это не делает. Не загружать
-приватную preparation directory в Issue/Actions. GitHub artifacts содержат только manifests/intents.
+## Проверки и условие включения
 
-Общий `flock` предотвращает параллельные вызовы helper. Между командами и во время работы GUI
-lock не удерживается: нужен один назначенный оператор, отключённые конкурирующие update jobs
-и maintenance window. Никакой обещанной распределённой транзакции между GitHub и Unraid нет.
+Docker CI запускает `python -m unittest discover -s unraid -p 'test_*.py'` до публикации. Unit/mock
+tests покрывают digest/approval/pins/replay, backup failure, drift до старта, health failure,
+settings preservation/rollback/schema-change denial. Они не заменяют Docker/Unraid integration.
 
-## Откат
-
-### Только image, если подтверждена backward compatibility
-
-```bash
-python3 /PATH/TO/TRUSTED/deploy.py --config /PATH/TO/PRIVATE/config.json rollback-plan \
-  --preparation PREPARATION_ID
-```
-
-План требует исходный approval, review и backup integrity, прежний cached image, ожидаемый
-candidate как текущую версию и сохранённую конфигурацию. Проверка совместимости schema и **новых
-данных** перед откатом остаётся обязательной: прежний rehearsal не может предсказать все новые
-записи. В существующем Unraid Edit вернуть только Repository на сохранённый previous digest,
-Apply после отдельного разрешения, затем `verify --preparation PREPARATION_ID --rollback`.
-Новый container ID штатного Update неизбежен; mounts/env остаются прежними. `rollback.xml`
-служит comparison copy и также содержит существующие секреты, поэтому остаётся private.
-
-Встроенный recovery path действует в том же 24-часовом окне backup/approval. Поздний откат
-после закрытия maintenance window требует нового отдельного согласования состояния данных
-и recovery-плана; старый receipt не продлевается и не выдаётся за новое разрешение.
-
-### При несовместимой schema или повреждении данных
-
-Смена image не отменяет миграции. Не запускать старое приложение против несовместимой БД.
-Остановить Notebook в GUI; сохранить отдельный snapshot текущих изменений; оценить потерю
-записей после backup. Получить отдельное явное подтверждение production restore. На проверенных
-копиях восстановить согласованный `database.dump + uploads.tar.gz` и прежнее приложение,
-проверить здоровье и данные, после чего DBA согласует переключение production. Existing
-PostgreSQL volumes/directories, uploads и backup никогда не удалять. Helper намеренно не содержит
-команд destructive restore/down-migration и не угадывает PostgreSQL mounts или права.
-Текущие production paths, `DATABASE_URL` и `SETTINGS_ENCRYPTION_KEY` должны сохраняться;
-смена mappings/credentials не входит в этот механизм и не предлагается как способ отката.
-
-План backup retention и срок хранения прежнего image согласовать отдельно; automatic cleanup нет.
-
-## Проверки механизма
-
-`python3 -m unittest discover -s unraid -p 'test_*.py'` тестирует guards, fingerprints,
-approval/artifact identity, migration prefix и restore isolation с mocks. Docker CI запускает
-эту suite до image publication. Она не обращается к реальному Unraid и не является rehearsal
-production upgrade. Реальный integration test backup/restore/GUI Apply отложен до получения
-перечисленных сведений и отдельного разрешения на тестовую среду.
-
-Источники: [Unraid container configuration](https://docs.unraid.net/unraid-os/using-unraid-to/run-docker-containers/managing-and-customizing-containers/),
-[GitHub Environment protection и доступность по планам](https://docs.github.com/en/rest/deployments/environments),
-[Workflow review history](https://docs.github.com/en/rest/actions/workflow-runs#get-the-review-history-for-a-workflow-run),
-[Artifact digest API](https://docs.github.com/en/rest/actions/artifacts).
+На отдельном стенде проверить реальный sanitised settings snapshot (static IP/aliases/extra params/
+limits/restart), update, dump/restore failure, registry failure, config/XML drift, health timeout,
+no-migration rollback, rollback denial после полной/частичной migration, invalid/replayed/expired
+approval, отсутствующий Environment review, SSH/process interruption и reboot на границах handoff.
+Проверить fsync/atomic replace на реальном /boot, PG ID/template/mounts и secret fingerprints без
+вывода значений. До прохождения этих сценариев production switches остаются выключенными.

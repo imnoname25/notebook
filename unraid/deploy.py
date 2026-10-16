@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Local Unraid preparation and verification. Intentionally has no apply/recreate/delete command."""
+"""Private backup, preparation and verification primitives for the local Unraid controller."""
 import argparse
 import datetime as dt
 try:
@@ -104,11 +104,24 @@ def migration_files():
 
 def config(path):
     value = json.loads(Path(path).read_text(encoding="utf-8"))
-    for key in ["postgres_container", "database", "database_user", "verification_container", "verification_database", "verification_user"]:
+    require(not any(key.startswith("_") for key in value), "reserved-configuration-key")
+    keys = ["postgres_container", "database", "database_user"]
+    if not value.get("managed_verification"):
+        keys += ["verification_container", "verification_database", "verification_user"]
+    for key in keys:
         require(isinstance(value.get(key), str) and re.fullmatch("[a-zA-Z_][a-zA-Z0-9_-]{0,62}", value[key]), "missing-or-invalid-local-configuration")
-    require(value["postgres_container"] not in ("notebook", value["verification_container"]) and value["verification_container"] != "notebook", "verification-must-be-separate")
+    require(value["postgres_container"] not in ("notebook", value.get("verification_container")) and value.get("verification_container") != "notebook", "verification-must-be-separate")
     require(type(value.get("postgres_major")) is int and value["postgres_major"] >= 14, "postgres-major-required")
-    for key in ["postgres_socket", "verification_socket"]:
+    if value.get("postgres_socket") is None:
+        info = inspect(value["postgres_container"])
+        require(info["Config"].get("Cmd") == ["postgres"], "custom-postgres-command-needs-explicit-socket")
+        environment = dict(item.split("=", 1) for item in info["Config"]["Env"] if "=" in item)
+        pgdata = environment.get("PGDATA", "")
+        require(pgdata == "/var/lib/postgresql/data" or pgdata.startswith("/var/lib/postgresql/data/"), "unexpected-postgres-data-directory")
+        socket_path = run(["docker", "exec", "--user", "postgres", value["postgres_container"], "postgres", "-D", pgdata, "-C", "unix_socket_directories"]).decode().strip()
+        require("," not in socket_path, "multiple-postgres-sockets-need-explicit-choice")
+        value["postgres_socket"] = socket_path
+    for key in ["postgres_socket"] + ([] if value.get("managed_verification") else ["verification_socket"]):
         require(isinstance(value.get(key), str) and value[key].startswith("/") and ".." not in Path(value[key]).parts, "local-socket-required")
     path = Path(value.get("template_path") or "")
     require(path.is_absolute() and path.is_file() and not path.is_symlink(), "existing-template-path-required")
@@ -144,6 +157,10 @@ def isolated_verification(config):
     protected = [Path(UPLOADS).resolve(), Path(BACKUPS).resolve()] + [Path(m["Source"]).resolve() for m in production["Mounts"]]
     for mount in scratch["Mounts"]:
         source = Path(mount["Source"]).resolve()
+        if config.get("_managed_verification_source") and source == Path(config["_managed_verification_source"]).resolve():
+            require(scratch["Config"].get("Labels", {}).get("notebook.verifier") == config["verification_container"].removeprefix("notebook-verify-") and mount["Destination"] == "/var/lib/postgresql/data", "invalid-managed-verification-mount")
+            require(all(source != Path(m["Source"]).resolve() and Path(m["Source"]).resolve() not in source.parents and source not in Path(m["Source"]).resolve().parents for m in production["Mounts"]), "verification-shares-production-storage")
+            continue
         require(all(source != path and source not in path.parents and path not in source.parents for path in protected), "verification-shares-production-storage")
     for verification in (False, True):
         require(int(sql(config, "SHOW server_version_num", verification)) // 10000 == config["postgres_major"], "postgres-version-mismatch")
@@ -170,10 +187,15 @@ def prepare(config, args):
     global STAGE, STATE_DIR
     STAGE = "preflight"
     require(args.exclusive_maintenance, "exclusive-maintenance-required")
+    if config.get("managed_verification"):
+        current(config, stopped=True)
+        from verification import manager
+        with manager(config) as configured:
+            return prepare(configured, args)
     candidate_bytes = Path(args.manifest).read_bytes()
     candidate = manifest(json.loads(candidate_bytes))
     previous = digest(args.previous_image)
-    require(candidate["image"] != previous, "already-current")
+    require(candidate["image"] != previous or getattr(args, "rollback_snapshot", False), "already-current")
     info, xml, signature = current(config, stopped=True)
     image = inspect(info["Image"], "image")
     require(previous in image.get("RepoDigests", []), "previous-digest-not-in-local-image")
@@ -186,7 +208,7 @@ def prepare(config, args):
     private_dir(STATE_DIR)
     STAGE = "migration-chain"
     old = migration_files()
-    delta = migration_delta(old, candidate["migrations"])
+    delta = [] if getattr(args, "rollback_snapshot", False) else migration_delta(old, candidate["migrations"])
     # Compare filesystem migration hashes to database history; reject unresolved/partial histories.
     history_query = 'SELECT migration_name || chr(58) || checksum FROM "_prisma_migrations" WHERE finished_at IS NOT NULL AND rolled_back_at IS NULL ORDER BY migration_name'
     applied = sql(config, history_query).splitlines()
@@ -227,7 +249,7 @@ def prepare(config, args):
     state = {"format": 1, "previous_image": previous, "previous_image_id": info["Image"], "candidate_image": candidate["image"],
              "runtime_fingerprint": signature, "template_sha256": hash_bytes(xml), "template_path": config["template_path"], "container_id": info["Id"], "stopped_state": stopped_identity(info),
              "dump_sha256": file_hash(dump), "uploads_sha256": file_hash(archive), "migration_manifest_sha256": hash_bytes(candidate_bytes),
-             "new_migrations": [r["name"] for r in delta], "prepared_at": dt.datetime.now(dt.timezone.utc).isoformat()}
+             "new_migrations": [r["name"] for r in delta], "database_history": applied, "prepared_at": dt.datetime.now(dt.timezone.utc).isoformat()}
     save(STATE_DIR / "original.xml", xml)
     save(STATE_DIR / "image.json", candidate_bytes)
     save(STATE_DIR / "state.json", state)
@@ -236,6 +258,7 @@ def prepare(config, args):
     save(STATE_DIR / "review.example.json", review_example)
     print("Backup restored in isolated verification database. Preparation ID: " + STATE_DIR.name)
     print("Review/rehearsal and GitHub approval still required; no update was applied.")
+    return STATE_DIR.name
 
 
 def load_state(identifier):

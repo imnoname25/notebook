@@ -2,8 +2,9 @@
 
 Для существующей установки `notebook` на `3100` с paths `/mnt/user/appdata/note/uploads`
 и `/mnt/user/appdata/note/backup` используйте [production runbook](docs/unraid-production.md).
-Его параметры не совпадают с defaults новых установок ниже. Подготовлен отдельный manual
-GitHub Environment approval; доступа из GitHub к Unraid и автоматического Apply нет.
+Его параметры не совпадают с defaults новых установок ниже. Подготовлен ручной workflow с
+Environment `production`, отдельной runner VM и ограниченным LAN SSH. Локальное исполнение
+выключено по умолчанию; обычный push не запускает deployment.
 
 Notebook is packaged as two independent containers:
 

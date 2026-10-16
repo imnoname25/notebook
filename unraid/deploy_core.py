@@ -79,8 +79,9 @@ def runtime(info):
     require(set(ports) == {"3000/tcp"} and ports["3000/tcp"] and all(p["HostPort"] == "3100" for p in ports["3000/tcp"]), "port-drift")
     host = info["HostConfig"]
     require(not host.get("Privileged") and not any(m["Destination"].endswith("docker.sock") for m in info["Mounts"]), "unsafe-runtime")
-    # Hash all effective host settings and secrets privately; never serialize inspect/Env to logs.
-    return fingerprint({"env": {k: env[k] for k in [*EXPECTED_ENV, "DATABASE_URL", "SETTINGS_ENCRYPTION_KEY"]}, "mounts": sorted(mounts.items()), "host": host})
+    # Include every effective setting, not only the known notebook environment variables.
+    from engine import settings_fingerprint
+    return settings_fingerprint(info)
 
 
 def template(xml, info):
@@ -95,6 +96,9 @@ def template(xml, info):
     require(len(targets) == len(set(targets)), "duplicate-template-target")
     values = {c.get("Target"): c.text or "" for c in configs}
     actual_env = dict(item.split("=", 1) for item in info["Config"]["Env"] if "=" in item)
+    for item in configs:
+        if item.get("Type") == "Variable":
+            require(actual_env.get(item.get("Target")) == (item.text or ""), "template-custom-environment-drift")
     for key in [*EXPECTED_ENV, "DATABASE_URL", "SETTINGS_ENCRYPTION_KEY"]:
         require(values.get(key) == actual_env.get(key), "template-environment-drift")
     require(values.get("/data/uploads") == UPLOADS and values.get("/data/backups") == BACKUPS and values.get("3000") == "3100", "template-path-or-port-drift")

@@ -63,17 +63,22 @@ class GitHub:
             require(archive.getinfo(filename).file_size <= MAX_BYTES, "artifact-entry-too-large")
             return archive.read(filename)
 
-    def run(self, run_id, workflow, branch=None):
+    def run(self, run_id, workflow, branch=None, delivering=False):
         require(re.fullmatch("[1-9][0-9]*", str(run_id)), "invalid-run-id")
         run = self.api(f"/actions/runs/{run_id}")
         require(run["repository"]["full_name"] == REPOSITORY and run["path"] == ".github/workflows/" + workflow, "wrong-workflow")
-        require(run["status"] == "completed" and run["conclusion"] == "success", "workflow-not-successful")
+        if delivering:
+            require(run["status"] in ("in_progress", "completed") and run.get("conclusion") in (None, "success"), "workflow-not-deliverable")
+            jobs = self.api(f"/actions/runs/{run_id}/attempts/{run['run_attempt']}/jobs?per_page=100")["jobs"]
+            require(any(job["name"] == "approve" and job["conclusion"] == "success" for job in jobs), "approval-job-not-successful")
+        else:
+            require(run["status"] == "completed" and run["conclusion"] == "success", "workflow-not-successful")
         if branch:
             require(run["head_branch"] == branch, "wrong-workflow-branch")
         return run
 
     def protection(self):
-        environment = self.api("/environments/production-unraid")
+        environment = self.api("/environments/production")
         rules = environment.get("protection_rules", [])
         reviewers = [person["reviewer"]["id"] for rule in rules if rule.get("type") == "required_reviewers" for person in rule.get("reviewers", []) if person.get("type") == "User"]
         require(reviewers, "required-individual-reviewers-required")
@@ -94,8 +99,8 @@ def build_manifest(github, run_id):
     return value, raw
 
 
-def approved(github, run_id):
-    run = github.run(run_id, "unraid-production-approval.yml", "main")
+def approved(github, run_id, delivering=False):
+    run = github.run(run_id, "unraid-production-approval.yml", "main", delivering=delivering)
     require(run["event"] == "workflow_dispatch", "manual-approval-required")
     value = json.loads(github.artifact(run_id, "approved-unraid-update", "approved-request.json"))
     require(str(value.get("approval_run_id")) == str(run_id), "approval-run-mismatch")
@@ -116,12 +121,17 @@ def main():
     previous = digest(os.environ["PREVIOUS_IMAGE"])
     require(previous != candidate["image"], "already-current")
     review_sha = checksum(os.environ["REVIEW_SHA256"])
+    preparation = os.environ["PREPARATION_ID"]
+    require(re.fullmatch("[0-9a-f]{32}", preparation), "invalid-preparation-id")
+    operation = os.environ["OPERATION"]
+    require(operation in ("deploy", "rollback"), "invalid-operation")
     if sys.argv[1:] == ["issue"]:
         github.manual_approval(os.environ["GITHUB_RUN_ID"])
         value = {"format": 1, "repository": REPOSITORY, "image": candidate["image"], "previous_image": previous,
                  "manifest_sha256": hash_bytes(raw), "review_sha256": review_sha,
                  "publish_run_id": os.environ["PUBLISH_RUN_ID"], "approval_run_id": os.environ["GITHUB_RUN_ID"],
-                 "issued_at": dt.datetime.now(dt.timezone.utc).isoformat()}
+                 "issued_at": dt.datetime.now(dt.timezone.utc).isoformat(), "operation": operation,
+                 "preparation_id": preparation, "control_sha": os.environ["GITHUB_SHA"]}
         Path("approved-request.json").write_text(json.dumps(value, indent=2) + "\n", encoding="utf-8")
     else:
         require(sys.argv[1:] == ["validate"], "invalid-mode")

@@ -1,12 +1,16 @@
 {
-  "template_path": null,
-  "postgres_container": null,
-  "postgres_major": null,
-  "database": null,
-  "database_user": null,
+  "unraid_version": "7.3.2",
+  "template_path": "/boot/config/plugins/dockerMan/templates-user/my-notebook.xml",
+  "postgres_template_path": "/boot/config/plugins/dockerMan/templates-user/my-notebook-postgres.xml",
+  "postgres_data_path": "/mnt/user/appdata/note/postgres",
+  "postgres_container": "notebook-postgres",
+  "postgres_major": 17,
+  "database": "notebook",
+  "database_user": "notebook",
   "postgres_socket": null,
-  "verification_container": null,
-  "verification_database": null,
-  "verification_user": null,
-  "verification_socket": null
+  "managed_verification": true,
+  "execution_enabled": false,
+  "approval_mode": "required-reviewers",
+  "github_token_file": "/mnt/user/appdata/notebook-deploy-control/github-token",
+  "trusted_control_hashes": {}
 }

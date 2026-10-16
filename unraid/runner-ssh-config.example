@@ -1,0 +1,9 @@
+# Install root-owned, mode 0644 as /etc/notebook-deploy/ssh_config.
+# Replace the port with the actual LAN SSH port before enabling the workflow.
+Host notebook-production
+    HostName 192.168.110.11
+    Port REPLACE_WITH_ACTUAL_LAN_SSH_PORT
+    User root
+    RequestTTY no
+    ForwardAgent no
+    ForwardX11 no

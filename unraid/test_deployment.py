@@ -104,8 +104,11 @@ class ValidationTests(unittest.TestCase):
             approved_request(valid, state, "e" * 64)
 
     def test_missing_postgres_information_does_not_default_to_template_example(self):
-        with self.assertRaises(ValueError):
-            deploy.config(Path(__file__).with_name("deployment.example.json"))
+        with tempfile.TemporaryDirectory() as directory:
+            path = Path(directory) / "profile.json"
+            path.write_text('{"managed_verification": true}', encoding="utf-8")
+            with self.assertRaises(ValueError):
+                deploy.config(path)
 
     def test_database_failure_never_prints_docker_stderr(self):
         from types import SimpleNamespace

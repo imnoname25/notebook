@@ -1,8 +1,16 @@
-name: Approve Unraid update
+name: Deploy Notebook to Unraid (manual)
 
 on:
   workflow_dispatch:
     inputs:
+      operation:
+        description: Deploy release or restore previous application (unchanged schema only)
+        type: choice
+        options: [deploy, rollback]
+        required: true
+      preparation_id:
+        description: Private local preparation ID (32 lowercase hex characters)
+        required: true
       publish_run_id:
         description: Successful stable-tag Docker image workflow run ID
         required: true
@@ -23,7 +31,7 @@ concurrency:
 
 jobs:
   validate:
-    if: github.ref == 'refs/heads/main' && vars.UNRAID_APPROVAL_ENABLED == 'true'
+    if: github.ref == 'refs/heads/main' && vars.UNRAID_DEPLOY_ENABLED == 'true'
     runs-on: ubuntu-latest
     timeout-minutes: 5
     steps:
@@ -34,13 +42,15 @@ jobs:
           PUBLISH_RUN_ID: ${{ inputs.publish_run_id }}
           PREVIOUS_IMAGE: ${{ inputs.previous_image }}
           REVIEW_SHA256: ${{ inputs.review_sha256 }}
+          PREPARATION_ID: ${{ inputs.preparation_id }}
+          OPERATION: ${{ inputs.operation }}
         run: python3 unraid/approval.py validate
 
   approve:
     needs: validate
     runs-on: ubuntu-latest
     timeout-minutes: 5
-    environment: production-unraid
+    environment: production
     steps:
       - uses: actions/checkout@v7
       - name: Issue approved intent only (no connection to Unraid)
@@ -49,6 +59,8 @@ jobs:
           PUBLISH_RUN_ID: ${{ inputs.publish_run_id }}
           PREVIOUS_IMAGE: ${{ inputs.previous_image }}
           REVIEW_SHA256: ${{ inputs.review_sha256 }}
+          PREPARATION_ID: ${{ inputs.preparation_id }}
+          OPERATION: ${{ inputs.operation }}
         run: python3 unraid/approval.py issue
       - uses: actions/upload-artifact@v6
         with:
@@ -56,3 +68,17 @@ jobs:
           path: approved-request.json
           if-no-files-found: error
           retention-days: 7
+
+  deliver:
+    needs: approve
+    # Dedicated LAN VM, non-root runner, NO Docker socket and no production filesystem mounts.
+    # No checkout or downloaded scripts: only an administrator-installed fixed launcher.
+    if: github.ref == 'refs/heads/main' && vars.UNRAID_DEPLOY_ENABLED == 'true'
+    runs-on: [self-hosted, linux, x64, notebook-production]
+    timeout-minutes: 90
+    permissions: {}
+    steps:
+      - name: Deliver approved run ID over restricted LAN SSH
+        env:
+          APPROVAL_RUN_ID: ${{ github.run_id }}
+        run: /opt/notebook-deploy/dispatch "$APPROVAL_RUN_ID"

@@ -10,8 +10,10 @@
 ## Существующие workflow
 
 Сборки не дублируются: прежние Android и Docker workflows продолжают выполнять свои задачи.
-Дополнительно существует `unraid-production-approval.yml` только для ручного одобрения заявки;
-он не собирает образы и не подключается к Unraid. По умолчанию отключён Repository Variable.
+Дополнительно существует `unraid-production-approval.yml` для ручного deployment/rollback;
+он использует готовый release image и Environment `production`. Выделенная runner VM передаёт
+только run ID по ограниченному LAN SSH. Workflow отключён Variable `UNRAID_DEPLOY_ENABLED`,
+а локальное исполнение — отдельным `execution_enabled: false` до установки и репетиции.
 
 | Событие | Docker image | Android client |
 | --- | --- | --- |
@@ -101,8 +103,9 @@ Push tag из локального Git запускает оба существ�
 `docker-compose.update.yml` — opt-in overlay для уже существующего Compose deployment,
 с обязательным `NOTEBOOK_UPDATE_IMAGE` (digest). Для обычных XML installations использовать
 тот же digest в поле Repository существующего контейнера, сохраняя все mappings/env.
-Ни CI, ни release helper не подключаются к Unraid, не применяют production migrations
-и не содержат deploy credentials. Для существующей XML установки на 3100 с paths `/note`
+Сборочные CI и release helper не подключаются к Unraid. Отдельный manual deploy использует
+локальный обработчик с независимой проверкой approval; credentials хранятся только локально.
+Для существующей XML установки на 3100 с paths `/note`
 использовать [отдельный production runbook](unraid-production.md), а не Compose overlay.
 Новых runtime secrets/env нет; optional
 `NOTEBOOK_UPDATE_IMAGE` описан в `.env.example`.

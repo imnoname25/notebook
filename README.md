@@ -125,9 +125,10 @@ npm run dev
 ## Docker / Unraid
 
 Для существующего Unraid-контейнера без перехода на Compose подготовлены
-[локальные backup/verification tools и GitHub Environment approval](docs/unraid-production.md).
-Production-подключение блокируется до получения параметров PostgreSQL и пользовательского XML;
-workflow выдаёт только одобренную заявку, а финальный Apply остаётся в штатном Unraid WebGUI.
+[ручной workflow и локальное обновление через существующий XML](docs/unraid-production.md).
+Environment `production` подтверждает заявку; выделенный runner передаёт её ID по ограниченному LAN SSH.
+Локальный обработчик проверяет заявку, создаёт backup с пробным restore и сохраняет настройки контейнера.
+Исполнение выключено по умолчанию до установки, репетиции и отдельного разрешения владельца.
 
 Готовый production image публикуется workflow в `ghcr.io/imnoname25/notebook`. Unraid использует два XML template: `Notebook PostgreSQL` и `Notebook`; исходники, npm и Compose на сервере не нужны. Единственный инфраструктурный prerequisite — custom network:
 

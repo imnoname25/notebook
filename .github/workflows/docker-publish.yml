@@ -60,7 +60,7 @@ jobs:
         run: npm run validate:unraid
       - name: Validate Docker packaging
         run: npm run validate:docker
-      - name: Test Unraid preparation tools without Docker access
+      - name: Test Unraid deployment safeguards without Docker access
         run: python3 -m unittest discover -s unraid -p 'test_*.py'
       - name: Record source and migration identity
         run: node scripts/create-image-manifest.mjs > image-source.json
