@@ -19,6 +19,7 @@ import {
   X,
 } from "lucide-react";
 import { useTheme } from "next-themes";
+import { ThemeSettings } from "./theme-settings";
 import { useRouter } from "next/navigation";
 import { Button, buttonVariants } from "@/components/ui/button";
 import { api, jsonOptions } from "@/lib/client-api";
@@ -1342,6 +1343,7 @@ function AppearancePreferencesSettings({
   if (!settings) return <Loader2 className="animate-spin" />;
   return (
     <Section title={t("appearance.settings")}>
+      <ThemeSettings />
       <Field label={t("appearance.sectionIntensity")}>
         <select
           className="input"

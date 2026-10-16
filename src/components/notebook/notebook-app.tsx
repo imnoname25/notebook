@@ -21,6 +21,7 @@ import {
   Sun,
 } from "lucide-react";
 import { useTheme } from "next-themes";
+import { isDarkTheme, nextTheme, themeLabel } from "@/lib/themes";
 import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import { api, jsonOptions } from "@/lib/client-api";
@@ -1185,7 +1186,7 @@ export function NotebookApp({
       id: "theme",
       title: t("commands.toggleTheme"),
       aliases: ["theme", "dark", "light", "тема", "тёмная", "светлая"],
-      run: () => setTheme(resolvedTheme === "dark" ? "light" : "dark"),
+      run: () => setTheme(nextTheme(theme)),
     },
     {
       id: "settings",
@@ -1291,11 +1292,7 @@ export function NotebookApp({
         onSettings={() => setSettingsOpen(true)}
         onTheme={() =>
           setTheme(
-            theme === "system"
-              ? "light"
-              : theme === "light"
-                ? "dark"
-                : "system",
+            nextTheme(theme),
           )
         }
         onChangeServer={changeAndroidServer}
@@ -1362,20 +1359,16 @@ export function NotebookApp({
             size="icon"
             className="size-11"
             aria-label="Переключить тему"
-            title={`Тема: ${theme === "system" ? "системная" : theme === "dark" ? "тёмная" : "светлая"}`}
+            title={`Тема: ${themeLabel(theme)}`}
             onClick={() =>
               setTheme(
-                theme === "system"
-                  ? "light"
-                  : theme === "light"
-                    ? "dark"
-                    : "system",
+                nextTheme(theme),
               )
             }
           >
             {theme === "system" ? (
               <Monitor size={17} />
-            ) : resolvedTheme === "dark" ? (
+            ) : isDarkTheme(resolvedTheme) ? (
               <Moon size={17} />
             ) : (
               <Sun size={17} />
@@ -1633,6 +1626,13 @@ export function NotebookApp({
                   Экспортировать блокнот
                 </span>
               </a>
+            )}
+            {actionTarget.type === "section" && (
+              <button className="block w-full rounded-lg px-3 py-2 text-left text-sm hover:bg-accent" onClick={() => {
+                const section = actionTarget.item;
+                setActionTarget(null);
+                void addSection(section.notebookId, section.id);
+              }}>Добавить вложенный раздел</button>
             )}
             {actionTarget.type === "section" && (
               <button

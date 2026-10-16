@@ -1,11 +1,14 @@
 @import "tailwindcss";
 @source "../../node_modules/@blocknote/shadcn";
 
-@custom-variant dark (&:is(.dark *));
+@custom-variant dark (&:is(:is(.dark, .atmospheric) *));
 
 :root {
-  --radius: 0.75rem;
-  --background: oklch(0.985 0.002 247);
+  color-scheme: light;
+  --surface-shadow: 0 3px 18px rgb(15 23 42 / 0.035);
+  --surface-border: color-mix(in srgb, var(--border) 60%, transparent);
+  --radius: 0.875rem;
+  --background: oklch(0.979 0.004 255);
   --foreground: oklch(0.2 0.01 260);
   --card: oklch(1 0 0);
   --card-foreground: var(--foreground);
@@ -23,11 +26,12 @@
   --border: oklch(0.9 0.006 250);
   --input: oklch(0.88 0.008 250);
   --ring: oklch(0.56 0.08 258);
-  --sidebar: oklch(0.97 0.004 250);
+  --sidebar: oklch(0.962 0.007 255);
   --sidebar-accent: oklch(0.925 0.018 252);
 }
 
-.dark {
+:is(.dark, .atmospheric) {
+  color-scheme: dark;
   --background: oklch(0.16 0.008 260);
   --foreground: oklch(0.94 0.004 250);
   --card: oklch(0.19 0.009 260);
@@ -50,6 +54,35 @@
   --sidebar-accent: oklch(0.25 0.025 257);
 }
 
+/* Atmospheric shares the dark palette, with opaque fallbacks for glass surfaces. */
+.atmospheric {
+  --background: #131923;
+  --card: #1c2533;
+  --popover: #222e40;
+  --sidebar: #182332;
+  --primary: #a5c7fa;
+  --muted-foreground: #a8b6ca;
+  --surface-shadow: 0 8px 28px rgb(0 0 0 / 0.12);
+  --surface-border: rgb(187 208 239 / 0.12);
+}
+.atmospheric .notebook-app-shell {
+  background: radial-gradient(ellipse at 0 0, #283953 0, transparent 55%), radial-gradient(ellipse at 100% 100%, #2d2945 0, transparent 55%), var(--background);
+}
+.atmospheric :is(.notebook-sidebar, .notebook-page-list, .notebook-app-shell > header) {
+  background: var(--sidebar);
+}
+@supports (backdrop-filter: blur(12px)) {
+  .atmospheric :is(.notebook-sidebar, .notebook-page-list, .notebook-app-shell > header) {
+    background: color-mix(in srgb, var(--sidebar) 78%, transparent);
+    backdrop-filter: blur(12px);
+  }
+}
+@media (prefers-reduced-transparency: reduce) {
+  .atmospheric :is(.notebook-sidebar, .notebook-page-list, .notebook-app-shell > header) {
+    background: var(--sidebar);
+    backdrop-filter: none;
+  }
+}
 @theme inline {
   --color-background: var(--background);
   --color-foreground: var(--foreground);
@@ -91,7 +124,7 @@ body {
   margin: 0;
   background: var(--background);
   color: var(--foreground);
-  font-family: var(--font-sans);
+  font-family: var(--font-sans, ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif);
   overflow-wrap: anywhere;
 }
 button,
@@ -125,6 +158,9 @@ button,
   min-height: 4rem;
 }
 .notebook-mobile-sheet {
+  max-height: calc(100dvh - 1rem);
+  overflow-y: auto;
+  overscroll-behavior: contain;
   padding-bottom: max(
     1rem,
     var(--safe-area-inset-bottom, env(safe-area-inset-bottom, 0px))
@@ -521,7 +557,7 @@ button,
   background: rgb(var(--card-rgb, 255 255 255) / 0.56);
   pointer-events: none;
 }
-.dark .notebook-page-surface[data-background-type="image"]::before {
+:is(.dark, .atmospheric) .notebook-page-surface[data-background-type="image"]::before {
   background: rgb(15 18 24 / 0.64);
 }
 .notebook-page-surface[data-background-type="image"][data-background-overlay="none"]::before {
@@ -976,7 +1012,7 @@ button,
 }
 .notebook-code-wrap {
   position: absolute;
-  right: 6.2rem;
+  right: 8.25rem;
   top: 0.45rem;
   z-index: 2;
   border-radius: 0.4rem;
@@ -1174,9 +1210,9 @@ button,
 }
 
 .notebook-surface {
-  border: 1px solid color-mix(in srgb, var(--border) 72%, transparent);
+  border: 1px solid var(--surface-border);
   background: color-mix(in srgb, var(--card) 92%, var(--background));
-  box-shadow: 0 1px 2px rgb(15 23 42 / 0.035);
+  box-shadow: var(--surface-shadow);
 }
 .notebook-cover-tile {
   display: flex;
@@ -1198,6 +1234,9 @@ button,
 [data-notebook-cover="night"] { background: linear-gradient(135deg, #020617, #312e81 62%, #0e7490); }
 [data-notebook-cover="aurora"] { background: linear-gradient(135deg, #0f766e, #7c3aed 58%, #db2777); }
 
+@keyframes notebook-fade-out { from { opacity: 1; } to { opacity: 0; } }
+.notebook-dialog-overlay[data-state="closed"], .notebook-mobile-sheet[data-state="closed"], .notebook-dialog-content[data-state="closed"] { animation: notebook-fade-out 120ms ease-in; }
+[role="menu"][data-state="open"] { animation: notebook-fade-in 120ms ease-out; }
 @keyframes notebook-fade-in { from { opacity: 0; } to { opacity: 1; } }
 @keyframes notebook-dialog-in { from { opacity: 0; transform: translate(-50%, -48%) scale(.985); } to { opacity: 1; transform: translate(-50%, -50%) scale(1); } }
 @keyframes notebook-mobile-screen-in { from { opacity: 0; transform: translateX(10px); } to { opacity: 1; transform: translateX(0); } }
@@ -1339,12 +1378,70 @@ button,
   .notebook-editor .bn-block:has(> .bn-block-content [data-columns]) > .bn-block-group { grid-template-columns: minmax(0, 1fr); }
 }
 
+/* Shared interaction and navigation surfaces. */
+.notebook-app-shell, .notebook-sidebar, .notebook-page-list, .notebook-page-surface,
+.notebook-surface, .sticker-board-shell {
+  transition: background-color 180ms ease, color 180ms ease, border-color 180ms ease;
+}
+.notebook-navigation-heading { margin-top: 0.25rem; border-top: 1px solid var(--surface-border); padding-top: 0.5rem; }
+.notebook-navigation-tree { padding-bottom: 0.5rem; scrollbar-width: thin; }
+.notebook-tree-expansion { display: grid; grid-template-rows: 0fr; opacity: 0; transition: grid-template-rows 180ms ease, opacity 180ms ease; }
+.notebook-tree-expansion[data-expanded="true"] { grid-template-rows: 1fr; opacity: 1; }
+.notebook-tree-children { min-height: 0; overflow: hidden; margin-left: 1.5rem; border-left: 1px solid var(--surface-border); padding-left: 0.25rem; }
+.notebook-tree-chevron { transform: rotate(-90deg); transition: transform 180ms ease; }
+.notebook-tree-chevron[data-expanded="true"] { transform: rotate(0); }
+.notebook-notebook-row[aria-current="page"] { box-shadow: inset 0 0 0 1px rgb(var(--notebook-row-rgb, 100 116 139) / 0.18); }
+.notebook-theme-option { display: grid; gap: 0.6rem; min-height: 5rem; border: 1px solid var(--border); border-radius: 0.75rem; padding: 0.75rem; text-align: left; font-size: 0.85rem; transition: border-color 140ms ease, background-color 140ms ease; }
+.notebook-theme-option:hover { background: var(--accent); }
+.notebook-theme-option[aria-pressed="true"] { border-color: var(--primary); box-shadow: 0 0 0 1px var(--primary); }
+.notebook-theme-preview { display: flex; height: 2.5rem; gap: 0.3rem; padding: 0.3rem; border-radius: 0.4rem; background: #edf0f5; }
+.notebook-theme-preview > span:first-child { width: 28%; border-radius: 0.2rem; background: #cdd7e6; }
+.notebook-theme-preview > span:last-child { flex: 1; border-radius: 0.2rem; background: #fff; }
+[data-theme-choice="dark"] .notebook-theme-preview { background: #161d29; }
+[data-theme-choice="dark"] .notebook-theme-preview > span { background: #303c50; }
+[data-theme-choice="atmospheric"] .notebook-theme-preview { background: linear-gradient(125deg, #314665, #38314f); }
+[data-theme-choice="atmospheric"] .notebook-theme-preview > span { background: rgb(218 232 255 / 0.18); }
+[data-theme-choice="system"] .notebook-theme-preview { background: linear-gradient(90deg, #edf0f5 50%, #161d29 50%); }
+.notebook-editor .bn-editor { line-height: 1.7; }
+.notebook-editor .bn-inline-content a { text-underline-offset: 0.2em; text-decoration-thickness: 1px; }
+/* Nesting is already expressed by indentation. Suppress decorative guide strokes,
+   never list markers (which live on .bn-block-content) or user text. */
+.notebook-editor .bn-block-group .bn-block-group > .bn-block-outer::before { content: none; }
+.notebook-today { scroll-padding-block: 1rem; }
+.notebook-today > div > header { flex-wrap: wrap; }
+.notebook-today .notebook-surface { border-radius: 1rem; }
+.quick-note-card { box-shadow: var(--surface-shadow); }
+button:focus-visible, a:focus-visible, summary:focus-visible { outline: 2px solid var(--ring); outline-offset: 2px; }
+@media (hover: hover) and (pointer: fine) {
+  .notebook-section-add { opacity: 0; }
+  .notebook-section-row:hover .notebook-section-add, .notebook-section-add:focus-visible { opacity: 1; }
+}
+@media (hover: none), (pointer: coarse) {
+  .notebook-sidebar [data-nav-row] > button { opacity: 1; }
+}
+@media (max-width: 767px) {
+  .notebook-sidebar [data-nav-row] > button:first-child, .notebook-sidebar .notebook-section-add { display: none; }
+  .notebook-navigation-tree { padding-bottom: 5rem; }
+  .notebook-tree-children { margin-left: 0.75rem; }
+  .notebook-editor-header { padding-top: 1.25rem; row-gap: 0.5rem; }
+  .notebook-page-title-input { font-size: 1.75rem; }
+  .notebook-today > div > header { gap: 0.6rem; margin-bottom: 1rem; }
+  .notebook-today > div > header h1 { font-size: 1.35rem; }
+  .notebook-action-sheet { max-height: calc(100dvh - 3rem); overflow-y: auto; padding-bottom: max(0.5rem, env(safe-area-inset-bottom, 0px)); }
+  .notebook-dialog-content { max-height: calc(100dvh - 1rem); overflow-y: auto; }
+  .sticker-board-shell { padding-bottom: calc(5rem + env(safe-area-inset-bottom, 0px)); }
+}
+/* Portaled menus and dialogs also respect reduced motion. */
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after { scroll-behavior: auto !important; animation-duration: 0.01ms !important; animation-iteration-count: 1 !important; transition-duration: 0.01ms !important; }
+}
 @media print {
   @page {
     margin: 18mm;
   }
   :root,
-  .dark {
+  :is(.dark, .atmospheric) {
+  color-scheme: dark;
     --background: #fff;
     --foreground: #18181b;
     --card: #fff;
@@ -1360,6 +1457,7 @@ button,
     background: #fff !important;
     color: #18181b !important;
   }
+  .notebook-app-shell { background-image: none !important; }
   .notebook-no-print,
   .bn-toolbar,
   .notebook-code-copy,

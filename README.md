@@ -28,12 +28,14 @@ Notebook — простая self-hosted цифровая записная кни
 - BlockNote: форматирование, заголовки H1–H3, списки, checklist, quote, code, ссылки, таблицы и изображения;
 - autosave заголовка и JSON-контента с debounce 750 мс и статусом сохранения;
 - локальные пользовательские uploads с проверкой MIME-сигнатуры и лимитом размера;
-- светлая, тёмная и системная темы;
+- светлая, тёмная, атмосферная и системная темы; выбор доступен каждому пользователю в «Настройки → Оформление» и сохраняется в браузере;
 - responsive layout от 360 px и PWA manifest;
 - healthcheck приложения и PostgreSQL;
 - Docker Compose с двумя persistent volumes.
 - печать/PDF-friendly mode, улучшенный Markdown и standalone HTML ZIP export;
 - независимые WebDAV и S3-compatible remote backup copies, remote retention/restore и operational notifications.
+
+Подробности визуального обновления и диагностики старых записей: [Visual refresh](docs/visual-refresh.md).
 
 Offline sync намеренно не входит в текущий MVP.
 

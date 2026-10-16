@@ -12,6 +12,7 @@ import { SideMenuController, SuggestionMenuController, useCreateBlockNote } from
 import { BlockNoteView } from "@blocknote/shadcn";
 import "@blocknote/shadcn/style.css";
 import { useTheme } from "next-themes";
+import { isDarkTheme } from "@/lib/themes";
 import Image from "next/image";
 import { Check, CloudAlert, FileText, Loader2, Variable } from "lucide-react";
 import { api, jsonOptions } from "@/lib/client-api";
@@ -536,7 +537,7 @@ export function RichTextEditor({
           editor={editor}
           slashMenu={false}
           sideMenu={false}
-          theme={resolvedTheme === "dark" ? "dark" : "light"}
+          theme={isDarkTheme(resolvedTheme) ? "dark" : "light"}
           onChange={() => {
             scheduleOutline();
             scheduleHashtags();

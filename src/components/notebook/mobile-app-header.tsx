@@ -18,6 +18,7 @@ import {
 import * as Dialog from "@radix-ui/react-dialog";
 import { Button } from "@/components/ui/button";
 import { t } from "@/lib/i18n/messages";
+import { isDarkTheme, themeLabel } from "@/lib/themes";
 import { NotificationCenter } from "./notification-center";
 
 type MobileAppHeaderProps = {
@@ -44,7 +45,7 @@ export function MobileAppHeader(props: MobileAppHeaderProps) {
   const ThemeIcon =
     props.theme === "system"
       ? Monitor
-      : props.resolvedTheme === "dark"
+      : isDarkTheme(props.resolvedTheme)
         ? Moon
         : Sun;
   const close = () => props.onMenuOpenChange(false);
@@ -135,7 +136,7 @@ export function MobileAppHeader(props: MobileAppHeaderProps) {
               <Settings size={18} />
               <span>Настройки</span>
             </button>
-            <button
+            <button aria-label="Переключить тему" title={`Тема: ${themeLabel(props.theme)}`}
               className="flex min-h-12 w-full items-center gap-3 rounded-lg px-3 text-base hover:bg-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
               onClick={() => {
                 close();
@@ -143,7 +144,7 @@ export function MobileAppHeader(props: MobileAppHeaderProps) {
               }}
             >
               <ThemeIcon size={18} />
-              <span>Переключить тему</span>
+              <span>Тема: {themeLabel(props.theme)}</span>
             </button>
             {props.androidClient && (
               <button

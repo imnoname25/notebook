@@ -10,3 +10,23 @@ describe("Notebook custom editor blocks", () => {
     expect(blockNoteContentSchema.parse(content)).toEqual(content);
   });
 });
+
+// A presentation cleanup must never strip punctuation or flatten legacy nesting.
+describe("legacy content preservation", () => {
+  it.each(["1С БСО", "(1С БСО)", "(договор № 1)", "((nested))", "[1С] {БСО}"])("preserves %s through validation, normalization and serialization", (text) => {
+    const legacy = [{ id: "legacy-parent", type: "paragraph", content: [{ type: "text", text: "Родитель", styles: {} }], children: [
+      { id: "legacy-child", type: "paragraph", content: [{ type: "text", text, styles: { bold: true } }], children: [] },
+      { type: "bulletListItem", content: text },
+      { type: "numberedListItem", content: text },
+    ] }];
+    const original = structuredClone(legacy);
+    const result = normalizeEditorBlocks(blockNoteContentSchema.parse(JSON.parse(JSON.stringify(legacy))));
+    expect(result).toEqual(original);
+    expect(legacy).toEqual(original);
+    expect(JSON.parse(JSON.stringify(result))).toEqual(original);
+  });
+  it("does not insert punctuation into a new empty paragraph", () => {
+    expect(normalizeEditorBlocks([{ type: "paragraph", content: [] }]))
+      .toEqual([{ type: "paragraph", content: [] }]);
+  });
+});

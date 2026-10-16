@@ -4,7 +4,6 @@ import { useEffect, useState } from "react";
 
 import {
   ChevronDown,
-  ChevronRight,
   Ellipsis,
   FolderPlus,
   GripVertical,
@@ -163,7 +162,7 @@ function SectionTree({
                   <Ellipsis size={14} />
                 </button>
                 <button
-                  className="mr-0.5 flex size-11 shrink-0 items-center justify-center rounded hover:bg-background md:size-7 md:opacity-0 md:group-hover:opacity-100 md:focus-visible:opacity-100"
+                  className="notebook-section-add mr-0.5 flex size-11 shrink-0 items-center justify-center rounded hover:bg-background md:size-7 md:opacity-0 md:group-hover:opacity-100 md:focus-visible:opacity-100"
                   aria-label="Добавить вложенный раздел"
                   onClick={() => onAdd(section.id)}
                 >
@@ -247,21 +246,21 @@ export function NotebookSidebar(props: Props) {
         <StickyNote size={18}/>
         {t("quickNotes.inbox")}
       </button>
-      <div className="mb-1 flex h-9 items-center justify-between px-1.5">
-        <p className="text-[12.5px] font-semibold uppercase tracking-[0.12em] text-muted-foreground">
+      <div className="notebook-navigation-heading mb-1 flex min-h-11 items-center justify-between px-2">
+        <p className="text-[11px] font-semibold uppercase tracking-[0.12em] text-muted-foreground">
           {t("navigation.notebooks")}
         </p>
         <Button
           variant="ghost"
           size="icon"
-          className="size-8"
+          className="size-11 md:size-8"
           onClick={props.onAddNotebook}
           aria-label="Добавить блокнот"
         >
           <Plus size={16} />
         </Button>
       </div>
-      <div className="min-h-0 flex-1 space-y-1 overflow-y-auto">
+      <div className="notebook-navigation-tree min-h-0 flex-1 space-y-1 overflow-y-auto">
         {ordered.length === 0 && (
           <div className="p-3 text-sm text-muted-foreground">
             <p className="mb-3">Здесь появятся ваши блокноты.</p>
@@ -333,7 +332,7 @@ export function NotebookSidebar(props: Props) {
                         aria-expanded={expanded}
                         onClick={() => toggleExpanded(notebook.id)}
                       >
-                        {expanded ? <ChevronDown size={15} /> : <ChevronRight size={15} />}
+                        <ChevronDown size={15} className="notebook-tree-chevron" data-expanded={expanded} />
                       </button>
                       <button
                         title={notebook.title}
@@ -358,8 +357,8 @@ export function NotebookSidebar(props: Props) {
                         <Ellipsis size={15} />
                       </button>
                     </div>
-                    {expanded && (
-                      <div className="mt-0.5">
+                    <div className="notebook-tree-expansion" data-expanded={expanded} inert={!expanded} aria-hidden={!expanded}>
+                      <div className="notebook-tree-children">
                         <SectionTree
                           notebookId={notebook.id}
                           sections={notebook.sections}
@@ -382,7 +381,7 @@ export function NotebookSidebar(props: Props) {
                           Новый раздел
                         </button>
                       </div>
-                    )}
+                    </div>
                   </section>
                 )}
               </SortableItem>
