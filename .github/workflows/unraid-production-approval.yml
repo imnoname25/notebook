@@ -1,0 +1,58 @@
+name: Approve Unraid update
+
+on:
+  workflow_dispatch:
+    inputs:
+      publish_run_id:
+        description: Successful stable-tag Docker image workflow run ID
+        required: true
+      previous_image:
+        description: Current ghcr.io/imnoname25/notebook@sha256 digest from local preflight
+        required: true
+      review_sha256:
+        description: SHA-256 of the private local review.json, bound to verified backup and rehearsal
+        required: true
+
+permissions:
+  contents: read
+  actions: read
+
+concurrency:
+  group: notebook-unraid-production-approval
+  cancel-in-progress: false
+
+jobs:
+  validate:
+    if: github.ref == 'refs/heads/main' && vars.UNRAID_APPROVAL_ENABLED == 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v7
+      - name: Validate build and required Environment protection
+        env:
+          GH_TOKEN: ${{ github.token }}
+          PUBLISH_RUN_ID: ${{ inputs.publish_run_id }}
+          PREVIOUS_IMAGE: ${{ inputs.previous_image }}
+          REVIEW_SHA256: ${{ inputs.review_sha256 }}
+        run: python3 unraid/approval.py validate
+
+  approve:
+    needs: validate
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    environment: production-unraid
+    steps:
+      - uses: actions/checkout@v7
+      - name: Issue approved intent only (no connection to Unraid)
+        env:
+          GH_TOKEN: ${{ github.token }}
+          PUBLISH_RUN_ID: ${{ inputs.publish_run_id }}
+          PREVIOUS_IMAGE: ${{ inputs.previous_image }}
+          REVIEW_SHA256: ${{ inputs.review_sha256 }}
+        run: python3 unraid/approval.py issue
+      - uses: actions/upload-artifact@v6
+        with:
+          name: approved-unraid-update
+          path: approved-request.json
+          if-no-files-found: error
+          retention-days: 7

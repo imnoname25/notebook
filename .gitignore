@@ -46,3 +46,8 @@ next-env.d.ts
 /src/generated/prisma/
 /playwright-report/
 /test-results/
+
+# Local Unraid tooling bytecode/configuration; actual config and backups stay on Unraid.
+__pycache__/
+*.pyc
+unraid/deployment.local.json

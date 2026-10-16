@@ -60,6 +60,15 @@ jobs:
         run: npm run validate:unraid
       - name: Validate Docker packaging
         run: npm run validate:docker
+      - name: Test Unraid preparation tools without Docker access
+        run: python3 -m unittest discover -s unraid -p 'test_*.py'
+      - name: Record source and migration identity
+        run: node scripts/create-image-manifest.mjs > image-source.json
+      - uses: actions/upload-artifact@v6
+        with:
+          name: notebook-source-${{ github.sha }}
+          path: image-source.json
+          if-no-files-found: error
 
   smoke:
     needs: validate
@@ -230,6 +239,7 @@ jobs:
             type=sha,prefix=sha-
             type=sha,format=long,prefix=sha-
       - name: Build and publish multi-arch image
+        id: image
         uses: docker/build-push-action@v7
         with:
           context: .
@@ -245,3 +255,20 @@ jobs:
           cache-from: type=gha,scope=notebook-multiarch
           provenance: mode=max
           sbom: true
+      - uses: actions/download-artifact@v7
+        with:
+          name: notebook-source-${{ github.sha }}
+          path: image-metadata
+      - name: Bind published digest to checked source
+        env:
+          IMAGE_DIGEST: ${{ steps.image.outputs.digest }}
+        run: |
+          set -Eeuo pipefail
+          [[ "$IMAGE_DIGEST" =~ ^sha256:[0-9a-f]{64}$ ]]
+          jq --arg image "ghcr.io/imnoname25/notebook@$IMAGE_DIGEST" '. + {image: $image}' image-metadata/image-source.json > image-metadata/image.json
+      - uses: actions/upload-artifact@v6
+        with:
+          name: notebook-image-${{ github.sha }}
+          path: image-metadata/image.json
+          if-no-files-found: error
+          retention-days: 90

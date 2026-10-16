@@ -1,0 +1,12 @@
+{
+  "template_path": null,
+  "postgres_container": null,
+  "postgres_major": null,
+  "database": null,
+  "database_user": null,
+  "postgres_socket": null,
+  "verification_container": null,
+  "verification_database": null,
+  "verification_user": null,
+  "verification_socket": null
+}
