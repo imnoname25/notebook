@@ -71,14 +71,17 @@ jobs:
 
   deliver:
     needs: approve
-    # Dedicated LAN VM, non-root runner, NO Docker socket and no production filesystem mounts.
+    # Dedicated Windows LAN VM, non-administrator service, mandatory local job-start hook.
     # No checkout or downloaded scripts: only an administrator-installed fixed launcher.
     if: github.ref == 'refs/heads/main' && vars.UNRAID_DEPLOY_ENABLED == 'true'
-    runs-on: [self-hosted, linux, x64, notebook-production]
+    runs-on: [self-hosted, windows, x64, notebook-deploy]
     timeout-minutes: 90
     permissions: {}
+    defaults:
+      run:
+        shell: pwsh
     steps:
       - name: Deliver approved run ID over restricted LAN SSH
         env:
           APPROVAL_RUN_ID: ${{ github.run_id }}
-        run: /opt/notebook-deploy/dispatch "$APPROVAL_RUN_ID"
+        run: '& "C:\ProgramData\NotebookDeploy\runner-dispatch.ps1" -RunId $env:APPROVAL_RUN_ID'

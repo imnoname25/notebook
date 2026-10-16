@@ -14,6 +14,9 @@
 он использует готовый release image и Environment `production`. Выделенная runner VM передаёт
 только run ID по ограниченному LAN SSH. Workflow отключён Variable `UNRAID_DEPLOY_ENABLED`,
 а локальное исполнение — отдельным `execution_enabled: false` до установки и репетиции.
+Delivery использует Windows x64 runner (`notebook-deploy`), PowerShell 7 и встроенный OpenSSH;
+обязательный локальный job-start hook отклоняет PR/другие jobs до выполнения шагов.
+[Настройка Windows-службы и ACL](windows-runner.md); Linux launcher сохранён как прежний adapter.
 
 | Событие | Docker image | Android client |
 | --- | --- | --- |

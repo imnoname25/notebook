@@ -1,0 +1,9 @@
+# Administrator-owned: C:\ProgramData\NotebookDeploy\ssh_config
+# Replace the port with the verified actual Unraid LAN SSH port; no default assumption.
+Host notebook-production
+    HostName 192.168.110.11
+    Port REPLACE_WITH_ACTUAL_LAN_SSH_PORT
+    User root
+    RequestTTY no
+    ForwardAgent no
+    ForwardX11 no

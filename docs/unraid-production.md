@@ -22,9 +22,11 @@ sequenceDiagram
     Host->>Host: Изменить Repository существующего XML, проверить health
 ```
 
-Выбрана **отдельная Linux x64 VM с non-root self-hosted runner и ограниченным LAN SSH**.
-На VM нет Docker/socket, sudo, production mounts, паролей БД, ключа приложения или GitHub read token
-сервера. Deliver не делает checkout и не скачивает код: только root-owned локальный launcher.
+Выбрана **Windows x64 VM с self-hosted runner под отдельной непривилегированной service account**,
+PowerShell 7 и встроенным OpenSSH Client. [Установка Windows-службы и SSH](windows-runner.md).
+На VM нет Docker/socket, прав администратора у runner, production mounts, паролей БД, ключа
+приложения или GitHub read token сервера. WSL, Docker Desktop и Git Bash не нужны.
+Deliver не делает checkout и не скачивает код: только локальный launcher, защищённый ACL администратора.
 На Unraid работает заранее проверенный локальный Python gateway. Он принимает только
 `dispatch RUN_ID`, сам проверяет approval, pins, private review и одноразовый ledger.
 User Scripts может вручную запускать подготовку; **он не принимает события GitHub**.
@@ -32,7 +34,8 @@ Compose не используется. SSH/Docker API не открываютс�
 
 [GitHub предупреждает о компрометации self-hosted runners в публичных репозиториях](https://docs.github.com/en/actions/reference/security/secure-use).
 Labels/`if` не security boundary. Выделить runner только этому workflow/main через runner group
-restrictions, если доступны; не использовать в PR/build jobs. Защитить main/workflows review/ruleset.
+restrictions, если доступны; обязательный защищённый job-start hook отклоняет другие jobs до шагов.
+Не использовать runner в PR/build jobs. Защитить main/workflows review/ruleset.
 Firewall VM: исходящие GitHub HTTPS, DNS/NTP и SSH к одному Unraid, без доступа к БД/остальной LAN/
 admin UI. Предпочтительна одноразовая VM/ephemeral runner с пересозданием VM после job.
 Кража SSH-ключа не разрешает shell или неподтверждённый deploy: проверки выполняются на Unraid.
@@ -100,11 +103,11 @@ entrypoint с `prisma migrate deploy`; SQL проверяется до стар�
    Значения — 64 lowercase hex. Gateway сверяет Contents API на head_sha approved run. Изменение
    этих файлов требует нового локального review/pins; будущий workflow не получает root execution
    автоматически. Установленные модули обновлять только вручную после review.
-7. На VM создать отдельный Ed25519 key. Secret key 0600 только service user runner, родительский
-   каталог root-owned, не writable runner. `runner-dispatch.sh` → root-owned 0755
-   `/opt/notebook-deploy/dispatch`; `runner-ssh-config.example` → `/etc/notebook-deploy/ssh_config`,
-   заменить actual SSH port. До замены config намеренно не работает. `known_hosts` заполнить после
-   сверки host key, config/known_hosts root-owned 0644. Никакого agent forwarding.
+7. На Windows VM выполнить [инструкцию службы/SSH/ACL](windows-runner.md): отдельный Ed25519 key,
+   admin-owned `C:\ProgramData\NotebookDeploy`, read-only launcher/config/known_hosts для runner.
+   Secret key читает только service account и системные администраторы. Заменить actual SSH port,
+   host key сверить с консолью. Никакого agent forwarding. Прежний `runner-dispatch.sh` сохранён
+   для Linux; текущий workflow выбирает Windows, переключения на Linux автоматически нет.
 8. В persistent authorized_keys Unraid добавить public key (подставить actual IP VM):
 
    ```text
@@ -115,8 +118,9 @@ entrypoint с `prisma migrate deploy`; SQL проверяется до стар�
    root forced commands и persistence authorized_keys после reboot Unraid. Не ослаблять global
    root/password policy; если путь запрещён, нужен отдельно согласованный adapter. Ключу запрещены
    shell/scp/SFTP/PTY/forwarding. Firewall принимает SSH только с VM, WAN не открывать.
-9. Зарегистрировать non-root runner с labels `self-hosted,linux,x64,notebook-production`, изолировать
-   как выше. Registration token не хранить в repo. User Scripts — только ручная локальная подготовка,
+9. Зарегистрировать non-admin Windows service runner с labels `self-hosted,windows,x64,notebook-deploy`,
+   установить mandatory job-start hook и изоляцию по Windows runbook. Registration token не хранить
+   в repo. User Scripts — только ручная локальная подготовка,
    без расписания/webhook handler.
 10. Создать Environment **`production`**, branch `main`, required reviewers — конкретные User.
     Проверить approval API тестовым запуском. Запретить self-review, если есть другой reviewer;
@@ -230,6 +234,9 @@ create может оставить stopped container: разбирать по ID
 Docker CI запускает `python -m unittest discover -s unraid -p 'test_*.py'` до публикации. Unit/mock
 tests покрывают digest/approval/pins/replay, backup failure, drift до старта, health failure,
 settings preservation/rollback/schema-change denial. Они не заменяют Docker/Unraid integration.
+Также до публикации выполняется `pwsh -NoProfile -File unraid/test-windows-runner.ps1`: parser,
+allowlist jobs, SSH options и mock delivery без подключения к Unraid. На Windows дополнительно
+проверяются реальные native arguments через встроенный `ssh.exe -G`, который не подключается к серверу.
 
 На отдельном стенде проверить реальный sanitised settings snapshot (static IP/aliases/extra params/
 limits/restart), update, dump/restore failure, registry failure, config/XML drift, health timeout,

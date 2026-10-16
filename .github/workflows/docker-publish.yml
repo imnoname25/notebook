@@ -62,6 +62,9 @@ jobs:
         run: npm run validate:docker
       - name: Test Unraid deployment safeguards without Docker access
         run: python3 -m unittest discover -s unraid -p 'test_*.py'
+      - name: Test PowerShell deployment launcher without SSH access
+        shell: pwsh
+        run: ./unraid/test-windows-runner.ps1
       - name: Record source and migration identity
         run: node scripts/create-image-manifest.mjs > image-source.json
       - uses: actions/upload-artifact@v6
