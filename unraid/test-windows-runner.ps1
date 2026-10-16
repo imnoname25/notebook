@@ -126,3 +126,6 @@ try {
 } finally {
     foreach ($key in $original.Keys) { [Environment]::SetEnvironmentVariable($key, $original[$key]) }
 }
+# The rejected child deliberately exits 1. Actions' pwsh wrapper propagates LASTEXITCODE even when
+# every assertion succeeded, unlike `pwsh -File`. Report suite success only after assertions/cleanup.
+exit 0
