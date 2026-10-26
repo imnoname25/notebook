@@ -4,7 +4,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 
-describe("release preflight safety", { timeout: 30_000, hookTimeout: 30_000 }, () => {
+describe("release preflight safety", { timeout: 30_000 }, () => {
   let root;
   function git(...args) {
     const result = spawnSync("git", args, { cwd: root, encoding: "utf8" });
@@ -33,7 +33,7 @@ describe("release preflight safety", { timeout: 30_000, hookTimeout: 30_000 }, (
     git("add", ".");
     git("-c", "commit.gpgsign=false", "commit", "-m", "fixture");
     git("update-ref", "refs/remotes/origin/main", "HEAD");
-  });
+  }, 30_000);
   afterEach(() => {
     if (!root?.startsWith(join(tmpdir(), "notebook-release-"))) throw new Error("Unsafe fixture cleanup path");
     rmSync(root, { recursive: true, force: true });
