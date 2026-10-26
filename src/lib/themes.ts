@@ -1,4 +1,4 @@
-export const THEMES = ["system", "light", "dark", "atmospheric"] as const;
+export const THEMES = ["system", "light", "dark", "atmospheric", "studio-graphite", "studio-atelier"] as const;
 export type NotebookTheme = (typeof THEMES)[number];
 
 export const THEME_LABELS: Record<NotebookTheme, string> = {
@@ -6,6 +6,8 @@ export const THEME_LABELS: Record<NotebookTheme, string> = {
   light: "Светлая",
   dark: "Тёмная",
   atmospheric: "Атмосферная",
+  "studio-graphite": "Studio Graphite",
+  "studio-atelier": "Studio Atelier",
 };
 
 export function nextTheme(theme: string | undefined): NotebookTheme {
@@ -14,7 +16,7 @@ export function nextTheme(theme: string | undefined): NotebookTheme {
 }
 
 export function isDarkTheme(theme: string | undefined) {
-  return theme === "dark" || theme === "atmospheric";
+  return theme === "dark" || theme === "atmospheric" || theme === "studio-graphite";
 }
 
 export function themeLabel(theme: string | undefined) {

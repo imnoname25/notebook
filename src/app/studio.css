@@ -1,0 +1,334 @@
+/* Studio is an opt-in skin of the existing Notebook shell. Legacy themes keep
+   their identifiers and rules. Palette values live here, never in components. */
+:root:is(.studio-graphite, .studio-atelier) {
+  --radius: 0.375rem;
+  --studio-ui-font: "Segoe UI", -apple-system, BlinkMacSystemFont, Arial, sans-serif;
+  --studio-document-font: Georgia, Cambria, "Times New Roman", serif;
+  --studio-font-ui: 0.8125rem;
+  --studio-font-meta: 0.6875rem;
+  --studio-font-preview: 0.75rem;
+  --studio-font-body: 0.9375rem;
+  --studio-font-title: clamp(1.75rem, 2.5vw, 2.5rem);
+  --studio-syntax-blend: 25%;
+  --studio-navigation-width: clamp(12rem, 16vw, 15rem);
+  --studio-list-width: clamp(15rem, 21vw, 20rem);
+  --studio-context-width: 15rem;
+  --studio-titlebar-height: 2.75rem;
+  --studio-row-height: 2rem;
+  --studio-reading-width: 48rem;
+  --studio-reading-gutter: clamp(1.5rem, 3.2vw, 4rem);
+  /* Reserved geometry for later stages; no tabs or empty panels are rendered. */
+  --studio-document-strip-height: 2.5rem;
+  --surface-shadow: none;
+  --surface-border: var(--studio-divider);
+  --background: var(--studio-editor-bg);
+  --foreground: var(--studio-editor-text);
+  --card: var(--studio-paper);
+  --card-foreground: var(--studio-editor-text);
+  --popover: var(--studio-paper);
+  --popover-foreground: var(--studio-editor-text);
+  --primary: var(--studio-accent);
+  --primary-foreground: var(--studio-on-accent);
+  --muted: var(--studio-editor-muted-bg);
+  --muted-foreground: var(--studio-editor-muted);
+  --accent: var(--studio-editor-hover);
+  --accent-foreground: var(--studio-editor-text);
+  --secondary: var(--studio-editor-muted-bg);
+  --secondary-foreground: var(--studio-editor-text);
+  --border: var(--studio-divider);
+  --input: var(--studio-input-border);
+  --ring: var(--studio-accent);
+  --destructive: var(--studio-danger);
+  --sidebar: var(--studio-nav-bg);
+  --sidebar-accent: var(--studio-nav-selected);
+}
+:root.studio-graphite {
+  color-scheme: dark;
+  --studio-editor-bg: #14181c;
+  --studio-paper: #181d22;
+  --studio-editor-text: #e5e7e9;
+  --studio-editor-muted: #a1a9b1;
+  --studio-editor-muted-bg: #22282e;
+  --studio-editor-hover: #2a323a;
+  --studio-divider: #343b42;
+  --studio-input-border: #69737d;
+  --studio-accent: #a4bac9;
+  --studio-on-accent: #18232c;
+  --studio-nav-bg: #1b2025;
+  --studio-list-bg: #22282e;
+  --studio-nav-text: #e5e7e9;
+  --studio-nav-muted: #a1a9b1;
+  --studio-nav-hover: #282f36;
+  --studio-nav-selected: #303a43;
+  --studio-nav-selected-text: #f1f3f5;
+  --studio-nav-divider: #343b42;
+  --studio-nav-focus: #a4bac9;
+  --studio-tag-bg: #2a323a;
+  --studio-tag-text: #d4dbe1;
+  --studio-favorite: #d4bb83;
+  --studio-danger: #f18e88;
+}
+:root.studio-atelier {
+  color-scheme: light;
+  --studio-editor-bg: #f3eee4;
+  --studio-paper: #f8f4eb;
+  --studio-editor-text: #292820;
+  --studio-editor-muted: #706c60;
+  --studio-editor-muted-bg: #e9e2d5;
+  --studio-editor-hover: #e5dac6;
+  --studio-divider: #d2c9b8;
+  --studio-input-border: #938979;
+  --studio-accent: #786137;
+  --studio-on-accent: #fffaf0;
+  --studio-nav-bg: #292a25;
+  --studio-list-bg: #34352d;
+  --studio-nav-text: #eeece4;
+  --studio-nav-muted: #c0beaf;
+  --studio-nav-hover: #414237;
+  --studio-nav-selected: #b49a6a;
+  --studio-nav-selected-text: #202019;
+  --studio-nav-divider: #4d4e43;
+  --studio-nav-focus: #d1b986;
+  --studio-tag-bg: #e3dac7;
+  --studio-tag-text: #4d4534;
+  --studio-favorite: #dcc394;
+  --studio-sage: #83917c;
+  --studio-danger: #a32c27;
+}
+.notebook-destination {
+  display: flex;
+  min-height: 2.75rem;
+  align-items: center;
+  gap: 0.75rem;
+  border-radius: 0.375rem;
+  padding: 0.25rem 0.75rem;
+  font-size: 0.875rem;
+  color: var(--muted-foreground);
+  text-align: left;
+}
+.notebook-destination:hover { background: var(--accent); color: var(--foreground); }
+.notebook-nav-count { flex: none; padding-inline: 0.25rem; font-size: 0.7rem; font-weight: 400; font-variant-numeric: tabular-nums; color: var(--muted-foreground); }
+.notebook-document-thumbnail { width: 3.25rem; height: 3.25rem; flex: none; border-radius: 0.25rem; object-fit: cover; }
+
+:is(.studio-graphite, .studio-atelier) .notebook-app-shell {
+  font-family: var(--studio-ui-font);
+  background: var(--studio-editor-bg);
+  color: var(--studio-editor-text);
+}
+:is(.studio-graphite, .studio-atelier) :is(.notebook-sidebar, .notebook-page-list, .notebook-brand, .notebook-global-search) {
+  color-scheme: dark;
+  --background: var(--studio-nav-bg);
+  --card: var(--studio-nav-bg);
+  --foreground: var(--studio-nav-text);
+  --muted-foreground: var(--studio-nav-muted);
+  --muted: var(--studio-nav-hover);
+  --accent: var(--studio-nav-hover);
+  --accent-foreground: var(--studio-nav-text);
+  --primary: var(--studio-nav-focus);
+  --primary-foreground: var(--studio-nav-bg);
+  --border: var(--studio-nav-divider);
+  --ring: var(--studio-nav-focus);
+  --surface-border: var(--studio-nav-divider);
+  background: var(--studio-nav-bg);
+  color: var(--studio-nav-text);
+  box-shadow: none;
+  backdrop-filter: none;
+}
+:is(.studio-graphite, .studio-atelier) :is(.notebook-page-list, .notebook-global-search) {
+  --background: var(--studio-list-bg);
+  --card: var(--studio-list-bg);
+  background: var(--studio-list-bg);
+}
+:is(.studio-graphite, .studio-atelier) .notebook-sidebar { padding: 0.75rem 0.5rem 0.5rem; border-color: var(--studio-nav-divider); }
+:is(.studio-graphite, .studio-atelier) .notebook-navigation-label { padding: 0 0.5rem 0.5rem; font-size: 0.625rem; font-weight: 500; letter-spacing: 0.08em; }
+:is(.studio-graphite, .studio-atelier) .notebook-sidebar > button,
+:is(.studio-graphite, .studio-atelier) .notebook-navigation-tools > button {
+  min-height: var(--studio-row-height);
+  margin: 0;
+  gap: 0.75rem;
+  border-radius: 0.25rem;
+  padding-inline: 0.75rem;
+  font-size: var(--studio-font-ui);
+  font-weight: 400;
+  color: var(--studio-nav-muted);
+}
+:is(.studio-graphite, .studio-atelier) .notebook-sidebar > button svg { width: 0.9375rem; height: 0.9375rem; }
+:is(.studio-graphite, .studio-atelier) .notebook-sidebar > button[aria-current="page"],
+:is(.studio-graphite, .studio-atelier) .notebook-sidebar [data-nav-row][aria-current="page"] {
+  background: var(--studio-nav-selected);
+  color: var(--studio-nav-selected-text);
+  box-shadow: none;
+}
+:is(.studio-graphite, .studio-atelier) .notebook-sidebar [data-nav-row][aria-current="page"] :is(.notebook-nav-count, button, svg) { color: inherit; }
+:is(.studio-graphite, .studio-atelier) .notebook-sidebar .notebook-section-row[aria-current="page"] { background: var(--studio-nav-hover); color: var(--studio-nav-text); box-shadow: inset 2px 0 var(--studio-nav-focus); }
+:is(.studio-graphite, .studio-atelier) .notebook-sidebar [data-nav-row]::before { content: none; }
+:is(.studio-graphite, .studio-atelier) .notebook-sidebar [data-nav-row] { border-radius: 0.25rem; font-size: var(--studio-font-ui); }
+:is(.studio-graphite, .studio-atelier) .notebook-sidebar [data-nav-row] > button { min-height: var(--studio-row-height); height: auto; }
+:is(.studio-graphite, .studio-atelier) .notebook-sidebar [data-nav-row] > button:first-child { width: 1.5rem; }
+:is(.studio-graphite, .studio-atelier) .notebook-sidebar [data-nav-row] > button:nth-last-child(-n + 2):not([title]) { width: 1.5rem; }
+:is(.studio-graphite, .studio-atelier) .notebook-sidebar [data-nav-row="notebook"] > button:nth-child(2) { width: 1.5rem; padding: 0; }
+:is(.studio-graphite, .studio-atelier) .notebook-notebook-row button[title] { gap: 0.5rem; font-size: var(--studio-font-ui); font-weight: 500; }
+:is(.studio-graphite, .studio-atelier) .notebook-notebook-row button[title] > span:first-child { width: 1.125rem; height: 1.125rem; background: transparent; color: rgb(var(--notebook-row-rgb)); }
+:is(.studio-graphite, .studio-atelier) .notebook-notebook-row[aria-current="page"] button[title] > span:first-child { color: var(--studio-nav-selected-text); }
+.studio-atelier .notebook-sidebar [data-notebook-color="green"] .notebook-notebook-row:not([aria-current]) button[title] > span:first-child { color: var(--studio-sage); }
+:is(.studio-graphite, .studio-atelier) .notebook-navigation-heading { min-height: 2.5rem; margin-top: 1rem; padding: 0.5rem 0.5rem 0; border: 0; }
+:is(.studio-graphite, .studio-atelier) .notebook-navigation-heading p { font-size: 0.625rem; font-weight: 500; letter-spacing: 0.08em; }
+:is(.studio-graphite, .studio-atelier) .notebook-navigation-heading button { width: 1.75rem; height: 1.75rem; }
+:is(.studio-graphite, .studio-atelier) .notebook-tree-children { margin-left: 1rem; border-color: var(--studio-nav-divider); padding-left: 0.25rem; }
+:is(.studio-graphite, .studio-atelier) .notebook-tree-children > button { min-height: var(--studio-row-height); font-size: var(--studio-font-preview); }
+:is(.studio-graphite, .studio-atelier) .notebook-navigation-tools { display: grid; grid-template-columns: 1fr; margin-top: 0.5rem; padding-top: 0.5rem; border-color: var(--studio-nav-divider); gap: 0; }
+:is(.studio-graphite, .studio-atelier) .notebook-page-list { border-color: var(--studio-nav-divider); padding: 0; }
+:is(.studio-graphite, .studio-atelier) .notebook-page-list-header { position: relative; min-height: 3rem; margin: 0; padding: 0.5rem 0.75rem; gap: 0.25rem; border-bottom: 1px solid var(--studio-nav-divider); }
+:is(.studio-graphite, .studio-atelier) .notebook-page-list-heading { display: flex; align-items: baseline; gap: 0.5rem; }
+:is(.studio-graphite, .studio-atelier) .notebook-page-list-heading > p:first-child { font-size: 0.875rem; font-weight: 600; }
+:is(.studio-graphite, .studio-atelier) .notebook-list-count { flex: none; font-size: var(--studio-font-meta); font-variant-numeric: tabular-nums; }
+:is(.studio-graphite, .studio-atelier) .notebook-list-view-switch { background: transparent; padding: 0; }
+:is(.studio-graphite, .studio-atelier) .notebook-list-view-switch button { width: 1.5rem; height: 1.75rem; box-shadow: none; }
+:is(.studio-graphite, .studio-atelier) .notebook-document-list { padding: 0.5rem; scrollbar-width: thin; }
+:is(.studio-graphite, .studio-atelier) .notebook-page-row,
+:is(.studio-graphite, .studio-atelier) .notebook-page-row[data-page-background] {
+  position: relative;
+  min-height: 4.75rem;
+  margin: 0.125rem 0;
+  border: 0;
+  border-radius: 0.25rem;
+  background: transparent;
+  box-shadow: none;
+  color: var(--studio-nav-text);
+}
+:is(.studio-graphite, .studio-atelier) .notebook-page-row:hover { background: var(--studio-nav-hover); }
+:is(.studio-graphite, .studio-atelier) .notebook-page-row[aria-current="page"] { background: var(--studio-nav-selected); color: var(--studio-nav-selected-text); }
+:is(.studio-graphite, .studio-atelier) .notebook-page-row[aria-current="page"] :is(time, .notebook-document-preview) { color: inherit; }
+:is(.studio-graphite, .studio-atelier) .notebook-page-row > button[title] { gap: 0.75rem; padding: 0.75rem 0.5rem; align-items: flex-start; }
+:is(.studio-graphite, .studio-atelier) .notebook-page-row button[title] > svg { margin-top: 0.25rem; color: var(--studio-nav-muted); }
+:is(.studio-graphite, .studio-atelier) .notebook-document-meta .truncate { font-size: var(--studio-font-ui); font-weight: 600; }
+:is(.studio-graphite, .studio-atelier) .notebook-document-preview { margin-top: 0.25rem; font-size: var(--studio-font-preview); line-height: 1.4; }
+:is(.studio-graphite, .studio-atelier) .notebook-document-date { margin-top: 0.25rem; font-size: var(--studio-font-meta); line-height: 1.4; }
+:is(.studio-graphite, .studio-atelier) .notebook-favorite-indicator { color: var(--studio-favorite); }
+.studio-atelier .notebook-page-row[aria-current="page"] .notebook-favorite-indicator { color: var(--studio-nav-selected-text); }
+:is(.studio-graphite, .studio-atelier) .notebook-page-row[data-list-view="compact"] { min-height: 2.5rem; }
+:is(.studio-graphite, .studio-atelier) .notebook-editor-pane { background: var(--studio-editor-bg); box-shadow: none; }
+:is(.studio-graphite, .studio-atelier) .notebook-breadcrumbs { min-height: 2.5rem; gap: 0.5rem; padding: 0.5rem var(--studio-reading-gutter); background: var(--studio-editor-bg); border-color: var(--studio-divider); color: var(--studio-editor-muted); backdrop-filter: none; font-size: var(--studio-font-meta); }
+:is(.studio-graphite, .studio-atelier) .notebook-document-layout { container-type: inline-size; }
+:is(.studio-graphite, .studio-atelier) .notebook-editor-header { padding: 1.75rem var(--studio-reading-gutter) 0; gap: 0.5rem; flex-direction: row; align-items: center; flex-wrap: wrap; }
+:is(.studio-graphite, .studio-atelier) .notebook-page-title-input { flex-basis: 100%; padding: 0; border: 0; font-family: var(--studio-document-font); font-size: var(--studio-font-title); font-weight: 700; letter-spacing: -0.025em; line-height: 1.2; color: var(--studio-editor-text); }
+:is(.studio-graphite, .studio-atelier) .notebook-editor-header[data-page-icon]:not([data-page-icon=""]) .notebook-page-title-input { flex-basis: calc(100% - 3rem); }
+:is(.studio-graphite, .studio-atelier) .notebook-editor-header > span { min-height: 1.25rem; font-size: var(--studio-font-meta); }
+:is(.studio-graphite, .studio-atelier) .notebook-editor-header-action { margin-left: auto; min-height: 1.75rem; padding: 0 0.25rem; font-size: var(--studio-font-meta); font-weight: 400; }
+:is(.studio-graphite, .studio-atelier) .notebook-editor-tags { padding: 0.5rem var(--studio-reading-gutter) 0; }
+:is(.studio-graphite, .studio-atelier) .notebook-tag-chip { border: 0; border-radius: 0.25rem; padding: 0.25rem 0.45rem; background: var(--studio-tag-bg); color: var(--studio-tag-text); font-size: var(--studio-font-meta); font-weight: 400; line-height: 1.4; }
+:is(.studio-graphite, .studio-atelier) .notebook-editor { --page-accent: var(--studio-accent); --notebook-canvas-padding: var(--studio-reading-gutter); --notebook-reading-width: var(--studio-reading-width); padding-top: 1.2rem; }
+:is(.studio-graphite, .studio-atelier) .notebook-editor[data-content-width="narrow"] { --notebook-reading-width: 40rem; }
+:is(.studio-graphite, .studio-atelier) .notebook-editor[data-content-width="wide"] { --notebook-reading-width: 64rem; }
+:is(.studio-graphite, .studio-atelier) .notebook-editor .bn-container {
+  --background: var(--studio-editor-bg);
+  --card: var(--studio-paper);
+  --foreground: var(--studio-editor-text);
+  --muted: var(--studio-editor-muted-bg);
+  --muted-foreground: var(--studio-editor-muted);
+  --primary: var(--studio-accent);
+  --accent: var(--studio-editor-hover);
+  --border: var(--studio-divider);
+  --bn-font-family: var(--studio-ui-font);
+  --bn-colors-editor-text: var(--studio-editor-text);
+  --bn-colors-editor-background: var(--studio-editor-bg);
+  --bn-colors-menu-text: var(--studio-editor-text);
+  --bn-colors-menu-background: var(--studio-paper);
+  --bn-colors-hovered-background: var(--studio-editor-hover);
+  --bn-colors-border: var(--studio-divider);
+  --bn-colors-side-menu: var(--studio-editor-muted);
+  --bn-border-radius: 4px;
+  --bn-shadow-medium: none;
+  --bn-shadow-light: none;
+}
+:is(.studio-graphite, .studio-atelier) .notebook-editor .bn-editor { color: var(--studio-editor-text); font-size: var(--studio-font-body); line-height: 1.65; }
+:is(.studio-graphite, .studio-atelier) .notebook-editor .bn-block-outer:hover { background: transparent; }
+:is(.studio-graphite, .studio-atelier) .notebook-editor .bn-toolbar { box-shadow: none; }
+:is(.studio-graphite, .studio-atelier) .input:focus { box-shadow: none; outline: 2px solid var(--ring); outline-offset: 1px; }
+:is(.studio-graphite, .studio-atelier) .notebook-editor [data-content-type="heading"] { letter-spacing: -0.01em; }
+:is(.studio-graphite, .studio-atelier) .notebook-editor [data-content-type="heading"][data-level="1"] { --level: 1.75rem; }
+:is(.studio-graphite, .studio-atelier) .notebook-editor [data-content-type="heading"][data-level="2"] { --level: 1.25rem; }
+:is(.studio-graphite, .studio-atelier) .notebook-editor [data-content-type="heading"][data-level="3"] { --level: 1.0625rem; }
+:is(.studio-graphite, .studio-atelier) .notebook-page-title-input:focus-visible { outline: 1px solid var(--studio-accent); outline-offset: 5px; border-radius: 2px; }
+:is(.studio-graphite, .studio-atelier) .notebook-editor [data-content-type="codeBlock"] { background: var(--studio-editor-muted-bg); border: 1px solid var(--studio-divider); border-radius: 0.375rem; }
+.studio-atelier .notebook-editor .shiki { color: color-mix(in srgb, var(--shiki-light, var(--studio-editor-text)), var(--studio-editor-text) var(--studio-syntax-blend)); }
+.studio-graphite .notebook-editor .shiki { color: color-mix(in srgb, var(--shiki-dark, var(--studio-editor-text)), var(--studio-editor-text) var(--studio-syntax-blend)); }
+:is(.studio-graphite, .studio-atelier) .notebook-document-context { width: var(--studio-context-width); border-color: var(--studio-divider); background: var(--studio-editor-bg); padding: 1rem 0.75rem; }
+:is(.studio-graphite, .studio-atelier) .notebook-document-context nav button { min-height: 1.875rem; font-size: var(--studio-font-preview); }
+:is(.studio-graphite, .studio-atelier) :is(.notebook-surface, .quick-note-card) { box-shadow: none; }
+:is(.studio-graphite, .studio-atelier) .notebook-today .notebook-surface { border: 0; border-top: 1px solid var(--studio-divider); border-radius: 0; background: transparent; padding-inline: 0; }
+:is(.studio-graphite, .studio-atelier) .notebook-app-shell > .notebook-mobile-header { background: var(--studio-nav-bg); color: var(--studio-nav-text); border-color: var(--studio-nav-divider); box-shadow: none; }
+:is(.studio-graphite, .studio-atelier) .notebook-mobile-header button > span:first-child { background: transparent; color: var(--studio-nav-text); }
+:is(.studio-graphite, .studio-atelier) [role="dialog"] { border-radius: 0.5rem; box-shadow: none; }
+:is(.studio-graphite, .studio-atelier) .notebook-theme-option { border-radius: 0.375rem; min-height: 5.5rem; font-size: var(--studio-font-preview); }
+[data-theme-choice="studio-graphite"] { --theme-preview-bg: #14181c; --theme-preview-nav: #1b2025; --theme-preview-paper: #303a43; }
+[data-theme-choice="studio-atelier"] { --theme-preview-bg: #f3eee4; --theme-preview-nav: #292a25; --theme-preview-paper: #e3dac7; }
+[data-theme-choice^="studio-"] .notebook-theme-preview { background: var(--theme-preview-bg); }
+[data-theme-choice^="studio-"] .notebook-theme-preview > span:first-child { background: var(--theme-preview-nav); }
+[data-theme-choice^="studio-"] .notebook-theme-preview > span:last-child { background: var(--theme-preview-paper); }
+
+@media (min-width: 768px) {
+  .notebook-destination { min-height: 2.25rem; }
+  :is(.studio-graphite, .studio-atelier) .notebook-app-shell > .notebook-desktop-header { display: grid; grid-template-columns: var(--studio-navigation-width) var(--studio-list-width) minmax(0, 1fr); height: var(--studio-titlebar-height); padding: 0; background: var(--studio-editor-bg); border-color: var(--studio-divider); box-shadow: none; }
+  :is(.studio-graphite, .studio-atelier) .notebook-brand { height: 100%; border-radius: 0; padding-inline: 1rem; font-size: 1rem; letter-spacing: -0.02em; }
+  :is(.studio-graphite, .studio-atelier) .notebook-global-search { height: 100%; margin: 0; padding-inline: 1rem; border-inline: 1px solid var(--studio-nav-divider); border-radius: 0; font-size: var(--studio-font-preview); color: var(--studio-nav-muted); }
+  :is(.studio-graphite, .studio-atelier) .notebook-window-actions { width: 100%; margin: 0; padding-inline: 0.75rem; }
+  :is(.studio-graphite, .studio-atelier) .notebook-window-document { display: block; flex: 1; font-size: var(--studio-font-meta); }
+  :is(.studio-graphite, .studio-atelier) .notebook-window-actions > button { width: 1.875rem; height: 1.875rem; border-radius: 0.25rem; }
+  :is(.studio-graphite, .studio-atelier) .notebook-workspace-grid { grid-template-columns: var(--studio-navigation-width) var(--studio-list-width) minmax(0, 1fr); }
+  :is(.studio-graphite, .studio-atelier) .notebook-app-shell[data-focus-mode="true"] > .notebook-workspace-grid { grid-template-columns: minmax(0, 1fr); }
+  :is(.studio-graphite, .studio-atelier) .notebook-app-shell[data-focus-mode="true"] > .notebook-desktop-header { display: none; }
+  :is(.studio-graphite, .studio-atelier) .notebook-page-row > button:first-child { width: 1.5rem; margin: 0; }
+  :is(.studio-graphite, .studio-atelier) .notebook-page-row > button:nth-last-child(-n + 2) { position: absolute; right: 0.25rem; bottom: 0.25rem; width: 1.5rem; height: 1.5rem; }
+  :is(.studio-graphite, .studio-atelier) .notebook-page-row > button:nth-last-child(2) { right: 1.875rem; }
+  :is(.studio-graphite, .studio-atelier) .notebook-page-list-header > button { width: 1.75rem; height: 1.75rem; }
+}
+@media (min-width: 768px) and (max-width: 1279px) {
+  :root:is(.studio-graphite, .studio-atelier) { --studio-navigation-width: 12rem; --studio-list-width: 15.5rem; --studio-reading-gutter: 1.5rem; }
+}
+@media (max-width: 767px), (pointer: coarse) {
+  :is(.studio-graphite, .studio-atelier) .notebook-sidebar button { min-height: 2.75rem; }
+  :is(.studio-graphite, .studio-atelier) .notebook-sidebar [data-nav-row] > button { min-height: 2.75rem; }
+  :is(.studio-graphite, .studio-atelier) .notebook-page-row > button:nth-last-child(-n + 2) { min-width: 2.75rem; min-height: 2.75rem; }
+  :is(.studio-graphite, .studio-atelier) .notebook-editor-header-action,
+  :is(.studio-graphite, .studio-atelier) [role="dialog"] button,
+  :is(.studio-graphite, .studio-atelier) [role="menuitemradio"] { min-height: 2.75rem; }
+}
+@media (max-width: 767px) {
+  :root:is(.studio-graphite, .studio-atelier) { --studio-reading-gutter: 1.25rem; }
+  :is(.studio-graphite, .studio-atelier) .notebook-sidebar { padding-top: 0.5rem; }
+  :is(.studio-graphite, .studio-atelier) .notebook-navigation-tree { padding-bottom: 0.5rem; }
+  :is(.studio-graphite, .studio-atelier) .notebook-navigation-tools { grid-template-columns: 1fr 1fr; }
+  :is(.studio-graphite, .studio-atelier) .notebook-page-list-header { min-height: 3.5rem; }
+  :is(.studio-graphite, .studio-atelier) .notebook-page-list-header > button { width: 2.75rem; height: 2.75rem; }
+  :is(.studio-graphite, .studio-atelier) .notebook-document-list { padding: 0.25rem; }
+  :is(.studio-graphite, .studio-atelier) .notebook-page-row > button[title] { min-height: 4.75rem; padding: 0.75rem 0.5rem; }
+  :is(.studio-graphite, .studio-atelier) .notebook-editor-header { padding-top: 1.25rem; }
+  :is(.studio-graphite, .studio-atelier) .notebook-page-title-input { font-size: 1.875rem; }
+  :is(.studio-graphite, .studio-atelier) .notebook-editor .bn-editor { padding-inline: var(--studio-reading-gutter); }
+}
+@media (min-width: 768px) and (pointer: coarse) {
+  :is(.studio-graphite, .studio-atelier) .notebook-page-row > button:nth-last-child(-n + 2) { position: static; flex: none; align-self: center; }
+  :is(.studio-graphite, .studio-atelier) .notebook-window-actions > button { min-width: 2.75rem; min-height: 2.75rem; }
+  :is(.studio-graphite, .studio-atelier) .notebook-sidebar [data-nav-row] > button:first-child { display: none; }
+  :is(.studio-graphite, .studio-atelier) .notebook-sidebar .notebook-section-add { display: none; }
+  :is(.studio-graphite, .studio-atelier) .notebook-sidebar [data-nav-row] > button:not([title]),
+  :is(.studio-graphite, .studio-atelier) .notebook-navigation-heading button { min-width: 2.75rem; }
+  :is(.studio-graphite, .studio-atelier) .notebook-page-list-header { flex-wrap: wrap; }
+  :is(.studio-graphite, .studio-atelier) .notebook-page-list-heading { flex-basis: 100%; }
+  :is(.studio-graphite, .studio-atelier) .notebook-page-list-header > button,
+  :is(.studio-graphite, .studio-atelier) .notebook-list-view-switch button { min-width: 2.75rem; min-height: 2.75rem; }
+  :is(.studio-graphite, .studio-atelier) .notebook-list-view-switch { margin-left: auto; }
+}
+@media (min-width: 768px) and (max-width: 1023px) and (pointer: coarse) {
+  :root:is(.studio-graphite, .studio-atelier) { --studio-navigation-width: 14rem; --studio-list-width: 15rem; }
+}
+@media (hover: hover) {
+  :is(.studio-graphite, .studio-atelier) .notebook-page-row:focus-within > button { opacity: 1; }
+}
+@media (prefers-reduced-transparency: reduce) {
+  :is(.studio-graphite, .studio-atelier) :is(header, aside, nav, [role="dialog"]) { backdrop-filter: none; }
+}
+@media print {
+  :root:is(.studio-graphite, .studio-atelier) { --studio-editor-bg: white; --studio-paper: white; --studio-editor-text: black; --studio-editor-muted: #555; }
+}

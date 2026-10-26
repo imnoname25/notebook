@@ -9,21 +9,13 @@ import {
   useSyncExternalStore,
 } from "react";
 import {
-  BookOpen,
   Download,
   Link2,
-  LogOut,
-  Monitor,
-  Moon,
-  Search,
-  Settings,
   StickyNote,
-  Sun,
 } from "lucide-react";
 import { useTheme } from "next-themes";
-import { isDarkTheme, nextTheme, themeLabel } from "@/lib/themes";
+import { nextTheme } from "@/lib/themes";
 import { useRouter } from "next/navigation";
-import { Button } from "@/components/ui/button";
 import { api, jsonOptions } from "@/lib/client-api";
 import { cn } from "@/lib/utils";
 import { EditorPane } from "./editor-pane";
@@ -40,7 +32,7 @@ import { MoveDialog, type MoveTarget } from "./move-dialog";
 import { VersionHistory } from "./version-history";
 import { DataSettings } from "./data-settings";
 import { SettingsDialog } from "./settings-dialog";
-import { NotificationCenter } from "./notification-center";
+import { DesktopAppHeader } from "./desktop-app-header";
 import { MobileAppHeader } from "./mobile-app-header";
 import { PrintDialog } from "./print-dialog";
 import { NotebookOverview } from "./notebook-overview";
@@ -62,12 +54,7 @@ import type {
   Section,
 } from "./types";
 import type { SearchResult } from "@/lib/services/search-service";
-import {
-  isNotebookColor,
-  isNotebookIcon,
-  NOTEBOOK_COLOR_CLASSES,
-  NOTEBOOK_ICON_COMPONENTS,
-} from "@/lib/notebook-appearance";
+
 import {
   MOBILE_BACK_PROTOCOL_VERSION,
   mobileBackActionLog,
@@ -165,6 +152,7 @@ export function NotebookApp({
   const [screen, setScreen] = useState<"workspace" | "trash" | "stickers" | "today">("workspace");
   const [startScreen, setStartScreen] = useState<"last" | "today" | "notebooks" | "inbox">("last");
   const [searchOpen, setSearchOpen] = useState(false);
+  const [searchGroup, setSearchGroup] = useState<"favorites" | "recent" | undefined>(undefined);
   const [searchInitialQuery, setSearchInitialQuery] = useState("");
   const [workspaceRevision, setWorkspaceRevision] = useState(0);
   const [historyOpen, setHistoryOpen] = useState(false);
@@ -245,19 +233,6 @@ export function NotebookApp({
       activeNotebook?.sections.find((item) => item.id === activeSectionId) ?? null,
     [activeNotebook, activeSectionId],
   );
-  const ActiveNotebookIcon =
-    NOTEBOOK_ICON_COMPONENTS[
-      activeNotebook && isNotebookIcon(activeNotebook.icon)
-        ? activeNotebook.icon
-        : "notebook"
-    ];
-  const activeNotebookColor =
-    NOTEBOOK_COLOR_CLASSES[
-      activeNotebook && isNotebookColor(activeNotebook.color)
-        ? activeNotebook.color
-        : "slate"
-    ];
-
   const report = useCallback((value: unknown) => {
     setError(value instanceof Error ? value.message : "Произошла ошибка");
   }, []);
@@ -684,6 +659,7 @@ export function NotebookApp({
       const key = event.key.toLowerCase();
       if (key === "k") {
         event.preventDefault();
+        setSearchGroup(undefined);
         setSearchInitialQuery("");
         setSearchOpen(true);
         return;
@@ -1263,6 +1239,10 @@ export function NotebookApp({
         onTrashOpen={() => setScreen("trash")}
         onInboxOpen={() => openSpecial("stickers")}
         onTodayOpen={() => openSpecial("today")}
+        onFavoritesOpen={() => { setSearchGroup("favorites"); setSearchInitialQuery(""); setSearchOpen(true); }}
+        onRecentOpen={() => { setSearchGroup("recent"); setSearchInitialQuery(""); setSearchOpen(true); }}
+        onTemplatesOpen={() => setTemplateManagerOpen(true)}
+        onSettingsOpen={() => setSettingsOpen(true)}
         onTagsOpen={() => { setTagBrowserTag(null); setTagBrowserOpen(true); }}
       />
     </div>
@@ -1286,7 +1266,7 @@ export function NotebookApp({
           setScreen("workspace");
           setMobileView("navigation");
         }}
-        onSearch={() => { setSearchInitialQuery(""); setSearchOpen(true); }}
+        onSearch={() => { setSearchGroup(undefined); setSearchInitialQuery(""); setSearchOpen(true); }}
         onQuickNotes={() => setQuickNotesOpen(true)}
         onMenuOpenChange={setMobileMenuOpen}
         onSettings={() => setSettingsOpen(true)}
@@ -1300,94 +1280,12 @@ export function NotebookApp({
         onLogoutAll={() => void logoutAll()}
         onError={report}
       />
-      <header
-        data-testid="desktop-app-header"
-        className="notebook-no-print hidden h-14 shrink-0 items-center border-b border-border/60 px-4 md:flex"
-      >
-        <button type="button" className="flex items-center gap-2 rounded-lg font-semibold focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring" onClick={openHome}>
-          <span className="flex size-8 items-center justify-center rounded-lg bg-primary text-primary-foreground">
-            <BookOpen size={17} />
-          </span>
-          Notebook
-        </button>
-        {activeNotebook && (
-          <div className="ml-4 hidden min-w-0 items-center gap-2 border-l border-border/60 pl-4 text-sm sm:flex">
-            <span
-              className={cn(
-                "flex size-6 shrink-0 items-center justify-center rounded-md text-white",
-                activeNotebookColor,
-              )}
-            >
-              <ActiveNotebookIcon size={14} />
-            </span>
-            <span className="max-w-40 truncate">{activeNotebook.title}</span>
-          </div>
-        )}
-        <div className="ml-auto flex items-center gap-1">
-          {user.role === "ADMIN" && <NotificationCenter onError={report} />}
-          <Button
-            variant="ghost"
-            size="icon"
-            className="size-11"
-            aria-label={t("quickNotes.title")}
-            title={`${t("quickNotes.title")} (Ctrl/Cmd + Shift + N)`}
-            onClick={() => setQuickNotesOpen(true)}
-          >
-            <StickyNote size={17} />
-          </Button>
-          <Button
-            variant="ghost"
-            size="icon"
-            className="size-11"
-            aria-label="Поиск"
-            title="Поиск (Ctrl/Cmd + K)"
-            onClick={() => { setSearchInitialQuery(""); setSearchOpen(true); }}
-          >
-            <Search size={17} />
-          </Button>
-          <Button
-            variant="ghost"
-            size="icon"
-            className="size-11"
-            aria-label="Настройки"
-            onClick={() => setSettingsOpen(true)}
-          >
-            <Settings size={17} />
-          </Button>
-          <Button
-            variant="ghost"
-            size="icon"
-            className="size-11"
-            aria-label="Переключить тему"
-            title={`Тема: ${themeLabel(theme)}`}
-            onClick={() =>
-              setTheme(
-                nextTheme(theme),
-              )
-            }
-          >
-            {theme === "system" ? (
-              <Monitor size={17} />
-            ) : isDarkTheme(resolvedTheme) ? (
-              <Moon size={17} />
-            ) : (
-              <Sun size={17} />
-            )}
-          </Button>
-          <span className="hidden px-2 text-xs text-muted-foreground sm:block">
-            {user.name}
-          </span>
-          <Button
-            variant="ghost"
-            size="icon"
-            className="size-11"
-            aria-label="Выйти"
-            onClick={() => void logout()}
-          >
-            <LogOut size={17} />
-          </Button>
-        </div>
-      </header>
+      <DesktopAppHeader userName={user.name} isAdmin={user.role === "ADMIN"}
+        notebookTitle={activeNotebook?.title} documentTitle={activePage?.title}
+        theme={theme} resolvedTheme={resolvedTheme} onHome={openHome}
+        onSearch={() => { setSearchGroup(undefined); setSearchInitialQuery(""); setSearchOpen(true); }}
+        onCapture={() => setQuickNotesOpen(true)} onSettings={() => setSettingsOpen(true)}
+        onTheme={() => setTheme(nextTheme(theme))} onLogout={() => void logout()} onError={report}/>
       {error && (
         <button
           className="bg-destructive px-4 py-2 text-left text-sm text-white"
@@ -1404,7 +1302,7 @@ export function NotebookApp({
           {notice} · нажмите, чтобы закрыть
         </button>
       )}
-      <div className="grid min-h-0 flex-1 md:grid-cols-[280px_320px_minmax(0,1fr)]">
+      <div className="notebook-workspace-grid grid min-h-0 flex-1 md:grid-cols-[280px_320px_minmax(0,1fr)]">
         {screen === "trash" ? (
           <TrashView
             key={workspaceRevision}
@@ -1547,10 +1445,11 @@ export function NotebookApp({
         )}
       </div>
       <SearchDialog
-        key={`${searchOpen ? "open" : "closed"}:${searchInitialQuery}`}
+        key={`${searchOpen ? "open" : "closed"}:${searchInitialQuery}:${searchGroup ?? "all"}`}
         open={searchOpen}
         initialQuery={searchInitialQuery}
-        onOpenChange={setSearchOpen}
+        initialGroup={searchGroup}
+        onOpenChange={(open) => { setSearchOpen(open); if (!open) setSearchGroup(undefined); }}
         onSelect={(result) => void openSearchResult(result)}
         commands={paletteCommands}
       />

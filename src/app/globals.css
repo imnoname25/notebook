@@ -1,7 +1,8 @@
 @import "tailwindcss";
+@import "./studio.css";
 @source "../../node_modules/@blocknote/shadcn";
 
-@custom-variant dark (&:is(:is(.dark, .atmospheric) *));
+@custom-variant dark (&:is(:is(.dark, .atmospheric, .studio-graphite) *));
 
 :root {
   color-scheme: light;

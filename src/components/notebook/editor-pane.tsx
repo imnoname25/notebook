@@ -64,7 +64,7 @@ export function EditorPane({
   onCreatePage(): void;
 }) {
   return (
-    <main className="flex h-full min-h-0 min-w-0 flex-col bg-card shadow-[inset_1px_0_0_color-mix(in_srgb,var(--border)_45%,transparent)]">
+    <main className="notebook-editor-pane flex h-full min-h-0 min-w-0 flex-col bg-card shadow-[inset_1px_0_0_color-mix(in_srgb,var(--border)_45%,transparent)]">
       <div className="notebook-no-print flex h-16 shrink-0 items-center border-b border-border/50 px-2 md:hidden">
         <Button variant="ghost" className="h-12 px-3 text-base" onClick={onBack}>
           <ArrowLeft size={22} />
@@ -112,7 +112,7 @@ export function EditorPane({
           <Loader2 className="animate-spin" />
         </div>
       ) : page ? (
-        <div className="flex min-h-0 min-w-0 flex-1">
+        <div className="notebook-document-layout flex min-h-0 min-w-0 flex-1">
           <RichTextEditor
             key={`${page.id}:${editorEpoch}`}
             page={page}
@@ -122,7 +122,7 @@ export function EditorPane({
             onInternalNavigate={onInternalNavigate}
             onOutlineChange={onOutlineChange}
           />
-          {outlineVisible && outline.length > 0 && <aside className="notebook-no-print hidden w-56 shrink-0 overflow-y-auto border-l border-border/50 p-3 lg:block"><p className="mb-2 px-2 text-xs font-semibold uppercase tracking-wide text-muted-foreground">{t("outline.title")}</p><OutlineList items={outline} onSelect={onOutlineSelect}/></aside>}
+          {outlineVisible && outline.length > 0 && <aside className="notebook-document-context notebook-no-print hidden w-56 shrink-0 overflow-y-auto border-l border-border/50 p-3 lg:block"><p className="mb-2 px-2 text-xs font-semibold uppercase tracking-wide text-muted-foreground">{t("outline.title")}</p><OutlineList items={outline} onSelect={onOutlineSelect}/></aside>}
         </div>
       ) : (
         <div className="flex flex-1 items-center justify-center p-8 text-center">

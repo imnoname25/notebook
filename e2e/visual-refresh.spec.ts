@@ -16,7 +16,7 @@ test("all themes persist and system follows the device", async ({ page }) => {
   await expect(page.locator("html")).toHaveClass("dark");
   await page.emulateMedia({ colorScheme: "light" });
   await expect(page.locator("html")).toHaveClass("light");
-  for (const theme of ["light", "dark", "atmospheric", "system"]) {
+  for (const theme of ["light", "dark", "atmospheric", "studio-graphite", "studio-atelier", "system"]) {
     await page.getByRole("button", { name: "Переключить тему", exact: true }).click();
     await expect.poll(() => page.evaluate(() => localStorage.getItem("theme"))).toBe(theme);
     await page.reload();

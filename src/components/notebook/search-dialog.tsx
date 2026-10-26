@@ -15,7 +15,7 @@ import { isNotebookColor, isNotebookIcon, NOTEBOOK_COLOR_CLASSES, NOTEBOOK_ICON_
 type QuickData = { recent: SearchResult[]; favorites: SearchResult[]; notebooks: SearchResult[]; sections: SearchResult[] };
 const EMPTY_QUICK: QuickData = { recent: [], favorites: [], notebooks: [], sections: [] };
 
-export function SearchDialog({ open, initialQuery = "", commands = [], onOpenChange, onSelect }: { open: boolean; initialQuery?: string; commands?: PaletteCommand[]; onOpenChange(open: boolean): void; onSelect(result: SearchResult): void }) {
+export function SearchDialog({ open, initialQuery = "", initialGroup, commands = [], onOpenChange, onSelect }: { open: boolean; initialQuery?: string; initialGroup?: "favorites" | "recent"; commands?: PaletteCommand[]; onOpenChange(open: boolean): void; onSelect(result: SearchResult): void }) {
   const [query, setQuery] = useState(initialQuery);
   const [results, setResults] = useState<SearchResult[]>([]);
   const [quick, setQuick] = useState<QuickData>(EMPTY_QUICK);
@@ -43,7 +43,7 @@ export function SearchDialog({ open, initialQuery = "", commands = [], onOpenCha
   const commandMode = commandQuery(query);
   const matchedCommands = commandMode === null ? [] : filterCommands(commands, commandMode);
   const recentIds = new Set(quick.recent.map((item) => item.id));
-  const groups = commandMode !== null ? [] : query.trim().length >= 2 ? [{ label: t("quick.results"), items: ranked }] : [
+  const groups = commandMode !== null ? [] : query.trim().length >= 2 ? [{ label: t("quick.results"), items: ranked }] : initialGroup ? [{ label: t(initialGroup === "favorites" ? "overview.favorites" : "overview.recent"), items: quick[initialGroup] }] : [
     { label: t("overview.recent"), items: quick.recent },
     { label: t("overview.favorites"), items: quick.favorites.filter((item) => !recentIds.has(item.id)) },
     { label: t("quick.notebooks"), items: quick.notebooks },

@@ -13,6 +13,8 @@ import {
   Star,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import Image from "next/image";
+import * as DropdownMenu from "@radix-ui/react-dropdown-menu";
 import {
   ACCENT_DOT_CLASSES,
   resolveAppearanceAccent,
@@ -49,66 +51,36 @@ export function PageList(props: Props) {
       data-density={props.density}
       className="notebook-page-list flex h-full min-h-0 flex-col bg-background p-2 md:border-r md:border-border/60"
     >
-      <div className="mb-1 flex min-h-10 items-center gap-2 px-1">
+      <div className="notebook-page-list-header mb-1 flex min-h-10 items-center gap-2 px-1">
         <Button
           variant="ghost"
           size="icon"
           className="size-11 md:hidden"
+          aria-label="Назад к блокнотам"
           onClick={props.onBack}
         >
           <ArrowLeft size={17} />
         </Button>
-        <div className="min-w-0 flex-1">
+        <div className="notebook-page-list-heading min-w-0 flex-1">
           <p
             title={props.section?.title}
             className="truncate text-[15px] font-semibold"
           >
             {props.section?.title ?? "Страницы"}
           </p>
-          <p className="text-[12.5px] text-muted-foreground">
+          <p className="notebook-list-count text-[12.5px] text-muted-foreground">
             {ordered.length} стр.
           </p>
         </div>
-        <div
-          className="hidden items-center rounded-md bg-muted/60 p-0.5 lg:flex"
-          aria-label={t("appearance.pageListView")}
-        >
-          {(
-            [
-              {
-                id: "compact",
-                label: t("appearance.listCompact"),
-                icon: List,
-              },
-              {
-                id: "standard",
-                label: t("appearance.listStandard"),
-                icon: Rows3,
-              },
-              {
-                id: "preview",
-                label: t("appearance.listPreview"),
-                icon: ScanText,
-              },
-            ] as const
-          ).map(({ id, label, icon: Icon }) => (
-            <button
-              key={id}
-              type="button"
-              className={cn(
-                "flex size-7 items-center justify-center rounded",
-                viewMode === id
-                  ? "bg-background text-foreground shadow-sm"
-                  : "text-muted-foreground hover:text-foreground",
-              )}
-              aria-label={label}
-              aria-pressed={viewMode === id}
-              title={label}
-              onClick={() => props.onViewModeChange(id)}
-            >
-              <Icon size={14} />
-            </button>
-          ))}
+        <div className="notebook-list-view-switch hidden md:flex">
+          <DropdownMenu.Root>
+            <DropdownMenu.Trigger asChild><button type="button" aria-label={t("appearance.pageListView")} title={t("appearance.pageListView")} className="notebook-list-view-trigger flex size-8 items-center justify-center rounded text-muted-foreground hover:bg-accent"><Rows3 size={15}/></button></DropdownMenu.Trigger>
+            <DropdownMenu.Portal><DropdownMenu.Content align="end" sideOffset={4} className="z-50 min-w-40 rounded-md border bg-popover p-1 text-popover-foreground">
+              <DropdownMenu.RadioGroup value={viewMode} onValueChange={(value) => { if (value === "compact" || value === "standard" || value === "preview") props.onViewModeChange(value); }}>
+                {([{id: "compact", label: t("appearance.listCompact"), icon: List}, {id: "standard", label: t("appearance.listStandard"), icon: Rows3}, {id: "preview", label: t("appearance.listPreview"), icon: ScanText}] as const).map(({id, label, icon: Icon}) => <DropdownMenu.RadioItem key={id} value={id} className="flex min-h-9 cursor-pointer items-center gap-2 rounded px-2 text-sm outline-none data-[highlighted]:bg-accent data-[state=checked]:font-semibold"><Icon size={14}/>{label}</DropdownMenu.RadioItem>)}
+              </DropdownMenu.RadioGroup>
+            </DropdownMenu.Content></DropdownMenu.Portal>
+          </DropdownMenu.Root>
         </div>
         <Button
           variant="ghost"
@@ -132,7 +104,7 @@ export function PageList(props: Props) {
           <Plus size={17} />
         </Button>
       </div>
-      <div className="min-h-0 flex-1 space-y-0.5 overflow-y-auto">
+      <div className="notebook-document-list min-h-0 flex-1 space-y-0.5 overflow-y-auto">
         {!props.section && (
           <div className="p-5 text-center text-sm text-muted-foreground">
             <FileText className="mx-auto mb-3 opacity-40" />
@@ -213,7 +185,9 @@ export function PageList(props: Props) {
                       )}
                       onClick={() => props.onSelect(page)}
                     >
-                      {page.icon ? (
+                      {page.coverUploadId && viewMode !== "compact" ? (
+                        <Image className="notebook-document-thumbnail" src={`/api/uploads/${page.coverUploadId}`} alt="" width={52} height={52} unoptimized />
+                      ) : page.icon ? (
                         <span className="w-5 shrink-0 text-center text-base">
                           {page.icon}
                         </span>
@@ -232,7 +206,7 @@ export function PageList(props: Props) {
                           )}
                         />
                       )}
-                      <span className="min-w-0 flex-1">
+                      <span className="notebook-document-meta min-w-0 flex-1">
                         <span className="flex items-center gap-1.5">
                           <span className="truncate text-[14.5px] font-medium">
                             {page.title || "Без названия"}
@@ -240,12 +214,15 @@ export function PageList(props: Props) {
                           {page.isFavorite && (
                             <Star
                               size={11}
-                              className="shrink-0 fill-current text-amber-500"
+                              className="notebook-favorite-indicator shrink-0 fill-current text-amber-500"
                             />
                           )}
                         </span>
+                        {viewMode !== "compact" && page.previewText && (
+                          <span className={cn("notebook-document-preview break-words text-[12.5px] leading-[1.35] text-muted-foreground", viewMode === "preview" ? "line-clamp-2" : "line-clamp-1")}>{page.previewText}</span>
+                        )}
                         {viewMode !== "compact" && (
-                          <time className="mt-0.5 block text-[12.5px] text-muted-foreground">
+                          <time dateTime={page.updatedAt} className="notebook-document-date mt-0.5 block text-[12.5px] text-muted-foreground">
                             {new Intl.DateTimeFormat("ru", {
                               day: "numeric",
                               month: "short",
@@ -254,7 +231,7 @@ export function PageList(props: Props) {
                             }).format(new Date(page.updatedAt))}
                           </time>
                         )}
-                        {viewMode === "preview" && (
+                        {viewMode === "preview" && !page.previewText && (
                           <span className="mt-1 line-clamp-2 break-words text-[12.5px] leading-[1.35] text-muted-foreground">
                             {page.previewText || t("appearance.emptyPage")}
                           </span>
@@ -269,6 +246,7 @@ export function PageList(props: Props) {
                     <button
                       className="my-auto flex size-11 shrink-0 items-center justify-center rounded opacity-100 hover:bg-background md:size-7 md:opacity-0 md:group-hover:opacity-100 md:focus-visible:opacity-100"
                       onClick={() => props.onFavorite(page)}
+                      aria-pressed={page.isFavorite}
                       aria-label={`Избранное: ${page.title}`}
                     >
                       <Star size={14} />

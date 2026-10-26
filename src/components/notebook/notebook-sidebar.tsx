@@ -8,6 +8,10 @@ import {
   FolderPlus,
   GripVertical,
   Hash,
+  Clock3,
+  LayoutTemplate,
+  Settings,
+  Star,
   StickyNote,
   Sparkles,
   Plus,
@@ -56,6 +60,10 @@ type Props = {
   onTagsOpen(): void;
   onInboxOpen(): void;
   onTodayOpen(): void;
+  onFavoritesOpen?(): void;
+  onRecentOpen?(): void;
+  onTemplatesOpen?(): void;
+  onSettingsOpen?(): void;
 };
 
 function SectionTree({
@@ -237,7 +245,7 @@ export function NotebookSidebar(props: Props) {
       data-section-intensity={props.sectionAccentIntensity ?? "moderate"}
       className="notebook-sidebar flex h-full min-h-0 flex-col bg-sidebar p-2 md:border-r md:border-border/60"
     >
-      <p className="px-2 pb-1 pt-2 text-[11px] font-semibold uppercase tracking-[0.14em] text-muted-foreground">{t("navigation.main")}</p>
+      <p className="notebook-navigation-label px-2 pb-1 pt-2 text-[11px] font-semibold uppercase tracking-[0.14em] text-muted-foreground">{t("navigation.main")}</p>
       <button aria-current={props.activeDestination === "today" ? "page" : undefined} className={cn("mb-0.5 flex min-h-11 items-center gap-3 rounded-lg px-3 text-[14px] font-medium transition md:min-h-10", props.activeDestination === "today" ? "bg-sidebar-accent text-sidebar-accent-foreground" : "text-muted-foreground hover:bg-sidebar-accent/60 hover:text-foreground")} onClick={props.onTodayOpen}>
         <Sparkles size={18} />
         {t("today.title")}
@@ -246,6 +254,8 @@ export function NotebookSidebar(props: Props) {
         <StickyNote size={18}/>
         {t("quickNotes.inbox")}
       </button>
+      {props.onFavoritesOpen && <button className="notebook-destination" onClick={props.onFavoritesOpen}><Star size={16}/><span>{t("overview.favorites")}</span></button>}
+      {props.onRecentOpen && <button className="notebook-destination" onClick={props.onRecentOpen}><Clock3 size={16}/><span>{t("overview.recent")}</span></button>}
       <div className="notebook-navigation-heading mb-1 flex min-h-11 items-center justify-between px-2">
         <p className="text-[11px] font-semibold uppercase tracking-[0.12em] text-muted-foreground">
           {t("navigation.notebooks")}
@@ -336,6 +346,7 @@ export function NotebookSidebar(props: Props) {
                       </button>
                       <button
                         title={notebook.title}
+                        aria-label={notebook.title}
                         className="flex min-h-11 min-w-0 flex-1 items-center gap-2 py-1 text-left text-[15px] font-semibold md:min-h-10"
                         onClick={() => selectNotebook(notebook.id)}
                       >
@@ -347,7 +358,8 @@ export function NotebookSidebar(props: Props) {
                         >
                           <Icon size={14} />
                         </span>
-                        <span className="truncate">{notebook.title}</span>
+                        <span className="min-w-0 flex-1 truncate">{notebook.title}</span>
+                        <span className="notebook-nav-count" aria-hidden="true" title={`${notebook.sections.length} разделов`}>{notebook.sections.length}</span>
                       </button>
                       <button
                         className="mr-0.5 flex size-11 shrink-0 items-center justify-center rounded hover:bg-background md:size-8 md:opacity-0 md:group-hover:opacity-100 md:focus-visible:opacity-100"
@@ -389,9 +401,11 @@ export function NotebookSidebar(props: Props) {
           })}
         </SortableList>
       </div>
-      <div className="mt-1 grid grid-cols-2 gap-1 border-t border-border/50 pt-1">
+      <div className="notebook-navigation-tools mt-1 grid grid-cols-2 gap-1 border-t border-border/50 pt-1">
         <button className="flex min-h-10 items-center gap-2 rounded-md px-2 text-sm text-muted-foreground hover:bg-accent hover:text-foreground" onClick={props.onTagsOpen}><Hash size={16}/>{t("tags.title")}</button>
+        {props.onTemplatesOpen && <button className="notebook-destination" onClick={props.onTemplatesOpen}><LayoutTemplate size={16}/><span>Шаблоны</span></button>}
         <button className="flex min-h-10 items-center gap-2 rounded-md px-2 text-sm text-muted-foreground hover:bg-accent hover:text-foreground" onClick={props.onTrashOpen}><Trash2 size={16}/>Корзина</button>
+        {props.onSettingsOpen && <button className="notebook-destination" aria-label="Настройки приложения" onClick={props.onSettingsOpen}><Settings size={16}/><span>Настройки</span></button>}
       </div>
     </aside>
   );
