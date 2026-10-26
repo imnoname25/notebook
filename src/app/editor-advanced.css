@@ -1,0 +1,36 @@
+/* The native toggle owns children and selection. Only its hit target is adapted. */
+.notebook-editor .bn-toggle-button:focus-visible,
+.notebook-editor .notebook-toggle > button:focus-visible { outline: 2px solid var(--ring); outline-offset: 2px; }
+.notebook-editor .bn-block:has(> .bn-block-content .notebook-toggle[data-open="false"]) > .bn-block-group,
+.notebook-editor .bn-block:has(> .react-renderer .notebook-toggle[data-open="false"]) > .bn-block-group { display: none; }
+:is(.studio-graphite, .studio-atelier) .notebook-editor .notebook-callout { border-radius: 0.25rem; padding: 0.625rem 0.75rem; gap: 0.5rem; }
+:is(.studio-graphite, .studio-atelier) .notebook-editor .notebook-callout-kind { max-width: 9rem; font-size: 0.75rem; }
+:is(.studio-graphite, .studio-atelier) .notebook-editor .notebook-callout-title { font-size: 0.875rem; }
+:is(.studio-graphite, .studio-atelier) .notebook-editor [data-content-type="codeBlock"] > div > select {
+  opacity: 1;
+  color: var(--muted-foreground);
+  top: 0.45rem;
+  left: 0.75rem;
+  height: 1.75rem;
+  max-width: calc(100% - 13rem);
+  font-size: 0.75rem;
+  text-overflow: ellipsis;
+}
+:is(.studio-graphite, .studio-atelier) .notebook-editor [data-content-type="codeBlock"] select > option { color: var(--popover-foreground); background: var(--popover); }
+@media (max-width: 767px) {
+  :is(.studio-graphite, .studio-atelier) .notebook-editor .notebook-callout { flex-wrap: wrap; }
+  :is(.studio-graphite, .studio-atelier) .notebook-editor .notebook-callout > .min-w-0 { flex-basis: calc(100% - 2rem); }
+  :is(.studio-graphite, .studio-atelier) .notebook-editor .notebook-callout-kind { margin-inline-start: 1.75rem; }
+}
+@media (pointer: coarse) {
+  .notebook-editor .bn-toggle-button, .notebook-editor .notebook-toggle > button { min-width: 2.75rem; min-height: 2.75rem; align-items: center; justify-content: center; }
+  .notebook-editor .notebook-callout-kind { min-height: 2.75rem; }
+  :is(.studio-graphite, .studio-atelier) .notebook-editor :is(.notebook-code-copy, .notebook-code-wrap),
+  :is(.studio-graphite, .studio-atelier) .notebook-editor [data-content-type="codeBlock"] > div > select { min-height: 2.75rem; }
+  :is(.studio-graphite, .studio-atelier) .notebook-editor [data-content-type="codeBlock"] pre { padding-top: 3.5rem; }
+}
+@media print {
+  .notebook-editor .bn-block > .bn-block-group { display: block !important; }
+  .notebook-editor .bn-block:has(> .bn-block-content .notebook-toggle[data-open="false"]) > .bn-block-group,
+  .notebook-editor .bn-block:has(> .react-renderer .notebook-toggle[data-open="false"]) > .bn-block-group { display: block; }
+}

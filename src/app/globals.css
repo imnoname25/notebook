@@ -2,6 +2,7 @@
 @import "./studio.css";
 @import "./document-tabs.css";
 @import "./studio-mobile.css";
+@import "./editor-advanced.css";
 @source "../../node_modules/@blocknote/shadcn";
 
 @custom-variant dark (&:is(:is(.dark, .atmospheric, .studio-graphite) *));

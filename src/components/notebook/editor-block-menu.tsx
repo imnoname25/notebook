@@ -66,19 +66,22 @@ function NotebookBlockMenu({ pageId }: { pageId: string }) {
   const typedBlock = block as NotebookFullBlock;
   const copy = async (plainOnly: boolean) => {
     const text = editor.blocksToMarkdownLossy([typedBlock]).trim();
-    if (!plainOnly && typeof ClipboardItem !== "undefined" && navigator.clipboard.write) {
-      const html = editor.blocksToHTMLLossy([typedBlock]);
+    if (!plainOnly && typeof ClipboardItem !== "undefined" && navigator.clipboard?.write) {
+      const payload = encodeURIComponent(JSON.stringify([freshBlock(typedBlock)]));
+      const html = `<div data-notebook-block-clipboard="1" data-notebook-block-json="${payload}">${editor.blocksToHTMLLossy([typedBlock])}</div>`;
       await navigator.clipboard.write([new ClipboardItem({ "text/plain": new Blob([text], { type: "text/plain" }), "text/html": new Blob([html], { type: "text/html" }) })]);
-    } else await navigator.clipboard.writeText(text);
+    } else if (plainOnly && navigator.clipboard?.writeText) await navigator.clipboard.writeText(text);
+    else throw new Error("Clipboard API unavailable");
   };
   const canColor = BACKGROUND_BLOCKS.has(block.type) && "backgroundColor" in block.props;
   return <DragHandleMenu>
     <Components.Generic.Menu.Item icon={<ArrowUp size={16}/>} onClick={() => editor.moveBlocksUp(block)}>Переместить вверх</Components.Generic.Menu.Item>
     <Components.Generic.Menu.Item icon={<ArrowDown size={16}/>} onClick={() => editor.moveBlocksDown(block)}>Переместить вниз</Components.Generic.Menu.Item>
     <Components.Generic.Menu.Divider/>
+    {block.type === "heading" && <Components.Generic.Menu.Item onClick={() => editor.updateBlock(block, { props: { isToggleable: !block.props.isToggleable } })}>{block.props.isToggleable ? "Обычный заголовок" : "Сворачиваемый заголовок"}</Components.Generic.Menu.Item>}
     <Components.Generic.Menu.Item icon={<Copy size={16}/>} onClick={() => editor.insertBlocks([freshBlock(typedBlock)], typedBlock, "after")}>Дублировать</Components.Generic.Menu.Item>
-    <Components.Generic.Menu.Item icon={<Clipboard size={16}/>} onClick={() => void copy(false)}>Копировать</Components.Generic.Menu.Item>
-    <Components.Generic.Menu.Item icon={<Clipboard size={16}/>} onClick={() => void copy(true)}>Копировать как текст</Components.Generic.Menu.Item>
+    <Components.Generic.Menu.Item icon={<Clipboard size={16}/>} onClick={() => void copy(false).catch(() => window.alert("Не удалось скопировать блок. Проверьте доступ к буферу обмена и HTTPS; можно использовать системное копирование."))}>Копировать</Components.Generic.Menu.Item>
+    <Components.Generic.Menu.Item icon={<Clipboard size={16}/>} onClick={() => void copy(true).catch(() => window.alert("Не удалось скопировать текст. Проверьте доступ к буферу обмена и HTTPS."))}>Копировать как текст</Components.Generic.Menu.Item>
     <Components.Generic.Menu.Item icon={<Link2 size={16}/>} onClick={() => void navigator.clipboard.writeText(`${window.location.origin}${getPageHref(pageId, block.id)}`)}>Копировать ссылку на блок</Components.Generic.Menu.Item>
     {TRANSFORMABLE.has(block.type) && <Components.Generic.Menu.Root sub position="right">
       <Components.Generic.Menu.Trigger sub><Components.Generic.Menu.Item subTrigger icon={<Wand2 size={16}/>}>Преобразовать</Components.Generic.Menu.Item></Components.Generic.Menu.Trigger>

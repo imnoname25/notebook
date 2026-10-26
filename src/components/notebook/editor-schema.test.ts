@@ -1,7 +1,19 @@
 import { describe, expect, it } from "vitest";
 import { blockNoteContentSchema } from "@/lib/data-format";
-import { normalizeEditorBlocks } from "./editor-schema";
+import { normalizeEditorBlocks, notebookEditorSchema } from "./editor-schema";
+import { EDITOR_BLOCK_TYPES } from "@/lib/editor-compatibility";
 describe("Notebook custom editor blocks", () => {
+  it("creates fresh identities for pasted descendants without changing source blocks", () => {
+    const original = [{ id: "parent", type: "heading", props: { level: 2, isToggleable: true }, children: [{ id: "child", type: "callout", props: { kind: "warning" }, content: [{ type: "text", text: "Keep bold", styles: { bold: true } }] }] }];
+    const normalized = normalizeEditorBlocks(original, true);
+    expect(normalized[0]).not.toHaveProperty("id");
+    expect(normalized[0]?.children?.[0]).not.toHaveProperty("id");
+    expect(normalized[0]?.children?.[0]?.content).toEqual(original[0]?.children[0]?.content);
+    expect(original[0]?.children[0]?.id).toBe("child");
+  });
+  it("keeps the pre-mount compatibility guard aligned with the actual BlockNote schema", () => {
+    expect([...EDITOR_BLOCK_TYPES].sort()).toEqual(Object.keys(notebookEditorSchema.blockSchema).sort());
+  });
   it("serializes callout and toggle as structured BlockNote JSON", () => { const content = [{ type: "callout", props: { kind: "warning", title: "Важно" }, content: [{ type: "text", text: "Проверьте backup", styles: {} }] }, { type: "toggle", props: { open: false }, content: [{ type: "text", text: "Детали", styles: {} }], children: [{ type: "paragraph", content: [] }] }]; expect(blockNoteContentSchema.parse(content)).toEqual(content); });
   it("falls back to plaintext for an imported unknown code language", () => { const [block] = normalizeEditorBlocks([{ type: "codeBlock", props: { language: "dangerous-html" }, content: "<script>" }]); if (block?.type !== "codeBlock") throw new Error("Expected code block"); expect(block.props?.language).toBe("text"); });
   it("preserves extension-safe structural blocks and curated backgrounds", () => {

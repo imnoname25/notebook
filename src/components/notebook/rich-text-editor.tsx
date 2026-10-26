@@ -48,6 +48,9 @@ import { EditorSuggestionOverlayBridge, NotebookSideMenu } from "./editor-block-
 import { PageVariablesDialog } from "./page-variables-dialog";
 import { blockIdFromHash, getPageHref, pageIdFromPath } from "@/lib/workspace-navigation";
 import { EditorSaveQueue } from "@/lib/editor-save-queue";
+import { unsupportedEditorBlocks } from "@/lib/editor-compatibility";
+import { blockNoteContentSchema } from "@/lib/data-format";
+import { tsvToTableHtml } from "@/lib/table-paste";
 import { extractPageVariables, type PageVariable } from "@/lib/page-variables";
 
 type SavePayload = { title: string; content: unknown[] };
@@ -329,10 +332,19 @@ export function RichTextEditor({
   useEffect(() => {
     const root = editorRoot.current;
     if (!root) return;
-    const enhance = () =>
+    const enhance = () => {
+      root.querySelectorAll<HTMLElement>(".bn-toggle-wrapper").forEach(wrapper => {
+        const button = wrapper.querySelector(".bn-toggle-button");
+        const expanded = wrapper.dataset.showChildren === "true";
+        if (button?.getAttribute("aria-expanded") !== String(expanded)) button?.setAttribute("aria-expanded", String(expanded));
+        const label = expanded ? "Свернуть дочерние блоки" : "Развернуть дочерние блоки";
+        if (button?.getAttribute("aria-label") !== label) button?.setAttribute("aria-label", label);
+      });
       root
         .querySelectorAll<HTMLElement>('[data-content-type="codeBlock"]')
         .forEach((block) => {
+          const language = block.querySelector("select");
+          if (language?.getAttribute("aria-label") !== "Язык кода") language?.setAttribute("aria-label", "Язык кода");
           if (block.querySelector(".notebook-code-copy")) return;
           const button = document.createElement("button");
           button.type = "button";
@@ -350,9 +362,10 @@ export function RichTextEditor({
           wrap.setAttribute("aria-pressed", "false");
           block.appendChild(wrap);
         });
+    };
     enhance();
     const observer = new MutationObserver(enhance);
-    observer.observe(root, { childList: true, subtree: true });
+    observer.observe(root, { childList: true, subtree: true, attributes: true, attributeFilter: ["data-show-children"] });
     return () => observer.disconnect();
   }, [editor]);
 
@@ -481,6 +494,15 @@ export function RichTextEditor({
           preferences.editorCompactMode && "notebook-editor-compact",
           preferences.editorCodeLineNumbers && "notebook-code-lines",
         )}
+        onKeyDownCapture={(event) => {
+          if (event.key !== "Enter" && event.key !== " ") return;
+          const button = event.target instanceof HTMLElement ? event.target.closest<HTMLButtonElement>("button.bn-toggle-button, .notebook-toggle > button") : null;
+          if (!button) return;
+          // ProseMirror otherwise handles Enter as editing even when a toggle has focus.
+          event.preventDefault();
+          event.stopPropagation();
+          button.click();
+        }}
         onClickCapture={(event) => {
           const target = event.target as HTMLElement;
           const copy = target.closest(".notebook-code-copy");
@@ -488,12 +510,12 @@ export function RichTextEditor({
             event.preventDefault();
             const text =
               copy.parentElement?.querySelector("code")?.textContent ?? "";
-            void navigator.clipboard.writeText(text).then(() => {
+            void (navigator.clipboard?.writeText(text) ?? Promise.reject(new Error("Clipboard API unavailable"))).then(() => {
               copy.textContent = t("editor.copied");
               window.setTimeout(() => {
                 copy.textContent = t("editor.copyCode");
               }, 1200);
-            });
+            }).catch(() => { copy.textContent = "Не удалось скопировать"; });
             return;
           }
           const wrap = target.closest<HTMLButtonElement>(".notebook-code-wrap");
@@ -521,6 +543,34 @@ export function RichTextEditor({
           });
         }}
         onPasteCapture={(event) => {
+          if (event.target instanceof HTMLInputElement || event.target instanceof HTMLTextAreaElement || event.target instanceof HTMLSelectElement) return;
+          const html = event.clipboardData.getData("text/html");
+          const copied = html ? new DOMParser().parseFromString(html, "text/html").querySelector('[data-notebook-block-clipboard="1"]') : null;
+          if (copied) {
+            event.preventDefault();
+            event.stopPropagation();
+            try {
+              const content = blockNoteContentSchema.parse(JSON.parse(decodeURIComponent(copied.getAttribute("data-notebook-block-json") ?? "")));
+              if (!content.length || unsupportedEditorBlocks(content).length) throw new Error("Unsupported clipboard blocks");
+              // Paste a complete block after the cursor, with fresh identities for every descendant.
+              editor.insertBlocks(normalizeEditorBlocks(content, true), editor.getTextCursorPosition().block, "after");
+            } catch {
+              window.alert("Буфер содержит неподдерживаемые или повреждённые блоки. Вставка отменена, исходное содержимое буфера сохранено.");
+            }
+            return;
+          }
+          const currentBlock = editor.getTextCursorPosition().block;
+          if (!html && currentBlock.type === "table") {
+            const merged = currentBlock.content.rows.some(row => row.cells.some(cell => !Array.isArray(cell) && ((cell.props.colspan ?? 1) > 1 || (cell.props.rowspan ?? 1) > 1)));
+            const cell = window.getSelection()?.anchorNode?.parentElement?.closest("td, th") as HTMLTableCellElement | null;
+            const offset = cell ? Array.from((cell.parentElement as HTMLTableRowElement).cells).slice(0, cell.cellIndex).reduce((sum, item) => sum + item.colSpan, 0) : 0;
+            const table = merged ? null : tsvToTableHtml(event.clipboardData.getData("text/plain"), currentBlock.content.columnWidths.slice(offset));
+            if (table) {
+              event.preventDefault(); event.stopPropagation();
+              editor.pasteHTML(table);
+              return;
+            }
+          }
           const url = parseSmartPasteUrl(event.clipboardData.getData("text/plain"));
           if (!url) return;
           const current = editor.getTextCursorPosition().block;
@@ -592,15 +642,16 @@ function revealAndScrollBlock(root: HTMLDivElement | null, blockId: string) {
   window.requestAnimationFrame(() => window.requestAnimationFrame(() => {
     const block = Array.from(root.querySelectorAll<HTMLElement>("[data-id]")).find((node) => node.dataset.id === blockId);
     if (!block) return;
-    let group = block.closest<HTMLElement>(".bn-block-group");
-    while (group) {
+    const groups: HTMLElement[] = [];
+    let ancestor = block.closest<HTMLElement>(".bn-block-group");
+    while (ancestor) { groups.unshift(ancestor); ancestor = ancestor.parentElement?.closest<HTMLElement>(".bn-block-group") ?? null; }
+    for (const group of groups) {
       if (group.hidden || getComputedStyle(group).display === "none") {
         const parentBlock = group.parentElement;
-        parentBlock?.querySelector<HTMLButtonElement>(".bn-toggle-button")?.click();
+        parentBlock?.querySelector<HTMLButtonElement>('.bn-toggle-button, .notebook-toggle[data-open="false"] > button')?.click();
       }
-      group = group.parentElement?.closest<HTMLElement>(".bn-block-group") ?? null;
     }
-    block.scrollIntoView({ behavior: "smooth", block: "center" });
+    block.scrollIntoView({ behavior: window.matchMedia("(prefers-reduced-motion: reduce)").matches ? "instant" : "smooth", block: "center" });
     block.classList.add("notebook-block-deep-link");
     window.setTimeout(() => block.classList.remove("notebook-block-deep-link"), 1400);
   }));

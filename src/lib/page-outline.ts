@@ -1,6 +1,6 @@
 import { extractBlockNoteText } from "./blocknote-text";
 
-export type PageOutlineItem = { id: string; title: string; level: 1 | 2 | 3 };
+export type PageOutlineItem = { id: string; title: string; level: 1 | 2 | 3 | 4 | 5 | 6 };
 
 export function extractPageOutline(value: unknown): PageOutlineItem[] {
   if (!Array.isArray(value)) return [];
@@ -12,7 +12,7 @@ export function extractPageOutline(value: unknown): PageOutlineItem[] {
       if (block.type === "heading") {
         const props = block.props && typeof block.props === "object" ? block.props as Record<string, unknown> : {};
         const rawLevel = Number(props.level);
-        const level = (rawLevel >= 1 && rawLevel <= 3 ? rawLevel : 1) as 1 | 2 | 3;
+        const level = (Number.isInteger(rawLevel) && rawLevel >= 1 && rawLevel <= 6 ? rawLevel : 1) as PageOutlineItem["level"];
         const title = extractBlockNoteText(block.content);
         if (title) items.push({ id: typeof block.id === "string" ? block.id : `heading-${items.length}-${index}`, title, level });
       }

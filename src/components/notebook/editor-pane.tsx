@@ -14,6 +14,7 @@ import type {
 } from "./types";
 import type { PageOutlineItem } from "@/lib/page-outline";
 import { OutlineList } from "./page-outline";
+import { unsupportedEditorBlocks } from "@/lib/editor-compatibility";
 
 const RichTextEditor = dynamic(
   () => import("./rich-text-editor").then((module) => module.RichTextEditor),
@@ -72,6 +73,7 @@ export function EditorPane({
   documentTabs?: ReactNode;
   navigationBusy?: boolean;
 }) {
+  const unsupported = page ? unsupportedEditorBlocks(page.content) : [];
   return (
     <main className="notebook-editor-pane flex h-full min-h-0 min-w-0 flex-col bg-card shadow-[inset_1px_0_0_color-mix(in_srgb,var(--border)_45%,transparent)]">
       {documentTabs}
@@ -127,7 +129,12 @@ export function EditorPane({
         </div>
       ) : page ? (
         <div id="notebook-document-panel" role={documentTabs && page ? "tabpanel" : undefined} aria-labelledby={documentTabs && page ? `document-tab-${page.id}` : undefined} className="notebook-document-layout flex min-h-0 min-w-0 flex-1">
-          <RichTextEditor
+          {unsupported.length ? <section className="min-w-0 flex-1 overflow-y-auto p-6" role="status">
+            <h2 className="font-semibold">Документ содержит неподдерживаемые блоки</h2>
+            <p className="mt-2 break-words text-sm">{unsupported.join(", ")}</p>
+            <p className="mt-2 text-sm text-muted-foreground">Редактирование приостановлено, чтобы сохранить исходные данные. Используйте совместимую версию редактора или экспортируйте оригинал.</p>
+            <a className="mt-4 inline-block underline" href={`/api/data/export/page/${page.id}?format=json`}>Экспорт исходного JSON</a>
+          </section> : <RichTextEditor
             key={`${page.id}:${editorEpoch}`}
             page={page}
             navigationBusy={navigationBusy}
@@ -136,7 +143,7 @@ export function EditorPane({
             onController={onController}
             onInternalNavigate={onInternalNavigate}
             onOutlineChange={onOutlineChange}
-          />
+          />}
           {outlineVisible && outline.length > 0 && <aside className="notebook-document-context notebook-no-print hidden w-56 shrink-0 overflow-y-auto border-l border-border/50 p-3 lg:block"><p className="mb-2 px-2 text-xs font-semibold uppercase tracking-wide text-muted-foreground">{t("outline.title")}</p><OutlineList items={outline} onSelect={onOutlineSelect}/></aside>}
         </div>
       ) : (
