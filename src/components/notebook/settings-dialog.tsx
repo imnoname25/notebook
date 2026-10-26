@@ -479,7 +479,7 @@ export function SettingsDialog({
         <Dialog.Overlay className="fixed inset-0 z-50 bg-black/35" />
         <Dialog.Content
           aria-describedby={undefined}
-          className="fixed inset-0 z-50 flex min-w-0 flex-col overflow-hidden bg-card sm:inset-x-auto sm:left-1/2 sm:top-[4vh] sm:h-[92vh] sm:w-[min(96vw,940px)] sm:-translate-x-1/2 sm:rounded-2xl sm:shadow-2xl"
+          className="notebook-settings-dialog fixed inset-0 z-50 flex min-w-0 flex-col overflow-hidden bg-card sm:inset-x-auto sm:left-1/2 sm:top-[4vh] sm:h-[92vh] sm:w-[min(96vw,940px)] sm:-translate-x-1/2 sm:rounded-2xl sm:shadow-2xl"
         >
           <header className="flex h-14 shrink-0 items-center gap-3 border-b border-border/60 px-4">
             <Settings size={18} />

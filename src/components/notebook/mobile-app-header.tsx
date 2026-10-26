@@ -91,7 +91,7 @@ export function MobileAppHeader(props: MobileAppHeaderProps) {
         </Dialog.Trigger>
       </header>
       <Dialog.Portal>
-        <Dialog.Overlay className="notebook-no-print fixed inset-0 z-40 bg-black/30 md:hidden" />
+        <Dialog.Overlay className="notebook-mobile-overlay notebook-no-print fixed inset-0 z-40 bg-black/30 md:hidden" />
         <Dialog.Content
           aria-describedby={undefined}
           className="notebook-mobile-sheet notebook-no-print fixed inset-x-0 bottom-0 z-40 rounded-t-2xl bg-card shadow-2xl ring-1 ring-border md:hidden"

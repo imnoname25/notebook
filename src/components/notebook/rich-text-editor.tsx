@@ -411,6 +411,8 @@ export function RichTextEditor({
         <h1 className="notebook-print-title hidden">{title}</h1>
         <input
           value={title}
+          aria-label="Название страницы"
+          title={title}
           onChange={(event) => {
             const nextTitle = event.target.value;
             setTitle(nextTitle);

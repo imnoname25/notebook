@@ -1,7 +1,7 @@
 "use client";
 
 import dynamic from "next/dynamic";
-import { ArrowLeft, FileText, ListTree, Loader2, Plus } from "lucide-react";
+import { ArrowLeft, FileText, ListTree, Loader2, Maximize2, Minimize2, Plus } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { t } from "@/lib/i18n/messages";
 import { resolveAppearanceAccent } from "@/lib/content-appearance";
@@ -44,6 +44,8 @@ export function EditorPane({
   onOutlineToggle,
   onOutlineSelect,
   onCreatePage,
+  focusMode,
+  onFocusToggle,
 }: {
   page: PageDocument | null;
   notebook: Notebook | null;
@@ -62,20 +64,23 @@ export function EditorPane({
   onOutlineToggle(): void;
   onOutlineSelect(id: string): void;
   onCreatePage(): void;
+  focusMode: boolean;
+  onFocusToggle(): void;
 }) {
   return (
     <main className="notebook-editor-pane flex h-full min-h-0 min-w-0 flex-col bg-card shadow-[inset_1px_0_0_color-mix(in_srgb,var(--border)_45%,transparent)]">
-      <div className="notebook-no-print flex h-16 shrink-0 items-center border-b border-border/50 px-2 md:hidden">
+      {!page && <div className="notebook-editor-back notebook-no-print flex h-16 shrink-0 items-center border-b border-border/50 px-2 md:hidden">
         <Button variant="ghost" className="h-12 px-3 text-base" onClick={onBack}>
           <ArrowLeft size={22} />
           Страницы
         </Button>
-      </div>
+      </div>}
       {page && (
         <nav
           aria-label="Хлебные крошки"
         className="notebook-breadcrumbs flex min-w-0 items-center gap-1.5 overflow-hidden border-b border-border/45 bg-card/80 px-4 py-2 text-[13.5px] text-muted-foreground/90 backdrop-blur md:px-12 md:text-[13px]"
         >
+          <button type="button" className="notebook-breadcrumb-back flex size-11 shrink-0 items-center justify-center rounded hover:bg-accent md:hidden" aria-label="Страницы" onClick={onBack}><ArrowLeft size={18}/></button>
           <button
           className="max-w-[38%] truncate hover:text-foreground md:max-w-[28%]"
             title={notebook?.title}
@@ -104,7 +109,10 @@ export function EditorPane({
           >
             {page.title}
           </span>
-          {outline.length > 0 && <button type="button" onClick={onOutlineToggle} className="ml-auto flex size-10 shrink-0 items-center justify-center rounded-md text-muted-foreground hover:bg-accent hover:text-foreground md:size-8" aria-label={t("outline.title")} aria-pressed={outlineVisible}><ListTree size={17}/></button>}
+          <div className="notebook-document-actions ml-auto flex shrink-0 items-center">
+            {outline.length > 0 && <button type="button" onClick={onOutlineToggle} className="flex size-11 shrink-0 items-center justify-center rounded-md hover:bg-accent" aria-label={t("outline.title")} aria-pressed={outlineVisible}><ListTree size={17}/></button>}
+            <button type="button" onClick={onFocusToggle} className="flex size-11 shrink-0 items-center justify-center rounded-md hover:bg-accent" aria-label={focusMode ? "Выйти из режима фокуса" : "Режим фокуса"} aria-pressed={focusMode} title="Режим фокуса (Ctrl/Cmd + Shift + F)">{focusMode ? <Minimize2 size={16}/> : <Maximize2 size={16}/>}</button>
+          </div>
         </nav>
       )}
       {loading ? (

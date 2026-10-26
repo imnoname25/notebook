@@ -50,6 +50,33 @@ for (const theme of ["studio-graphite", "studio-atelier"] as const) {
     await editor.click();
     const marker = `Pending ${theme}`;
     await page.keyboard.type(marker);
+    // Resize with a pending edit: the BlockNote instance must survive every layout.
+    for (const [width, height] of [[840, 920], [393, 873], [920, 600], [1440, 900]]) {
+      await page.setViewportSize({ width, height });
+      await expect(editor).toContainText(marker);
+      await expect(page.getByLabel("Название страницы", { exact: true })).toHaveValue("Домашний сервер");
+      expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(width);
+    }
+    await page.getByRole("button", { name: "Режим фокуса", exact: true }).click();
+    await expect(page.locator('[data-mobile-screen="pages"]')).toBeHidden();
+    await page.getByRole("button", { name: "Выйти из режима фокуса", exact: true }).click();
+    await page.setViewportSize({ width: 393, height: 873 });
+    await editor.click();
+    await page.evaluate(() => {
+      const viewport = window.visualViewport;
+      if (!viewport) throw new Error("Chrome visualViewport unavailable");
+      Object.defineProperty(viewport, "height", { configurable: true, value: 340 });
+      viewport.dispatchEvent(new Event("resize"));
+    });
+    await expect.poll(() => page.locator(".notebook-app-shell").evaluate((node) => node.getBoundingClientRect().height)).toBe(340);
+    await page.evaluate(() => {
+      Reflect.deleteProperty(window.visualViewport!, "height");
+      window.visualViewport!.dispatchEvent(new Event("resize"));
+    });
+    await page.getByRole("button", { name: "Режим фокуса", exact: true }).click();
+    expect(await page.evaluate(() => (window as Window & { __NOTEBOOK_ANDROID_BACK__?: () => string }).__NOTEBOOK_ANDROID_BACK__?.())).toBe("HANDLED");
+    await expect(page.locator(".notebook-app-shell")).toHaveAttribute("data-focus-mode", "false");
+    await page.setViewportSize({ width: 1440, height: 900 });
     await page.locator('[data-page-title="Настройка сети"] button[title]').click();
     await expect(page.locator(".notebook-page-title-input")).toHaveValue("Настройка сети");
     await expect.poll(async () => {

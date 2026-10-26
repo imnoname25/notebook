@@ -19,6 +19,7 @@ import { useRouter } from "next/navigation";
 import { api, jsonOptions } from "@/lib/client-api";
 import { cn } from "@/lib/utils";
 import { EditorPane } from "./editor-pane";
+import { useWorkspaceViewport } from "./use-workspace-viewport";
 import { NotebookSidebar } from "./notebook-sidebar";
 import { PageList } from "./page-list";
 import { SearchDialog } from "./search-dialog";
@@ -190,6 +191,7 @@ export function NotebookApp({
   const [editorOverlayOpen, setEditorOverlayOpen] = useState(false);
   const [sharedCapture, setSharedCapture] = useState<{ title: string; text: string } | null>(null);
   const [focusMode, setFocusMode] = useState(false);
+  useWorkspaceViewport();
   const androidClient = useSyncExternalStore(
     noClientSubscription,
     androidClientSnapshot,
@@ -487,6 +489,7 @@ export function NotebookApp({
 
   useEffect(() => {
     const pop = () => {
+      setFocusMode(false);
       const pageId = pageIdFromPath(window.location.pathname);
       if (pageId) void openPageById(pageId, "none");
       else {
@@ -555,6 +558,7 @@ export function NotebookApp({
         else if (state.printOpen) setPrintOpen(false);
         return "HANDLED";
       }
+      setFocusMode(false);
       if (action === "workspace") setScreen("workspace");
       if (action === "pages") {
         window.history.replaceState(null, "", "/app");
@@ -1252,6 +1256,9 @@ export function NotebookApp({
     <div
       data-density={density}
       data-focus-mode={focusMode ? "true" : "false"}
+      data-mobile-view={mobileView}
+      data-workspace-screen={screen}
+      data-has-section={activeSection ? "true" : "false"}
       className="notebook-app-shell flex h-dvh flex-col overflow-hidden bg-background text-foreground"
     >
       <MobileAppHeader
@@ -1415,20 +1422,24 @@ export function NotebookApp({
                 loading={pageLoading}
                 editorEpoch={editorEpoch}
                 onBack={() => {
+                  setFocusMode(false);
                   window.history.replaceState(null, "", "/app");
                   setMobileView("pages");
                 }}
                 onSaved={pageSaved}
                 onController={registerEditorController}
-                onNotebookClick={() => activeNotebook && openNotebookOverview(activeNotebook.id)}
-                onSectionClick={() => activeSection && openSection(activeSection)}
+                onNotebookClick={() => { setFocusMode(false); if (activeNotebook) openNotebookOverview(activeNotebook.id); }}
+                onSectionClick={() => { setFocusMode(false); if (activeSection) openSection(activeSection); }}
                 outline={outline}
                 outlineVisible={outlineVisible}
                 onOutlineChange={setOutline}
                 onOutlineToggle={() => {
-                  if (window.matchMedia("(max-width: 767px)").matches) setOutlineOpen(true);
+                  const studio = resolvedTheme === "studio-graphite" || resolvedTheme === "studio-atelier";
+                  if (window.matchMedia(studio ? "(max-width: 1199px)" : "(max-width: 1023px)").matches) setOutlineOpen(true);
                   else setOutlineVisible((value) => !value);
                 }}
+                focusMode={focusMode}
+                onFocusToggle={() => setFocusMode((value) => !value)}
                 onOutlineSelect={(id) => editorController.current?.scrollToBlock(id)}
                 onCreatePage={() => void addPage()}
                 onInternalNavigate={async (pageId) => {

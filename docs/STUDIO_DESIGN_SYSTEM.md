@@ -72,10 +72,13 @@ appearance identifiers и пользовательские цвета конте
 Используются локальные системные шрифты, без CDN и новых font downloads:
 
 - `--studio-ui-font`: Segoe UI / platform sans, с кириллицей;
-- `--studio-document-font`: Georgia / Cambria / Times New Roman — редакционный заголовок;
+- `--studio-document-font`: Graphite — тот же sans-serif, Atelier — Georgia / Cambria /
+  Times New Roman для редакционного заголовка;
+- `--studio-code-font`: Cascadia Code / Cascadia Mono / Consolas / Liberation Mono;
 - UI: `--studio-font-ui` 13 px; preview 12 px; metadata 11 px; подпись группы 10 px;
-- основной текст редактора: `--studio-font-body` 15 px, line-height 1.65;
-- заголовок документа: `--studio-font-title`, 28–40 px на desktop, 30 px на телефоне;
+- основной текст редактора: `--studio-font-body` 15 px, line-height 1.7;
+- заголовок документа: `--studio-font-title`, 26–34 px на desktop, 24–30 px на узком окне;
+- заголовок Graphite — weight 600; code — 13 px / 1.65, без двойного уменьшения pre/code;
 - H1/H2/H3 внутри документа: 28/20/17 px; это иерархия BlockNote, а не новые виды блоков.
 
 Базовый шаг отступов 4 px, с половинным шагом 2 px для мелких деталей. Reading gutter
@@ -98,13 +101,14 @@ focus ring — минимум 3:1. Unit-тесты не заменяют ауд�
 
 ## Композиция
 
-Desktop: **навигация → список документов → рабочая область**.
+Desktop от 1200 CSS px: **навигация → список документов → рабочая область**.
 
 - Навигация: `--studio-navigation-width`, 192–240 px.
 - Список: `--studio-list-width`, 240–320 px (на промежуточных размерах — 248 px).
 - Рабочая область: `minmax(0, 1fr)`, вложенные overflow containers удерживают длинный код/таблицы.
 - Titlebar: 44 px; бренд, поиск и действующие window actions выровнены по колонкам.
-- Reading width: normal 48 rem, narrow 40 rem, wide 64 rem; настройки ширины сохранены.
+- Reading width: normal 46 rem, narrow 40 rem, wide 64 rem; настройки ширины сохранены.
+  Поля заголовка и тегов следуют той же настройке, что текст документа.
 - Контекст: `--studio-context-width` 240 px применяется к уже существующему opt-in outline.
 
 Классы `notebook-workspace-grid`, `notebook-document-layout`, `notebook-document-context`
@@ -119,9 +123,13 @@ Desktop: **навигация → список документов → рабо
 он не придумывается. Если обложки нет, остаётся обычная иконка документа, без фиктивной картинки.
 
 На ширине меньше 768 px остаются последовательные Navigation / Pages / Editor screens и
-явные Back actions. Нельзя показывать три панели одновременно на узком телефоне. На широком
-fold-экране с coarse pointer сохраняется desktop-композиция, но target sizes адаптированы,
-а list header при необходимости переносится. Safe-area CSS и Android Back protocol сохранены;
+явные Back actions. На 768–1199 px показываются список и редактор; навигация открывается
+из компактной шапки вместо них. Без выбранного раздела overview занимает всю ширину.
+От 1200 px доступны три панели. Режим определяется шириной окна, без user-agent/model checks;
+coarse pointer влияет только на touch-targets. CSS — единственный источник режима layout,
+JavaScript не меняет mobileView при resize и не пересоздаёт BlockNote. Переключение outline
+согласовано: в Studio до 1200 px используется существующая sheet, затем боковой outline.
+Safe-area CSS и Android Back protocol сохранены;
 Capacitor/native setup не меняется. `prefers-reduced-motion` продолжает отключать переходы,
 `prefers-reduced-transparency` не включает никаких прозрачных поверхностей.
 
@@ -146,7 +154,7 @@ header; полное разделение state/autosave/navigation требуе
 Новые темы хранятся так же, как старые, в браузере. Это не синхронизация per-account settings
 между устройствами; соответствующий формат данных и API в этапе 1 не расширяются.
 
-## Проверки
+## Проверки базового этапа 1
 
 - `npm.cmd run check`: version check, lint, strict typecheck, 260 unit tests passed,
   36 skipped, production webpack build. Новые palette tests проверяют контрасты;
@@ -170,7 +178,58 @@ header; полное разделение state/autosave/navigation требуе
 Deployment/CI workflows, Unraid, Dockerfile, API, Prisma и миграции не изменяются.
 Production Unraid не обновляется.
 
-## Изменённые файлы
+## Этап 1.5 — аудит и доработка
+
+В исходной реализации `c11692e` и скриншотах этапа 1 обнаружены:
+
+- serif-заголовок Graphite, создающий несогласованность со строгой навигацией;
+- три панели уже от 768 px, оставляющие мало ширины редактору внутреннего fold-экрана;
+- отдельные mobile header, Back bar и breadcrumbs, отнимающие высоту ввода;
+- однострочные названия в списке, слабая иерархия превью/даты и избыточные интервалы;
+- отсутствие управления focus mode пальцем и обработки overlay keyboard viewport;
+- статичные проверки размеров без проверки сохранения при переходе между layout.
+
+Палитры сохранены без изменения. Название строки занимает до двух строк (одну в compact),
+превью и дата спокойнее. Реальные обложки и контекстные действия сохранены. На телефоне Back
+встроен в breadcrumbs; notebook и section остаются рабочими кнопками. Теги прокручиваются
+в одной строке, действие переменных имеет компактную иконку с доступным именем. Заголовок
+остаётся существующим однострочным input: длинное имя можно редактировать с горизонтальным
+перемещением курсора, а не увеличивать несоразмерно высоту документа.
+
+Кнопка фокуса доступна в breadcrumbs на всех размерах; повторное нажатие и Escape выходят
+из режима. Back и переход по breadcrumbs также снимают focus, чтобы не оставить пустую
+навигацию. Это существующий режим фокуса, без нового split editor или tabs.
+
+`use-workspace-viewport.ts` слушает visualViewport resize/scroll и window resize. Через CSS
+variables он ограничивает высоту оболочки, sheets и настроек; при необходимости прокручивает
+только редактор к текущему caret. Pinch zoom не вызывает relayout. Без VisualViewport работает
+`100dvh`; listeners и свойства очищаются при unmount. В коротком viewport уменьшаются верхние
+отступы, но статус сохранения и действия остаются доступны. Код прокручивается внутри pre;
+изображения ограничены шириной текста, цитаты используют существующий акцент темы.
+
+Повторный Chrome-прогон: обе темы на 1920×1080, 1440×900, 1280×800, 1024×768, 360×800,
+393×873, 430×932, 768×900, 840×960 и 960×700. Дополнительно проверены coarse pointer,
+изменение размеров во время ввода с проверкой идентичности DOM-экземпляра BlockNote и
+autosave, focus, fold navigation, увеличение базового текста до 20 px, короткое окно 393×380
+и имитация overlay visualViewport высотой 340 px с проверкой положения caret.
+Скриншоты этапа 1.5: `test-results/studio-polish/` (ignored).
+
+`npm.cmd run check` этапа 1.5: Android version/client contract, lint, strict typecheck,
+260 unit tests passed / 36 skipped и production build прошли. После финальных CSS-правок
+production build и Chrome-прогон повторены. Два сценария `e2e/studio.spec.ts` успешно
+регистрируются Playwright; это не выдаётся за их запуск с настоящей БД.
+
+Это запуск реального Chrome с реальным NotebookApp и тестовыми API-ответами, как на этапе 1.
+Имитация VisualViewport не является открытием Android IME. `adb devices` не обнаружил
+устройств; физический Fold, настоящий hinge, системная клавиатура и WebView не проверены.
+DB-backed E2E по-прежнему требует отдельной тестовой PostgreSQL. В `e2e/studio.spec.ts`
+сохранены resize, pending autosave, focus/Back и overlay viewport сценарии для такого запуска.
+
+Изменения этапа 1.5: `src/app/studio.css`; в `src/components/notebook/` — `editor-pane.tsx`,
+`mobile-app-header.tsx`, `notebook-app.tsx`, `rich-text-editor.tsx`, `settings-dialog.tsx`,
+новый `use-workspace-viewport.ts`; `e2e/studio.spec.ts`; этот документ.
+
+## Файлы базового этапа 1
 
 - `src/app/studio.css`, `src/app/globals.css` — токены и общая оболочка Studio.
 - `src/lib/themes.ts`, `src/components/theme-provider.tsx`,
