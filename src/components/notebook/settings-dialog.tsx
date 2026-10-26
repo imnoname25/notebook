@@ -20,6 +20,7 @@ import {
 } from "lucide-react";
 import { useTheme } from "next-themes";
 import { ThemeSettings } from "./theme-settings";
+import { DocumentAlignmentSettings } from "./document-alignment";
 import { useRouter } from "next/navigation";
 import { Button, buttonVariants } from "@/components/ui/button";
 import { api, jsonOptions } from "@/lib/client-api";
@@ -1344,6 +1345,7 @@ function AppearancePreferencesSettings({
   return (
     <Section title={t("appearance.settings")}>
       <ThemeSettings />
+      <DocumentAlignmentSettings />
       <Field label={t("appearance.sectionIntensity")}>
         <select
           className="input"

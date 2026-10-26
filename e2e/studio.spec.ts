@@ -32,7 +32,7 @@ for (const theme of ["studio-graphite", "studio-atelier"] as const) {
     await page.goto(`/pages/${first.id}`);
     await page.evaluate((value) => localStorage.setItem("theme", value), theme);
     await page.reload();
-    for (const [width, height] of [[1920, 1080], [1440, 900], [1280, 800], [1024, 768], [360, 800], [840, 960]]) {
+    for (const [width, height] of [[2560, 1080], [1920, 1080], [1750, 1080], [1440, 900], [1280, 800], [1024, 768], [360, 800], [840, 960]]) {
       await page.setViewportSize({ width, height });
       await page.goto(`/pages/${first.id}`);
       await expect(page.locator(".bn-container")).toHaveAttribute("data-color-scheme", theme === "studio-graphite" ? "dark" : "light");
@@ -43,8 +43,31 @@ for (const theme of ["studio-graphite", "studio-atelier"] as const) {
       });
       expect(metrics.content).toBeLessThanOrEqual(width);
       expect(metrics.actionRight).toBeLessThanOrEqual(width);
+      if (width >= 1200) {
+        const geometry = await page.locator(".bn-editor").evaluate((node) => {
+          const rect = node.getBoundingClientRect();
+          const textLeft = rect.left + parseFloat(getComputedStyle(node).paddingLeft);
+          const edge = document.querySelector('[data-mobile-screen="pages"]')!.getBoundingClientRect().right;
+          return { gap: textLeft - edge, titleOffset: document.querySelector(".notebook-page-title-input")!.getBoundingClientRect().left - textLeft };
+        });
+        expect(geometry.gap).toBeGreaterThanOrEqual(32);
+        expect(geometry.gap).toBeLessThanOrEqual(48);
+        expect(Math.abs(geometry.titleOffset)).toBeLessThan(2);
+      }
       await page.screenshot({ path: testInfo.outputPath(`${theme}-${width}x${height}.png`) });
     }
+    await page.setViewportSize({ width: 1920, height: 1080 });
+    await page.getByTestId("desktop-app-header").getByRole("button", { name: "Настройки", exact: true }).click();
+    const appearance = page.getByRole("dialog", { name: "Настройки", exact: true });
+    await appearance.getByRole("button", { name: "Оформление", exact: true }).click();
+    await appearance.getByRole("combobox", { name: /Выравнивание документа/ }).selectOption("center");
+    await appearance.getByRole("button", { name: "Закрыть", exact: true }).click();
+    await page.reload();
+    await expect(page.locator(".notebook-app-shell")).toHaveAttribute("data-document-alignment", "center");
+    await page.getByTestId("desktop-app-header").getByRole("button", { name: "Настройки", exact: true }).click();
+    await appearance.getByRole("button", { name: "Оформление", exact: true }).click();
+    await appearance.getByRole("combobox", { name: /Выравнивание документа/ }).selectOption("left");
+    await appearance.getByRole("button", { name: "Закрыть", exact: true }).click();
     await page.setViewportSize({ width: 1440, height: 900 });
     const editor = page.locator('.bn-editor[contenteditable="true"]');
     await editor.click();

@@ -20,6 +20,7 @@ import { api, jsonOptions } from "@/lib/client-api";
 import { cn } from "@/lib/utils";
 import { EditorPane } from "./editor-pane";
 import { useWorkspaceViewport } from "./use-workspace-viewport";
+import { useDocumentAlignment } from "./document-alignment";
 import { NotebookSidebar } from "./notebook-sidebar";
 import { PageList } from "./page-list";
 import { SearchDialog } from "./search-dialog";
@@ -192,6 +193,7 @@ export function NotebookApp({
   const [sharedCapture, setSharedCapture] = useState<{ title: string; text: string } | null>(null);
   const [focusMode, setFocusMode] = useState(false);
   useWorkspaceViewport();
+  const documentAlignment = useDocumentAlignment();
   const androidClient = useSyncExternalStore(
     noClientSubscription,
     androidClientSnapshot,
@@ -1259,6 +1261,7 @@ export function NotebookApp({
       data-mobile-view={mobileView}
       data-workspace-screen={screen}
       data-has-section={activeSection ? "true" : "false"}
+      data-document-alignment={documentAlignment}
       className="notebook-app-shell flex h-dvh flex-col overflow-hidden bg-background text-foreground"
     >
       <MobileAppHeader

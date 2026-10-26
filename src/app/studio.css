@@ -343,6 +343,16 @@
   --studio-font-title: clamp(1.625rem, 2.25vw, 2.125rem);
 }
 :is(.studio-graphite, .studio-atelier) .notebook-app-shell {
+  --studio-document-margin-start: 0px;
+  --studio-document-margin-end: auto;
+}
+:is(.studio-graphite, .studio-atelier) .notebook-app-shell:is([data-document-alignment="center"], [data-focus-mode="true"]) {
+  --studio-document-margin-start: auto;
+}
+@media (min-width: 1200px) {
+  :is(.studio-graphite, .studio-atelier) .notebook-app-shell { --studio-reading-gutter: clamp(2rem, 2.5vw, 3rem); }
+}
+:is(.studio-graphite, .studio-atelier) .notebook-app-shell {
   height: var(--workspace-viewport-height, 100dvh);
   position: relative;
   top: var(--workspace-viewport-top, 0px);
@@ -351,7 +361,7 @@
 .studio-atelier .notebook-page-title-input { font-weight: 600; }
 :is(.studio-graphite, .studio-atelier) .notebook-editor .bn-editor { line-height: 1.7; }
 :is(.studio-graphite, .studio-atelier) .notebook-editor .bn-editor,
-:is(.studio-graphite, .studio-atelier) .notebook-app-shell[data-focus-mode="true"] .notebook-editor .bn-editor { width: 100%; max-width: calc(var(--notebook-reading-width) + 2 * var(--studio-reading-gutter)); margin-inline: auto; }
+:is(.studio-graphite, .studio-atelier) .notebook-app-shell[data-focus-mode="true"] .notebook-editor .bn-editor { width: 100%; max-width: calc(var(--notebook-reading-width) + 2 * var(--studio-reading-gutter)); margin-inline: var(--studio-document-margin-start) var(--studio-document-margin-end); }
 :is(.studio-graphite, .studio-atelier) .notebook-editor [data-content-type="heading"] { font-weight: 600; line-height: 1.35; }
 :is(.studio-graphite, .studio-atelier) .notebook-editor :is(pre, code) { font-family: var(--studio-code-font); font-variant-ligatures: none; }
 :is(.studio-graphite, .studio-atelier) .notebook-editor pre { font-size: 0.8125rem; line-height: 1.65; }
@@ -363,7 +373,8 @@
 :is(.studio-graphite, .studio-atelier) .notebook-editor blockquote { border-inline-start: 2px solid var(--studio-accent); padding-inline-start: 1rem; color: var(--studio-editor-muted); }
 :is(.studio-graphite, .studio-atelier) .notebook-editor img { max-width: 100%; height: auto; border-radius: 0.25rem; }
 :is(.studio-graphite, .studio-atelier) .notebook-editor-header { padding-top: 1.5rem; row-gap: 0.25rem; }
-:is(.studio-graphite, .studio-atelier) :is(.notebook-editor-header, .notebook-editor-tags) { max-width: calc(var(--studio-reading-width) + 2 * var(--studio-reading-gutter)); margin-inline: auto; }
+:is(.studio-graphite, .studio-atelier) :is(.notebook-editor-header, .notebook-editor-tags),
+:is(.studio-graphite, .studio-atelier) .notebook-app-shell[data-focus-mode="true"] :is(.notebook-editor-header, .notebook-editor-tags) { max-width: calc(var(--studio-reading-width) + 2 * var(--studio-reading-gutter)); margin-inline: var(--studio-document-margin-start) var(--studio-document-margin-end); }
 :is(.studio-graphite, .studio-atelier) .notebook-page-surface:has(.notebook-editor[data-content-width="narrow"]) { --studio-reading-width: 40rem; }
 :is(.studio-graphite, .studio-atelier) .notebook-page-surface:has(.notebook-editor[data-content-width="wide"]) { --studio-reading-width: 64rem; }
 :is(.studio-graphite, .studio-atelier) .notebook-editor-tags { padding-top: 0.25rem; }
