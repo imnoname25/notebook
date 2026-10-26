@@ -24,6 +24,7 @@ import { useDocumentAlignment } from "./document-alignment";
 import { useDocumentTabs, type DocumentHistory } from "./use-document-tabs";
 import { parseTabSession, tabSessionKey, type DocumentTab } from "@/lib/document-tabs";
 import { DocumentTabs } from "./document-tabs";
+import { DesktopPanelResizers } from "./desktop-panel-resizers";
 import { NotebookSidebar } from "./notebook-sidebar";
 import { PageList } from "./page-list";
 import { SearchDialog } from "./search-dialog";
@@ -117,6 +118,8 @@ type MobileBackRuntimeState = {
   tabsSheetOpen: boolean;
 };
 const noClientSubscription = () => () => undefined;
+const clientMountedSnapshot = () => true;
+const serverMountedSnapshot = () => false;
 const androidClientSnapshot = () => {
   const capacitor = (
     globalThis as typeof globalThis & {
@@ -141,7 +144,10 @@ type NotebookAppProps = {
 export function NotebookApp(props: NotebookAppProps) { return <NotebookWorkspace key={props.user.id} {...props}/>; }
 function NotebookWorkspace({ user, initialLocation }: NotebookAppProps) {
   const router = useRouter();
-  const { theme, resolvedTheme, setTheme } = useTheme();
+  const { theme: browserTheme, resolvedTheme: browserResolvedTheme, setTheme } = useTheme();
+  const mounted = useSyncExternalStore(noClientSubscription, clientMountedSnapshot, serverMountedSnapshot);
+  const theme = mounted ? browserTheme : undefined;
+  const resolvedTheme = mounted ? browserResolvedTheme : undefined;
   const studioTheme = resolvedTheme === "studio-graphite" || resolvedTheme === "studio-atelier";
   const [notebooks, setNotebooks] = useState<Notebook[]>([]);
   const [activeNotebookId, setActiveNotebookId] = useState<string | null>(
@@ -1377,6 +1383,7 @@ function NotebookWorkspace({ user, initialLocation }: NotebookAppProps) {
         </button>
       )}
       <div className="notebook-workspace-grid grid min-h-0 flex-1 md:grid-cols-[280px_320px_minmax(0,1fr)]">
+        <DesktopPanelResizers userId={user.id} enabled={studioTheme && screen === "workspace" && !focusMode} onError={report}/>
         {screen === "trash" ? (
           <TrashView
             key={workspaceRevision}
@@ -1432,6 +1439,7 @@ function NotebookWorkspace({ user, initialLocation }: NotebookAppProps) {
           <>
             {navigationSidebar}
             <div
+              id="workspace-page-list-panel"
               data-mobile-screen="pages"
               className={cn(
                 "notebook-no-print min-h-0 min-w-0",

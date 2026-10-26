@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useState, type CSSProperties } from "react";
 
 import {
   ChevronDown,
@@ -131,7 +131,7 @@ function SectionTree({
                     ? "text-accent-foreground"
                     : "text-muted-foreground hover:text-foreground",
                 )}
-                style={{ paddingLeft: 4 + depth * 10 }}
+                style={{ "--notebook-section-depth": depth } as CSSProperties}
               >
                 <button
                   className="w-5 shrink-0 touch-none rounded py-1 text-muted-foreground/60 opacity-0 group-hover:opacity-100 focus-visible:opacity-100"
@@ -241,6 +241,7 @@ export function NotebookSidebar(props: Props) {
   }
   return (
     <aside
+      id="workspace-sidebar-panel"
       data-density={props.density}
       data-section-intensity={props.sectionAccentIntensity ?? "moderate"}
       className="notebook-sidebar flex h-full min-h-0 flex-col bg-sidebar p-2 md:border-r md:border-border/60"
