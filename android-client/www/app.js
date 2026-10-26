@@ -1,4 +1,5 @@
 import { normalizeServerUrl } from "./server-url.js";
+import { androidClientUrl, readNativeAppInfo } from "./app-info.js";
 
 async function configureStatusBar() {
   const StatusBar = globalThis.Capacitor?.Plugins?.StatusBar;
@@ -13,7 +14,13 @@ void configureStatusBar().catch(() => {
   // CSS safe-area insets remain the fallback on enforced edge-to-edge Android versions.
 });
 
-const CURRENT_VERSION = "0.2.0";
+let appInfo = null;
+const appInfoReady = readNativeAppInfo().then(info => {
+  appInfo = info;
+  document.querySelector("#appBuildInfo").textContent = info
+    ? `Android ${info.versionName} (${info.versionCode}) · Git ${info.gitCommit}${info.sourceDirty ? " · локальные изменения" : ""}`
+    : "Сведения о native-сборке недоступны. Версия веб-интерфейса определяется выбранным сервером.";
+});
 const SUPPORTED_SERVER_API_VERSION = 1;
 const STORAGE_KEY = "notebook.serverUrl";
 const input = document.querySelector("#server");
@@ -28,7 +35,7 @@ const change = document.querySelector("#change");
 const isNewerVersion = (candidate, current) => candidate.split(".").map(Number).some((value, index, parts) => value > (current.split(".").map(Number)[index] || 0) && parts.slice(0, index).every((part, previous) => part === (current.split(".").map(Number)[previous] || 0)));
 
 function notebookUrl(server) {
-  return `${server}/app?client=android&version=${encodeURIComponent(CURRENT_VERSION)}`;
+  return androidClientUrl(server, appInfo);
 }
 
 function showChooser(message = "") {
@@ -57,6 +64,7 @@ async function connect(value, automatic = false) {
   if (automatic) showBootstrap("Проверяем сохранённый сервер…");
   else { button.disabled = true; status.textContent = "Проверяем сервер…"; }
   try {
+    await appInfoReady;
     const server = await validateServer(value);
     localStorage.setItem(STORAGE_KEY, server);
     if (automatic) showBootstrap("Подключено. Открываем Notebook…");
@@ -90,7 +98,7 @@ else showChooser();
 void fetch("https://api.github.com/repos/imnoname25/notebook/releases/latest", { headers: { Accept: "application/vnd.github+json" } }).then((response) => response.ok ? response.json() : null).then((release) => {
   const latest = release?.tag_name?.replace(/^v/, "");
   const apk = release?.assets?.find((asset) => /^Notebook-.*\.apk$/.test(asset.name));
-  if (!latest || !apk || !isNewerVersion(latest, CURRENT_VERSION)) return;
+  if (!latest || !apk || !appInfo || !isNewerVersion(latest, appInfo.versionName.split("-")[0])) return;
   document.querySelector("#updateText").textContent = `Доступна версия ${latest}`;
   const link = document.querySelector("#download"); link.href = apk.browser_download_url;
   document.querySelector("#update").hidden = false;

@@ -1,8 +1,10 @@
+import { androidAppInfoSchema } from "./android-app-info";
+
 type NotebookSessionPlugin = { flushCookies(): Promise<void> };
 type NotebookSharePlugin = { consume(): Promise<{ text?: string; title?: string }> };
 type CapacitorRuntime = {
   isNativePlatform?(): boolean;
-  Plugins?: { NotebookSession?: NotebookSessionPlugin; NotebookShare?: NotebookSharePlugin };
+  Plugins?: { NotebookSession?: NotebookSessionPlugin; NotebookShare?: NotebookSharePlugin; NotebookAppInfo?: { getInfo(): Promise<unknown> } };
 };
 
 function capacitorRuntime() {
@@ -22,6 +24,15 @@ export async function consumeNativeShare() {
 
 export function isNativeAndroidClient() {
   return Boolean(capacitorRuntime()?.isNativePlatform?.());
+}
+
+export async function readNativeAndroidAppInfo() {
+  const plugin = capacitorRuntime()?.Plugins?.NotebookAppInfo;
+  if (!plugin) return null;
+  try {
+    const info = androidAppInfoSchema.safeParse(await plugin.getInfo());
+    return info.success ? info.data : null;
+  } catch { return null; }
 }
 
 export async function flushNativeAuthCookies() {

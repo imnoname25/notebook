@@ -20,6 +20,7 @@ import {
 } from "lucide-react";
 import { useTheme } from "next-themes";
 import { ThemeSettings } from "./theme-settings";
+import { AndroidAppInfo } from "./android-app-info";
 import { DocumentAlignmentSettings } from "./document-alignment";
 import { useRouter } from "next/navigation";
 import { Button, buttonVariants } from "@/components/ui/button";
@@ -1345,6 +1346,7 @@ function AppearancePreferencesSettings({
   return (
     <Section title={t("appearance.settings")}>
       <ThemeSettings />
+      <AndroidAppInfo />
       <DocumentAlignmentSettings />
       <Field label={t("appearance.sectionIntensity")}>
         <select

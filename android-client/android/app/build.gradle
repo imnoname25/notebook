@@ -6,16 +6,28 @@ def releaseAlias = System.getenv("ANDROID_KEY_ALIAS")
 def releaseKeyPassword = System.getenv("ANDROID_KEY_PASSWORD")
 def hasReleaseSigning = releaseKeystore && releaseStorePassword && releaseAlias && releaseKeyPassword
 def releaseRequested = gradle.startParameter.taskNames.any { it.toLowerCase().contains("release") }
+def repositoryRoot = rootProject.projectDir.parentFile.parentFile
+def gitOutput = { List<String> args ->
+    def output = new ByteArrayOutputStream()
+    exec { workingDir repositoryRoot; commandLine(['git'] + args); standardOutput output }
+    output.toString('UTF-8').trim()
+}
+def sourceCommit = gitOutput(['rev-parse', 'HEAD'])
+if (!(sourceCommit ==~ /[0-9a-f]{40}/)) throw new GradleException('Cannot identify source commit')
+def sourceDirty = !gitOutput(['status', '--porcelain', '--untracked-files=normal']).isEmpty()
 
 android {
     namespace = "ru.metroom.notebook"
     compileSdk = rootProject.ext.compileSdkVersion
+    buildFeatures { buildConfig true }
     defaultConfig {
         applicationId "ru.metroom.notebook"
         minSdkVersion rootProject.ext.minSdkVersion
         targetSdkVersion rootProject.ext.targetSdkVersion
         versionCode 6
         versionName "0.6.0"
+        buildConfigField 'String', 'SOURCE_COMMIT', '"' + sourceCommit + '"'
+        buildConfigField 'boolean', 'SOURCE_DIRTY', sourceDirty.toString()
         testInstrumentationRunner "androidx.test.runner.AndroidJUnitRunner"
         aaptOptions {
              // Files and dirs to omit from the packaged assets dir, modified to accommodate modern web apps.
@@ -34,6 +46,9 @@ android {
         }
     }
     buildTypes {
+        debug {
+            versionNameSuffix '-g' + sourceCommit.take(8)
+        }
         release {
             if (!hasReleaseSigning && releaseRequested) throw new GradleException("Release signing secrets are required")
             if (hasReleaseSigning) signingConfig signingConfigs.release

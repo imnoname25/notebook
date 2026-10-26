@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="utf-8"?>
+<shortcuts xmlns:android="http://schemas.android.com/apk/res/android">
+    <shortcut android:shortcutId="app-info" android:enabled="true" android:shortcutShortLabel="@string/build_info_shortcut">
+        <intent android:action="ru.metroom.notebook.APP_INFO" android:targetPackage="ru.metroom.notebook" android:targetClass="ru.metroom.notebook.MainActivity" />
+    </shortcut>
+</shortcuts>

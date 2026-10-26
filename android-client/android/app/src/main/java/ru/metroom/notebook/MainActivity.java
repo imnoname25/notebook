@@ -1,6 +1,7 @@
 package ru.metroom.notebook;
 
 import android.os.Bundle;
+import android.app.AlertDialog;
 import android.content.Intent;
 import android.content.pm.ApplicationInfo;
 import android.util.Log;
@@ -15,6 +16,7 @@ import org.json.JSONTokener;
 public class MainActivity extends BridgeActivity {
     private static final String BACK_TAG = "NotebookBack";
     private static final String HANDLED = "HANDLED";
+    private static final String APP_INFO_ACTION = "ru.metroom.notebook.APP_INFO";
     private static final String WEB_BACK_HANDLER =
             "(function(){try{var h=window.__NOTEBOOK_ANDROID_BACK__;if(typeof h!=='function')return 'MISSING';var r=h();return r==='HANDLED'?'HANDLED':'UNHANDLED';}catch(error){return 'ERROR';}})()";
     private boolean backRequestPending = false;
@@ -23,8 +25,10 @@ public class MainActivity extends BridgeActivity {
     protected void onCreate(Bundle savedInstanceState) {
         registerPlugin(NotebookSessionPlugin.class);
         registerPlugin(NotebookSharePlugin.class);
+        registerPlugin(NotebookAppInfoPlugin.class);
         super.onCreate(savedInstanceState);
         handleShareIntent(getIntent());
+        handleAppInfoIntent(getIntent());
 
         CookieManager.getInstance().setAcceptCookie(true);
         getOnBackPressedDispatcher().addCallback(this, new OnBackPressedCallback(true) {
@@ -57,6 +61,20 @@ public class MainActivity extends BridgeActivity {
         super.onNewIntent(intent);
         setIntent(intent);
         handleShareIntent(intent);
+        handleAppInfoIntent(intent);
+    }
+
+    private void handleAppInfoIntent(Intent intent) {
+        if (intent == null || !APP_INFO_ACTION.equals(intent.getAction())) return;
+        intent.setAction(Intent.ACTION_MAIN);
+        getWindow().getDecorView().post(() -> new AlertDialog.Builder(this)
+                .setTitle("О сборке Notebook")
+                .setMessage("Android: " + BuildConfig.VERSION_NAME + " (" + BuildConfig.VERSION_CODE + ")"
+                        + "\nGit: " + BuildConfig.SOURCE_COMMIT
+                        + "\nИсходники: " + (BuildConfig.SOURCE_DIRTY ? "есть локальные изменения" : "чистый commit")
+                        + "\nТип: " + (BuildConfig.DEBUG ? "debug" : "release")
+                        + "\n\nИнтерфейс заметок загружается с выбранного сервера. Версия APK не подтверждает версию веб-интерфейса.")
+                .setPositiveButton(android.R.string.ok, null).show());
     }
 
     private void handleShareIntent(Intent intent) {

@@ -29,6 +29,7 @@ if (!activity.includes("getOnBackPressedDispatcher().onBackPressed()")) throw ne
 if (!activity.includes("NotebookSessionPlugin.class") || !sessionPlugin.includes("CookieManager.getInstance().flush()")) throw new Error("Persistent WebView cookies must be flushed through the native session bridge");
 if (!manifest.includes('android:enableOnBackInvokedCallback="true"')) throw new Error("Predictive Back must remain enabled");
 if (!activity.includes("NotebookSharePlugin.class") || !activity.includes("Intent.ACTION_SEND")) throw new Error("Android Share Target bridge is missing");
+if (!activity.includes("NotebookAppInfoPlugin.class") || !app.includes('readNativeAppInfo') || app.includes('CURRENT_VERSION = "0.2.0"')) throw new Error("Native build identity is missing or bootstrap version is stale");
 if (!manifest.includes('android.intent.action.SEND') || !manifest.includes('android:mimeType="text/plain"')) throw new Error("Android text Share Target is missing from manifest");
 if (sharePlugin.includes("SharedPreferences") || !sharePlugin.includes("pendingText = null")) throw new Error("Shared content must remain ephemeral and consumed once");
 console.log(`Android client contract is valid: ${versionState.androidVersionName} (${versionState.androidVersionCode})`);
