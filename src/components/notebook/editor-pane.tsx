@@ -1,6 +1,7 @@
 "use client";
 
 import dynamic from "next/dynamic";
+import type { ReactNode } from "react";
 import { ArrowLeft, FileText, ListTree, Loader2, Maximize2, Minimize2, Plus } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { t } from "@/lib/i18n/messages";
@@ -46,6 +47,8 @@ export function EditorPane({
   onCreatePage,
   focusMode,
   onFocusToggle,
+  documentTabs,
+  navigationBusy,
 }: {
   page: PageDocument | null;
   notebook: Notebook | null;
@@ -57,7 +60,7 @@ export function EditorPane({
   onController(controller: EditorSaveController | null): void;
   onNotebookClick(): void;
   onSectionClick(): void;
-  onInternalNavigate(pageId: string): Promise<void>;
+  onInternalNavigate(pageId: string, permanent?: boolean, blockId?: string): Promise<void>;
   outline: PageOutlineItem[];
   outlineVisible: boolean;
   onOutlineChange(items: PageOutlineItem[]): void;
@@ -66,9 +69,12 @@ export function EditorPane({
   onCreatePage(): void;
   focusMode: boolean;
   onFocusToggle(): void;
+  documentTabs?: ReactNode;
+  navigationBusy?: boolean;
 }) {
   return (
     <main className="notebook-editor-pane flex h-full min-h-0 min-w-0 flex-col bg-card shadow-[inset_1px_0_0_color-mix(in_srgb,var(--border)_45%,transparent)]">
+      {documentTabs}
       {!page && <div className="notebook-editor-back notebook-no-print flex h-16 shrink-0 items-center border-b border-border/50 px-2 md:hidden">
         <Button variant="ghost" className="h-12 px-3 text-base" onClick={onBack}>
           <ArrowLeft size={22} />
@@ -120,10 +126,11 @@ export function EditorPane({
           <Loader2 className="animate-spin" />
         </div>
       ) : page ? (
-        <div className="notebook-document-layout flex min-h-0 min-w-0 flex-1">
+        <div id="notebook-document-panel" role={documentTabs && page ? "tabpanel" : undefined} aria-labelledby={documentTabs && page ? `document-tab-${page.id}` : undefined} className="notebook-document-layout flex min-h-0 min-w-0 flex-1">
           <RichTextEditor
             key={`${page.id}:${editorEpoch}`}
             page={page}
+            navigationBusy={navigationBusy}
             resolvedAccent={resolveAppearanceAccent(page.color, section?.color, notebook?.color)}
             onSaved={onSaved}
             onController={onController}
@@ -133,7 +140,7 @@ export function EditorPane({
           {outlineVisible && outline.length > 0 && <aside className="notebook-document-context notebook-no-print hidden w-56 shrink-0 overflow-y-auto border-l border-border/50 p-3 lg:block"><p className="mb-2 px-2 text-xs font-semibold uppercase tracking-wide text-muted-foreground">{t("outline.title")}</p><OutlineList items={outline} onSelect={onOutlineSelect}/></aside>}
         </div>
       ) : (
-        <div className="flex flex-1 items-center justify-center p-8 text-center">
+        <div id="notebook-document-panel" role={documentTabs ? "tabpanel" : undefined} aria-label="Выберите доступный документ" className="flex flex-1 items-center justify-center p-8 text-center">
           <div className="max-w-xs">
             <span className="mx-auto flex size-11 items-center justify-center rounded-lg bg-muted text-muted-foreground">
               <FileText size={20} />

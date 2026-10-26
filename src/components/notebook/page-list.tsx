@@ -24,6 +24,7 @@ import { t } from "@/lib/i18n/messages";
 import { SortableItem, SortableList } from "./sortable";
 import type { PageSummary, Section } from "./types";
 import type { PageListView } from "@/lib/content-appearance";
+import type { DocumentTab } from "@/lib/document-tabs";
 
 type Props = {
   section: Section | null;
@@ -36,7 +37,7 @@ type Props = {
   onBack(): void;
   onAdd(): void;
   onAddFromTemplate(): void;
-  onSelect(page: PageSummary): void;
+  onSelect(page: PageSummary, mode?: DocumentTab["mode"]): void;
   onMenu(page: PageSummary): void;
   onFavorite(page: PageSummary): void;
   onReorder(ids: string[]): void;
@@ -183,7 +184,8 @@ export function PageList(props: Props) {
                             ? "py-2.5"
                             : "py-1.5",
                       )}
-                      onClick={() => props.onSelect(page)}
+                      onClick={(event) => { if (event.detail > 1) return;props.onSelect(page, event.ctrlKey || event.metaKey ? "permanent" : "preview"); }}
+                      onDoubleClick={() => props.onSelect(page, "permanent")}
                     >
                       {page.coverUploadId && viewMode !== "compact" ? (
                         <Image className="notebook-document-thumbnail" src={`/api/uploads/${page.coverUploadId}`} alt="" width={52} height={52} unoptimized />

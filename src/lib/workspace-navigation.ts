@@ -11,3 +11,9 @@ export function pageIdFromPath(pathname: string) {
   try { return decodeURIComponent(match[1]); } catch { return null; }
 }
 
+export function blockIdFromHash(hash: string) {
+  const value = hash.match(/^#block=(.+)$/u)?.[1];
+  if (!value) return null;
+  try { return decodeURIComponent(value); } catch { return null; }
+}
+

@@ -3,6 +3,7 @@
 import {
   useCallback,
   useEffect,
+  useLayoutEffect,
   useRef,
   useState,
   type CSSProperties,
@@ -45,7 +46,8 @@ import {
 import { LiveWidgetPageContext } from "./live-widget-block";
 import { EditorSuggestionOverlayBridge, NotebookSideMenu } from "./editor-block-menu";
 import { PageVariablesDialog } from "./page-variables-dialog";
-import { getPageHref, pageIdFromPath } from "@/lib/workspace-navigation";
+import { blockIdFromHash, getPageHref, pageIdFromPath } from "@/lib/workspace-navigation";
+import { EditorSaveQueue } from "@/lib/editor-save-queue";
 import { extractPageVariables, type PageVariable } from "@/lib/page-variables";
 
 type SavePayload = { title: string; content: unknown[] };
@@ -77,13 +79,15 @@ export function RichTextEditor({
   onController,
   onInternalNavigate,
   onOutlineChange,
+  navigationBusy = false,
 }: {
   page: PageDocument;
   resolvedAccent: AccentColor;
   onSaved(page: PageDocument): void;
   onController(controller: EditorSaveController | null): void;
-  onInternalNavigate(pageId: string): Promise<void>;
+  onInternalNavigate(pageId: string, permanent?: boolean, blockId?: string): Promise<void>;
   onOutlineChange(items: PageOutlineItem[]): void;
+  navigationBusy?: boolean;
 }) {
   const { resolvedTheme } = useTheme();
   const [title, setTitle] = useState(page.title);
@@ -99,9 +103,7 @@ export function RichTextEditor({
   const [linkPreview, setLinkPreview] = useState<{ title: string; icon: string | null; excerpt: string; sectionTitle: string; notebookTitle: string; x: number; y: number } | null>(null);
   const [variablesOpen, setVariablesOpen] = useState(false);
   const [variables, setVariables] = useState<PageVariable[]>(() => extractPageVariables(page.content));
-  const requestSequence = useRef(0);
   const serverRevision = useRef(page.revision);
-  const queue = useRef<Promise<void>>(Promise.resolve());
   const latest = useRef<SavePayload>({
     title: page.title,
     content: page.content,
@@ -169,12 +171,10 @@ export function RichTextEditor({
     [editor],
   );
   const sideMenu = useCallback(() => <NotebookSideMenu pageId={page.id}/>, [page.id]);
+  const [initialContentFingerprint] = useState(() => JSON.stringify(editor.document));
+  const lastContentFingerprint = useRef(initialContentFingerprint);
 
-  const persist = useCallback(
-    (payload: SavePayload, manual = false) => {
-      const sequence = ++requestSequence.current;
-      setStatus("saving");
-      const operation = queue.current.then(async () => {
+  const send = useCallback(async (payload: SavePayload, manual: boolean) => {
         const result = await api<{ page: PageDocument }>(
           `/api/pages/${page.id}`,
           jsonOptions("PATCH", {
@@ -185,23 +185,23 @@ export function RichTextEditor({
         );
         serverRevision.current = result.page.revision;
         onSavedRef.current(result.page);
-        if (requestSequence.current === sequence) setStatus("saved");
-      });
-      queue.current = operation.catch(() => {
-        if (requestSequence.current === sequence) setStatus("error");
-      });
-      return operation;
-    },
-    [page.id],
-  );
+  }, [page.id]);
+  const writer = useRef<EditorSaveQueue<SavePayload> | null>(null);
+  useLayoutEffect(() => {
+    if (writer.current === null) writer.current = new EditorSaveQueue<SavePayload>(latest.current, send, setStatus);
+  }, [send]);
 
   function schedule(payload: SavePayload) {
+    const fingerprint = JSON.stringify(payload.content);
+    if (payload.title === latest.current.title && fingerprint === lastContentFingerprint.current) return;
+    lastContentFingerprint.current = fingerprint;
     latest.current = payload;
-    setStatus("saving");
+    writer.current!.update(payload);
+    window.dispatchEvent(new CustomEvent("notebook:document-dirty", { detail: page.id }));
     if (timer.current) clearTimeout(timer.current);
     timer.current = setTimeout(() => {
       timer.current = null;
-      void persist(payload).catch(() => undefined);
+      void writer.current!.save(false).catch(() => undefined);
     }, preferences.autosaveDelayMs);
   }
 
@@ -209,9 +209,10 @@ export function RichTextEditor({
     (manual = true) => {
       if (timer.current) clearTimeout(timer.current);
       timer.current = null;
-      return persist(latest.current, manual);
+      if (!writer.current) return Promise.reject(new Error("Редактор ещё загружается"));
+      return writer.current.flush(manual);
     },
-    [persist],
+    [],
   );
 
   const scheduleOutline = useCallback(() => {
@@ -291,20 +292,22 @@ export function RichTextEditor({
 
   useEffect(() => {
     onController({
+      pageId: page.id,
       flush,
+      isDirty: () => writer.current?.isDirty() ?? false,
       scrollToBlock(blockId) {
         revealAndScrollBlock(editorRoot.current, blockId);
       },
       insertLiveWidget() { insertLiveWidget(editor); },
     });
     return () => onController(null);
-  }, [editor, flush, onController]);
+  }, [editor, flush, onController, page.id]);
 
   useEffect(() => {
     const scroll = (event: Event) => revealAndScrollBlock(editorRoot.current, (event as CustomEvent<string>).detail);
     window.addEventListener("notebook:scroll-to-block", scroll);
-    const match = window.location.hash.match(/^#block=(.+)$/u);
-    if (match?.[1]) window.setTimeout(() => revealAndScrollBlock(editorRoot.current, decodeURIComponent(match[1]!)), 120);
+    const blockId = blockIdFromHash(window.location.hash);
+    if (blockId) window.setTimeout(() => revealAndScrollBlock(editorRoot.current, blockId), 120);
     return () => window.removeEventListener("notebook:scroll-to-block", scroll);
   }, [editor]);
 
@@ -314,6 +317,14 @@ export function RichTextEditor({
     },
     [flush],
   );
+
+  useEffect(() => {
+    const guard = (event: BeforeUnloadEvent) => { if (writer.current?.isDirty()) { event.preventDefault(); event.returnValue = ""; } };
+    const background = () => { if (document.visibilityState === "hidden") void flush(false).catch(() => undefined); };
+    window.addEventListener("beforeunload", guard);
+    document.addEventListener("visibilitychange", background);
+    return () => { window.removeEventListener("beforeunload", guard); document.removeEventListener("visibilitychange", background); };
+  }, [flush]);
 
   useEffect(() => {
     const root = editorRoot.current;
@@ -413,6 +424,7 @@ export function RichTextEditor({
           value={title}
           aria-label="Название страницы"
           title={title}
+          readOnly={navigationBusy}
           onChange={(event) => {
             const nextTitle = event.target.value;
             setTitle(nextTitle);
@@ -451,6 +463,7 @@ export function RichTextEditor({
             </>
           )}
         </span>
+        {status === "error" && <button type="button" className="notebook-editor-header-action notebook-no-print" onClick={() => void flush(false).catch(() => undefined)}>Повторить сохранение</button>}
         <button type="button" className="notebook-editor-header-action notebook-no-print" aria-label="Переменные страницы" title="Переменные страницы" onClick={() => setVariablesOpen(true)}><Variable size={16}/><span>Переменные</span></button>
       </div>
       {tags.length > 0 && (
@@ -499,13 +512,11 @@ export function RichTextEditor({
             anchor.dataset.broken = "true";
             return;
           }
-          const match = new URL(
-            anchor.href,
-            window.location.origin,
-          ).pathname.match(/^\/pages\/([^/]+)$/);
-          if (!match?.[1]) return;
+          const url = new URL(anchor.href, window.location.origin);
+          const pageId = pageIdFromPath(url.pathname);
+          if (!pageId || url.origin !== window.location.origin) return;
           event.preventDefault();
-          void onInternalNavigate(match[1]).catch(() => {
+          void onInternalNavigate(pageId, event.ctrlKey || event.metaKey, blockIdFromHash(url.hash) ?? undefined).catch(() => {
             anchor.dataset.broken = "true";
           });
         }}
@@ -537,6 +548,7 @@ export function RichTextEditor({
       >
         <LiveWidgetPageContext.Provider value={page.id}><BlockNoteView
           editor={editor}
+          editable={!navigationBusy}
           slashMenu={false}
           sideMenu={false}
           theme={isDarkTheme(resolvedTheme) ? "dark" : "light"}
