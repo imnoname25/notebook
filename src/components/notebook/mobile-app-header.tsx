@@ -28,6 +28,7 @@ type MobileAppHeaderProps = {
   resolvedTheme: string | undefined;
   menuOpen: boolean;
   androidClient: boolean;
+  navigationOpen?: boolean;
   onHome(): void;
   onMenu(): void;
   onSearch(): void;
@@ -60,6 +61,9 @@ export function MobileAppHeader(props: MobileAppHeaderProps) {
           size="icon"
           className="size-12 shrink-0"
           aria-label="Открыть навигацию"
+          aria-haspopup={props.navigationOpen === undefined ? undefined : "dialog"}
+          aria-expanded={props.navigationOpen}
+          aria-controls={props.navigationOpen === undefined ? undefined : "notebook-navigation-drawer"}
           onClick={props.onMenu}
         >
           <Menu size={23} />

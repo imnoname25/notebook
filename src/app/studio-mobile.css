@@ -1,0 +1,83 @@
+/* Space-based Studio layouts only. Desktop geometry and palette tokens stay in studio.css. */
+.notebook-navigation-drawer {
+  top: calc(var(--workspace-viewport-top, 0px) + var(--safe-area-inset-top, env(safe-area-inset-top, 0px)));
+  height: calc(var(--workspace-viewport-height, 100dvh) - var(--safe-area-inset-top, env(safe-area-inset-top, 0px)) - var(--safe-area-inset-bottom, env(safe-area-inset-bottom, 0px)));
+  width: min(22rem, calc(100vw - 2rem));
+  background: var(--studio-nav-bg);
+  color: var(--studio-nav-text);
+  --border: var(--studio-nav-divider);
+  --accent: var(--studio-nav-hover);
+  --ring: var(--studio-nav-focus);
+}
+.notebook-navigation-drawer-heading { min-height: 3.25rem; }
+:is(.studio-graphite, .studio-atelier) .notebook-navigation-drawer { max-height: none; }
+.notebook-navigation-drawer .notebook-sidebar { height: auto; flex: 1; overflow-y: auto; overscroll-behavior: contain; padding: 0.25rem 0.5rem 0.5rem; }
+.notebook-navigation-drawer .notebook-sidebar > * { flex-shrink: 0; }
+.notebook-navigation-drawer .notebook-sidebar .notebook-navigation-label { padding: 0.5rem; }
+.notebook-navigation-drawer .notebook-sidebar .notebook-navigation-tree { flex: none; overflow: visible; }
+.notebook-navigation-drawer .notebook-sidebar > button,
+.notebook-navigation-drawer .notebook-sidebar [data-nav-row] > button,
+.notebook-navigation-drawer .notebook-sidebar .notebook-tree-children > button,
+.notebook-navigation-drawer .notebook-sidebar .notebook-navigation-tools > button {
+  min-height: 2.75rem;
+  height: auto;
+  font-size: 0.875rem;
+}
+.notebook-navigation-drawer .notebook-sidebar [data-nav-row] > button:not([title]),
+.notebook-navigation-drawer .notebook-sidebar [data-nav-row="notebook"] > button:nth-child(2),
+.notebook-navigation-drawer .notebook-sidebar .notebook-navigation-heading button { width: 2.75rem; min-width: 2.75rem; height: 2.75rem; opacity: 1; }
+.notebook-navigation-drawer .notebook-sidebar [data-nav-row] > button:first-child,
+.notebook-navigation-drawer .notebook-sidebar .notebook-section-add { display: none; }
+.notebook-navigation-drawer .notebook-sidebar .notebook-notebook-row button[title] > span:first-child { width: 1.25rem; height: 1.25rem; }
+.notebook-navigation-drawer .notebook-sidebar .notebook-navigation-heading { margin-top: 0.5rem; padding: 0 0.5rem; min-height: 2.75rem; }
+.notebook-navigation-drawer .notebook-sidebar .notebook-navigation-tools { grid-template-columns: repeat(2, minmax(0, 1fr)); margin-top: 0.5rem; padding-top: 0.25rem; }
+.notebook-navigation-drawer button:focus-visible { outline: 2px solid var(--ring); outline-offset: -2px; }
+
+@media (max-width: 1199px) {
+  /* The shell already reserves safe-area; do not add the inset to the header again. */
+  :is(.studio-graphite, .studio-atelier) .notebook-app-shell > .notebook-mobile-header { height: 3.25rem; min-height: 3.25rem; }
+  :is(.studio-graphite, .studio-atelier) .notebook-app-shell .notebook-mobile-header > button { height: 2.75rem; min-height: 2.75rem; }
+  :is(.studio-graphite, .studio-atelier) .notebook-app-shell .notebook-mobile-header > button > span:first-child { width: 1.75rem; height: 1.75rem; }
+  :is(.studio-graphite, .studio-atelier) .notebook-app-shell .notebook-mobile-header > button:nth-child(2) { font-size: 1rem; }
+  :is(.studio-graphite, .studio-atelier) .notebook-app-shell .notebook-breadcrumbs { min-height: 2.75rem; height: 2.75rem; flex: none; }
+  :is(.studio-graphite, .studio-atelier) .notebook-app-shell .notebook-breadcrumbs > button:not(.notebook-breadcrumb-back) { max-width: 34%; font-size: 0.75rem; }
+  :is(.studio-graphite, .studio-atelier) .notebook-app-shell .notebook-editor-header {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) 2.75rem;
+    align-items: center;
+    column-gap: 0.5rem;
+    row-gap: 0;
+    padding-top: 0.5rem;
+  }
+  :is(.studio-graphite, .studio-atelier) .notebook-app-shell .notebook-editor-header .notebook-page-title-input { grid-column: 1; grid-row: 1; width: 100%; font-size: clamp(1.375rem, 3vw, 1.75rem); line-height: 1.3; text-overflow: ellipsis; }
+  :is(.studio-graphite, .studio-atelier) .notebook-app-shell .notebook-editor-header > span { grid-column: 1; grid-row: 2; min-height: 1.5rem; font-size: 0.75rem; }
+  :is(.studio-graphite, .studio-atelier) .notebook-app-shell .notebook-editor-header .notebook-editor-header-action[aria-label] { grid-column: 2; grid-row: 1 / 3; margin: 0; width: 2.75rem; min-height: 2.75rem; justify-content: center; padding: 0; }
+  :is(.studio-graphite, .studio-atelier) .notebook-app-shell .notebook-editor-header-action[aria-label] > span { display: none; }
+  :is(.studio-graphite, .studio-atelier) .notebook-app-shell .notebook-editor-header-action:not([aria-label]) { grid-column: 1 / -1; grid-row: 3; min-height: 2.75rem; margin: 0; justify-content: flex-start; }
+  :is(.studio-graphite, .studio-atelier) .notebook-app-shell .notebook-editor-header[data-page-icon]:not([data-page-icon=""]) { grid-template-columns: 1.5rem minmax(0, 1fr) 2.75rem; }
+  :is(.studio-graphite, .studio-atelier) .notebook-app-shell .notebook-editor-header[data-page-icon]:not([data-page-icon=""])::before { grid-column: 1; grid-row: 1; font-size: 1.5rem; }
+  :is(.studio-graphite, .studio-atelier) .notebook-app-shell .notebook-editor-header[data-page-icon]:not([data-page-icon=""]) .notebook-page-title-input { grid-column: 2; }
+  :is(.studio-graphite, .studio-atelier) .notebook-app-shell .notebook-editor-header[data-page-icon]:not([data-page-icon=""]) > span { grid-column: 1 / 3; }
+  :is(.studio-graphite, .studio-atelier) .notebook-app-shell .notebook-editor-header[data-page-icon]:not([data-page-icon=""]) .notebook-editor-header-action[aria-label] { grid-column: 3; }
+  :is(.studio-graphite, .studio-atelier) .notebook-app-shell .notebook-editor { padding-top: 0.5rem; scroll-padding-block: 1rem max(4rem, 20dvh); }
+  :is(.studio-graphite, .studio-atelier) .notebook-app-shell .notebook-editor [data-content-type="heading"][data-level="1"] { --level: 1.5rem; }
+  :is(.studio-graphite, .studio-atelier) .notebook-app-shell .notebook-editor [data-content-type="heading"][data-level="2"] { --level: 1.25rem; }
+  :is(.studio-graphite, .studio-atelier) .notebook-app-shell .notebook-editor [data-content-type="heading"] { padding-top: 0.75rem; }
+  :is(.studio-graphite, .studio-atelier) .notebook-app-shell .notebook-page-cover { height: clamp(6rem, 16dvh, 9rem); margin-top: 0.5rem; }
+  :is(.studio-graphite, .studio-atelier) .notebook-app-shell .notebook-page-list-header { min-height: 3rem; flex-wrap: nowrap; padding-block: 0.25rem; }
+  :is(.studio-graphite, .studio-atelier) .notebook-app-shell .notebook-page-list-heading { flex-basis: auto; }
+  :is(.studio-graphite, .studio-atelier) .notebook-app-shell .notebook-document-list { padding-bottom: calc(5rem + env(safe-area-inset-bottom, 0px)); }
+
+  /* BlockNote owns this wrapper, its resize handles and cell editing. No document rewrite. */
+  :is(.studio-graphite, .studio-atelier) .notebook-app-shell .notebook-editor [data-content-type="table"] { min-width: 0; max-width: 100%; overflow: visible; }
+  :is(.studio-graphite, .studio-atelier) .notebook-app-shell .notebook-editor .tableWrapper { min-width: 0; max-width: 100%; overflow-x: auto; overscroll-behavior-inline: contain; background: none; scrollbar-width: thin; }
+  :is(.studio-graphite, .studio-atelier) .notebook-app-shell .notebook-editor .tableWrapper-inner { width: max-content; min-width: 100%; }
+  :is(.studio-graphite, .studio-atelier) .notebook-app-shell .notebook-editor .tableWrapper :is(td, th) { min-width: 12rem; word-break: normal; overflow-wrap: break-word; }
+  :is(.studio-graphite, .studio-atelier) .notebook-app-shell[data-workspace-screen="workspace"][data-mobile-view="navigation"] .notebook-workspace-grid { grid-template-columns: minmax(0, 1fr); }
+  :is(.studio-graphite, .studio-atelier) .notebook-app-shell[data-workspace-screen="workspace"][data-mobile-view="navigation"] [data-mobile-screen="editor"] { display: block; }
+}
+@media (min-width: 768px) and (max-width: 1199px) {
+  :is(.studio-graphite, .studio-atelier) .notebook-app-shell[data-workspace-screen="workspace"][data-has-section="true"] .notebook-workspace-grid { grid-template-columns: clamp(15rem, 30vw, 19rem) minmax(0, 1fr); }
+  :is(.studio-graphite, .studio-atelier) .notebook-app-shell[data-workspace-screen="workspace"][data-has-section="true"] :is([data-mobile-screen="pages"], [data-mobile-screen="editor"]) { display: block; }
+  :is(.studio-graphite, .studio-atelier) .notebook-app-shell[data-workspace-screen="workspace"][data-has-section="true"][data-focus-mode="true"] .notebook-workspace-grid { grid-template-columns: minmax(0, 1fr); }
+}

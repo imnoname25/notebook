@@ -39,6 +39,7 @@ import { DataSettings } from "./data-settings";
 import { SettingsDialog } from "./settings-dialog";
 import { DesktopAppHeader } from "./desktop-app-header";
 import { MobileAppHeader } from "./mobile-app-header";
+import { WorkspaceNavigation } from "./workspace-navigation";
 import { PrintDialog } from "./print-dialog";
 import { NotebookOverview } from "./notebook-overview";
 import { MobileOutlineSheet } from "./page-outline";
@@ -101,6 +102,7 @@ type MobileBackRuntimeState = {
   historyOpen: boolean;
   outlineOpen: boolean;
   mobileMenuOpen: boolean;
+  navigationOpen: boolean;
   mobileView: MobileView;
   moveTarget: MoveTarget | null;
   printOpen: boolean;
@@ -140,6 +142,7 @@ export function NotebookApp(props: NotebookAppProps) { return <NotebookWorkspace
 function NotebookWorkspace({ user, initialLocation }: NotebookAppProps) {
   const router = useRouter();
   const { theme, resolvedTheme, setTheme } = useTheme();
+  const studioTheme = resolvedTheme === "studio-graphite" || resolvedTheme === "studio-atelier";
   const [notebooks, setNotebooks] = useState<Notebook[]>([]);
   const [activeNotebookId, setActiveNotebookId] = useState<string | null>(
     initialLocation?.notebookId ?? null,
@@ -185,6 +188,7 @@ function NotebookWorkspace({ user, initialLocation }: NotebookAppProps) {
   const [templateManagerOpen, setTemplateManagerOpen] = useState(false);
   const [printOpen, setPrintOpen] = useState(false);
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
+  const [navigationOpen, setNavigationOpen] = useState(false);
   const [outline, setOutline] = useState<PageOutlineItem[]>([]);
   const [outlineOpen, setOutlineOpen] = useState(false);
   const [outlineVisible, setOutlineVisible] = useState(false);
@@ -222,6 +226,7 @@ function NotebookWorkspace({ user, initialLocation }: NotebookAppProps) {
     historyOpen,
     outlineOpen,
     mobileMenuOpen,
+    navigationOpen,
     mobileView,
     moveTarget,
     printOpen,
@@ -450,11 +455,11 @@ function NotebookWorkspace({ user, initialLocation }: NotebookAppProps) {
   const loadTabDocument = useCallback(
     async (pageId: string, history: DocumentHistory, current: () => boolean) => {
       setPageLoading(!activePageRef.current);
-      if (!activePageRef.current) { setScreen("workspace");setMobileView("editor"); }
+      if (!activePageRef.current) { setScreen("workspace");setMobileView("editor");setNavigationOpen(false); }
       try {
         if (activePageRef.current?.id === pageId) {
           if (!current()) return null;
-          setScreen("workspace");setMobileView("editor");
+          setScreen("workspace");setMobileView("editor");setNavigationOpen(false);
           if (history !== "none") setPageUrl(pageId, history);
           const block = blockIdFromHash(window.location.hash);
           if (block) editorController.current?.scrollToBlock(block);
@@ -487,6 +492,7 @@ function NotebookWorkspace({ user, initialLocation }: NotebookAppProps) {
         recordOpenedPage(page.id);
         setScreen("workspace");
         setMobileView("editor");
+        setNavigationOpen(false);
         if (history !== "none") setPageUrl(page.id, history);
         setError("");
         return page;
@@ -551,6 +557,7 @@ function NotebookWorkspace({ user, initialLocation }: NotebookAppProps) {
       const hasOverlay =
         Boolean(state.actionTarget) ||
         state.mobileMenuOpen ||
+        state.navigationOpen ||
         state.searchOpen ||
         state.outlineOpen ||
         state.historyOpen ||
@@ -585,6 +592,7 @@ function NotebookWorkspace({ user, initialLocation }: NotebookAppProps) {
         else if (state.tagBrowserOpen) setTagBrowserOpen(false);
         else if (state.actionTarget) setActionTarget(null);
         else if (state.mobileMenuOpen) setMobileMenuOpen(false);
+        else if (state.navigationOpen) setNavigationOpen(false);
         else if (state.outlineOpen) setOutlineOpen(false);
         else if (state.historyOpen) setHistoryOpen(false);
         else if (state.appearanceNotebook) setAppearanceNotebook(null);
@@ -604,7 +612,10 @@ function NotebookWorkspace({ user, initialLocation }: NotebookAppProps) {
         window.history.replaceState(null, "", "/app");
         setMobileView("pages");
       }
-      if (action === "navigation") setMobileView("navigation");
+      if (action === "navigation") {
+        setMobileView("navigation");
+        if (document.documentElement.matches(".studio-graphite, .studio-atelier")) setNavigationOpen(true);
+      }
       return "HANDLED";
     };
     androidWindow.__NOTEBOOK_ANDROID_BACK_VERSION__ =
@@ -1083,6 +1094,7 @@ function NotebookWorkspace({ user, initialLocation }: NotebookAppProps) {
         activePageRef.current = page;
         setActivePage(page);
         setMobileView("editor");
+        setNavigationOpen(false);
         setPageUrl(page.id, "replace");
         await tabs.open(page.id, "permanent", "replace");
         setUndoAction(createReversibleAction(t("undo.moved"), async () => {
@@ -1268,14 +1280,19 @@ function NotebookWorkspace({ user, initialLocation }: NotebookAppProps) {
     });
   }
 
+  function openNavigation() {
+    if (studioTheme) {
+      // Trash occupies the whole grid and does not mount a sidebar host.
+      if (screen === "trash") setScreen("workspace");
+      setNavigationOpen(true);
+    }
+    else { setScreen("workspace"); setMobileView("navigation"); }
+  }
+
   const navigationSidebar = (
-    <div
-      data-mobile-screen="navigation"
-      className={cn(
-        "notebook-no-print min-h-0 min-w-0",
-        (screen !== "workspace" || mobileView !== "navigation") && "hidden md:block",
-      )}
-    >
+    <WorkspaceNavigation studio={studioTheme}
+      open={navigationOpen} onOpenChange={setNavigationOpen}
+      visible={screen === "workspace" && mobileView === "navigation"}>
       <NotebookSidebar
         notebooks={notebooks}
         activeNotebookId={activeNotebookId}
@@ -1283,24 +1300,24 @@ function NotebookWorkspace({ user, initialLocation }: NotebookAppProps) {
         activeDestination={screen === "today" ? "today" : screen === "stickers" ? "stickers" : "workspace"}
         expansionStorageKey={`notebook:expanded-notebooks:${user.id}`}
         sectionAccentIntensity={sectionAccentIntensity}
-        onNotebookSelect={openNotebookOverview}
-        onSectionSelect={openSection}
-        onAddNotebook={addNotebook}
-        onNotebookMenu={(item) => setActionTarget({ type: "notebook", item })}
-        onAddSection={addSection}
-        onSectionMenu={(item) => setActionTarget({ type: "section", item })}
+        onNotebookSelect={(id) => { setNavigationOpen(false); openNotebookOverview(id); }}
+        onSectionSelect={(section) => { setNavigationOpen(false); openSection(section); }}
+        onAddNotebook={() => { setNavigationOpen(false); void addNotebook(); }}
+        onNotebookMenu={(item) => { setNavigationOpen(false); setActionTarget({ type: "notebook", item }); }}
+        onAddSection={(id, parentId) => { setNavigationOpen(false); void addSection(id, parentId); }}
+        onSectionMenu={(item) => { setNavigationOpen(false); setActionTarget({ type: "section", item }); }}
         onNotebookReorder={(ids) => void saveNotebookOrder(ids)}
         onSectionReorder={(notebookId, parentId, ids) => void saveSectionOrder(notebookId, parentId, ids)}
-        onTrashOpen={() => void tabs.leave(() => setScreen("trash"))}
-        onInboxOpen={() => openSpecial("stickers")}
-        onTodayOpen={() => openSpecial("today")}
-        onFavoritesOpen={() => { setSearchGroup("favorites"); setSearchInitialQuery(""); setSearchOpen(true); }}
-        onRecentOpen={() => { setSearchGroup("recent"); setSearchInitialQuery(""); setSearchOpen(true); }}
-        onTemplatesOpen={() => setTemplateManagerOpen(true)}
-        onSettingsOpen={() => setSettingsOpen(true)}
-        onTagsOpen={() => { setTagBrowserTag(null); setTagBrowserOpen(true); }}
+        onTrashOpen={() => { setNavigationOpen(false); void tabs.leave(() => setScreen("trash")); }}
+        onInboxOpen={() => { setNavigationOpen(false); openSpecial("stickers"); }}
+        onTodayOpen={() => { setNavigationOpen(false); openSpecial("today"); }}
+        onFavoritesOpen={() => { setNavigationOpen(false); setSearchGroup("favorites"); setSearchInitialQuery(""); setSearchOpen(true); }}
+        onRecentOpen={() => { setNavigationOpen(false); setSearchGroup("recent"); setSearchInitialQuery(""); setSearchOpen(true); }}
+        onTemplatesOpen={() => { setNavigationOpen(false); setTemplateManagerOpen(true); }}
+        onSettingsOpen={() => { setNavigationOpen(false); setSettingsOpen(true); }}
+        onTagsOpen={() => { setNavigationOpen(false); setTagBrowserTag(null); setTagBrowserOpen(true); }}
       />
-    </div>
+    </WorkspaceNavigation>
   );
 
   return (
@@ -1320,11 +1337,9 @@ function NotebookWorkspace({ user, initialLocation }: NotebookAppProps) {
         resolvedTheme={resolvedTheme}
         menuOpen={mobileMenuOpen}
         androidClient={androidClient}
+        navigationOpen={studioTheme ? navigationOpen : undefined}
         onHome={openHome}
-        onMenu={() => {
-          setScreen("workspace");
-          setMobileView("navigation");
-        }}
+        onMenu={openNavigation}
         onSearch={() => { setSearchGroup(undefined); setSearchInitialQuery(""); setSearchOpen(true); }}
         onQuickNotes={() => setQuickNotesOpen(true)}
         onMenuOpenChange={setMobileMenuOpen}
@@ -1423,7 +1438,7 @@ function NotebookWorkspace({ user, initialLocation }: NotebookAppProps) {
                 mobileView !== "pages" && "hidden md:block",
               )}
             >
-              {activeNotebook && !activeSection ? <div className="h-full md:hidden"><NotebookOverview notebook={activeNotebook} revision={workspaceRevision} onSection={openSection} onPage={(id) => void openPageById(id).catch(report)} onAddSection={() => void addSection(activeNotebook.id)} onError={report} onBack={() => setMobileView("navigation")} /></div> : <PageList
+              {activeNotebook && !activeSection ? <div className="h-full md:hidden"><NotebookOverview notebook={activeNotebook} revision={workspaceRevision} onSection={openSection} onPage={(id) => void openPageById(id).catch(report)} onAddSection={() => void addSection(activeNotebook.id)} onError={report} onBack={openNavigation} /></div> : <PageList
                 section={activeSection}
                 pages={pages}
                 activePageId={activePage?.id ?? null}
@@ -1441,7 +1456,7 @@ function NotebookWorkspace({ user, initialLocation }: NotebookAppProps) {
                     report(cause);
                   });
                 }}
-                onBack={() => setMobileView("navigation")}
+                onBack={openNavigation}
                 onAdd={addPage}
                 onAddFromTemplate={() => setTemplatePickerOpen(true)}
                 onSelect={(page, mode) => { void openPageById(page.id, "push", mode); }}
@@ -1467,7 +1482,7 @@ function NotebookWorkspace({ user, initialLocation }: NotebookAppProps) {
                 mobileView !== "editor" && "hidden md:block",
               )}
             >
-              {activeNotebook && !activeSection && !activePage && mobileView !== "editor" ? <div className="flex h-full min-h-0 flex-col"><DocumentTabs controller={tabs}/><div className="min-h-0 flex-1"><NotebookOverview notebook={activeNotebook} revision={workspaceRevision} onSection={openSection} onPage={(id) => void openPageById(id).catch(report)} onAddSection={() => void addSection(activeNotebook.id)} onError={report} onBack={() => setMobileView("navigation")} /></div></div> : <EditorPane
+              {activeNotebook && !activeSection && !activePage && mobileView !== "editor" ? <div className="flex h-full min-h-0 flex-col"><DocumentTabs controller={tabs}/><div className="min-h-0 flex-1"><NotebookOverview notebook={activeNotebook} revision={workspaceRevision} onSection={openSection} onPage={(id) => void openPageById(id).catch(report)} onAddSection={() => void addSection(activeNotebook.id)} onError={report} onBack={openNavigation} /></div></div> : <EditorPane
                 page={activePage}
                 documentTabs={<DocumentTabs controller={tabs}/>}
                 navigationBusy={tabs.busy || authLeaving}
