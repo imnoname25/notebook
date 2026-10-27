@@ -24,9 +24,9 @@
   font-size: 0.875rem;
 }
 .notebook-navigation-drawer .notebook-sidebar [data-nav-row] > button:not([title]),
-.notebook-navigation-drawer .notebook-sidebar [data-nav-row="notebook"] > button:nth-child(2),
+.notebook-navigation-drawer .notebook-sidebar [data-nav-row="notebook"] > [data-nav-toggle],
 .notebook-navigation-drawer .notebook-sidebar .notebook-navigation-heading button { width: 2.75rem; min-width: 2.75rem; height: 2.75rem; opacity: 1; }
-.notebook-navigation-drawer .notebook-sidebar [data-nav-row] > button:first-child,
+.notebook-navigation-drawer .notebook-sidebar [data-nav-row] > [data-drag-handle],
 .notebook-navigation-drawer .notebook-sidebar .notebook-section-add { display: none; }
 .notebook-navigation-drawer .notebook-sidebar .notebook-notebook-row button[title] > span:first-child { width: 1.25rem; height: 1.25rem; }
 .notebook-navigation-drawer .notebook-sidebar .notebook-navigation-heading { margin-top: 0.5rem; padding: 0 0.5rem; min-height: 2.75rem; }

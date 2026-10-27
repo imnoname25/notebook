@@ -164,9 +164,9 @@
 :is(.studio-graphite, .studio-atelier) .notebook-sidebar [data-nav-row]::before { content: none; }
 :is(.studio-graphite, .studio-atelier) .notebook-sidebar [data-nav-row] { border-radius: 0.25rem; font-size: var(--studio-font-ui); }
 :is(.studio-graphite, .studio-atelier) .notebook-sidebar [data-nav-row] > button { min-height: var(--studio-row-height); height: auto; }
-:is(.studio-graphite, .studio-atelier) .notebook-sidebar [data-nav-row] > button:first-child { width: 1.5rem; }
+:is(.studio-graphite, .studio-atelier) .notebook-sidebar [data-nav-row] > [data-drag-handle] { width: 1.5rem; }
 :is(.studio-graphite, .studio-atelier) .notebook-sidebar [data-nav-row] > button:nth-last-child(-n + 2):not([title]) { width: 1.5rem; }
-:is(.studio-graphite, .studio-atelier) .notebook-sidebar [data-nav-row="notebook"] > button:nth-child(2) { width: 1.5rem; padding: 0; }
+:is(.studio-graphite, .studio-atelier) .notebook-sidebar [data-nav-row="notebook"] > [data-nav-toggle] { width: 1.5rem; padding: 0; }
 :is(.studio-graphite, .studio-atelier) .notebook-notebook-row button[title] { gap: 0.5rem; font-size: var(--studio-font-ui); font-weight: 500; }
 :is(.studio-graphite, .studio-atelier) .notebook-notebook-row button[title] > span:first-child { width: 1.125rem; height: 1.125rem; background: transparent; color: rgb(var(--notebook-row-rgb)); }
 :is(.studio-graphite, .studio-atelier) .notebook-notebook-row[aria-current="page"] button[title] > span:first-child { color: var(--studio-nav-selected-text); }
@@ -310,7 +310,7 @@
 @media (min-width: 768px) and (pointer: coarse) {
   :is(.studio-graphite, .studio-atelier) .notebook-page-row > button:nth-last-child(-n + 2) { position: static; flex: none; align-self: center; }
   :is(.studio-graphite, .studio-atelier) .notebook-window-actions > button { min-width: 2.75rem; min-height: 2.75rem; }
-  :is(.studio-graphite, .studio-atelier) .notebook-sidebar [data-nav-row] > button:first-child { display: none; }
+  :is(.studio-graphite, .studio-atelier) .notebook-sidebar [data-nav-row] > [data-drag-handle] { display: none; }
   :is(.studio-graphite, .studio-atelier) .notebook-sidebar .notebook-section-add { display: none; }
   :is(.studio-graphite, .studio-atelier) .notebook-sidebar [data-nav-row] > button:not([title]),
   :is(.studio-graphite, .studio-atelier) .notebook-navigation-heading button { min-width: 2.75rem; }

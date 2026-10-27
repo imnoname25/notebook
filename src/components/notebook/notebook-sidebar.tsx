@@ -6,7 +6,6 @@ import {
   ChevronDown,
   Ellipsis,
   FolderPlus,
-  GripVertical,
   Hash,
   Clock3,
   LayoutTemplate,
@@ -98,6 +97,7 @@ function SectionTree({
     <SortableList
       ids={siblings.map((section) => section.id)}
       onReorder={(ids) => onReorder(notebookId, parentId, ids)}
+      rowDrag
     >
       {siblings.map((section) => (
         <SortableItem id={section.id} key={section.id}>
@@ -119,6 +119,7 @@ function SectionTree({
             >
               <div
                 data-nav-row="section"
+                data-drop-target={isOver && !isDragging}
                 data-section-color={resolveAppearanceAccent(
                   null,
                   section.color,
@@ -134,14 +135,9 @@ function SectionTree({
                 style={{ "--notebook-section-depth": depth } as CSSProperties}
               >
                 <button
-                  className="w-5 shrink-0 touch-none rounded py-1 text-muted-foreground/60 opacity-0 group-hover:opacity-100 focus-visible:opacity-100"
-                  aria-label={`Перетащить раздел ${section.title}`}
                   {...attributes}
                   {...listeners}
-                >
-                  <GripVertical size={13} />
-                </button>
-                <button
+                  data-nav-select
                   title={section.title}
                   className="flex min-h-11 min-w-0 flex-1 items-center gap-2 px-1 py-1 text-left md:min-h-9"
                   onClick={() => onSelect(section)}
@@ -284,6 +280,7 @@ export function NotebookSidebar(props: Props) {
         <SortableList
           ids={ordered.map((item) => item.id)}
           onReorder={props.onNotebookReorder}
+          rowDrag
         >
           {ordered.map((notebook) => {
             const active = notebook.id === props.activeNotebookId;
@@ -321,6 +318,7 @@ export function NotebookSidebar(props: Props) {
                   >
                     <div
                       data-nav-row="notebook"
+                      data-drop-target={isOver && !isDragging}
                       aria-current={active ? "page" : undefined}
                       className={cn(
                         "notebook-notebook-row group flex items-center rounded-md",
@@ -330,15 +328,8 @@ export function NotebookSidebar(props: Props) {
                       )}
                     >
                       <button
-                        className="w-5 shrink-0 touch-none rounded py-1 text-muted-foreground/60 opacity-0 group-hover:opacity-100 focus-visible:opacity-100"
-                        aria-label={`Перетащить блокнот ${notebook.title}`}
-                        {...attributes}
-                        {...listeners}
-                      >
-                        <GripVertical size={13} />
-                      </button>
-                      <button
                         className="flex size-11 shrink-0 items-center justify-center rounded-md text-muted-foreground hover:bg-background/70 md:size-9"
+                        data-nav-toggle
                         aria-label={expanded ? t("navigation.collapseNotebook") : t("navigation.expandNotebook")}
                         aria-expanded={expanded}
                         onClick={() => toggleExpanded(notebook.id)}
@@ -346,6 +337,9 @@ export function NotebookSidebar(props: Props) {
                         <ChevronDown size={15} className="notebook-tree-chevron" data-expanded={expanded} />
                       </button>
                       <button
+                        {...attributes}
+                        {...listeners}
+                        data-nav-select
                         title={notebook.title}
                         aria-label={notebook.title}
                         className="flex min-h-11 min-w-0 flex-1 items-center gap-2 py-1 text-left text-[15px] font-semibold md:min-h-10"

@@ -57,14 +57,16 @@ for (const theme of ["studio-graphite", "studio-atelier"] as const) {
       await page.screenshot({ path: testInfo.outputPath(`${theme}-${width}x${height}.png`) });
     }
     await page.setViewportSize({ width: 1920, height: 1080 });
-    await page.getByTestId("desktop-app-header").getByRole("button", { name: "Настройки", exact: true }).click();
+    await page.getByTestId("desktop-app-header").getByRole("button", { name: /^Профиль:/ }).click();
+    await page.getByRole("menuitem", { name: "Настройки", exact: true }).click();
     const appearance = page.getByRole("dialog", { name: "Настройки", exact: true });
     await appearance.getByRole("button", { name: "Оформление", exact: true }).click();
     await appearance.getByRole("combobox", { name: /Выравнивание документа/ }).selectOption("center");
     await appearance.getByRole("button", { name: "Закрыть", exact: true }).click();
     await page.reload();
     await expect(page.locator(".notebook-app-shell")).toHaveAttribute("data-document-alignment", "center");
-    await page.getByTestId("desktop-app-header").getByRole("button", { name: "Настройки", exact: true }).click();
+    await page.getByTestId("desktop-app-header").getByRole("button", { name: /^Профиль:/ }).click();
+    await page.getByRole("menuitem", { name: "Настройки", exact: true }).click();
     await appearance.getByRole("button", { name: "Оформление", exact: true }).click();
     await appearance.getByRole("combobox", { name: /Выравнивание документа/ }).selectOption("left");
     await appearance.getByRole("button", { name: "Закрыть", exact: true }).click();
@@ -106,7 +108,8 @@ for (const theme of ["studio-graphite", "studio-atelier"] as const) {
       const data = z.object({ page: z.object({ content: z.array(z.unknown()) }) }).parse(await page.request.get(`/api/pages/${first.id}`).then((r) => r.json()));
       return JSON.stringify(data.page.content);
     }).toContain(marker);
-    await page.getByTestId("desktop-app-header").getByRole("button", { name: "Настройки", exact: true }).click();
+    await page.getByTestId("desktop-app-header").getByRole("button", { name: /^Профиль:/ }).click();
+    await page.getByRole("menuitem", { name: "Настройки", exact: true }).click();
     const settings = page.getByRole("dialog", { name: "Настройки", exact: true });
     await settings.getByRole("button", { name: "Оформление", exact: true }).click();
     const next = theme === "studio-graphite" ? "Studio Atelier" : "Studio Graphite";

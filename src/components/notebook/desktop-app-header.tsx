@@ -1,10 +1,10 @@
 "use client";
 
-import { BookOpen, LogOut, Monitor, Moon, Settings, StickyNote, Sun } from "lucide-react";
+import { BookOpen, LogOut, Monitor, Moon, Settings, StickyNote, Sun, UserRound } from "lucide-react";
+import * as DropdownMenu from "@radix-ui/react-dropdown-menu";
 import type { ReactNode } from "react";
 import { Button } from "@/components/ui/button";
 import { isDarkTheme, themeLabel } from "@/lib/themes";
-import { t } from "@/lib/i18n/messages";
 import { NotificationCenter } from "./notification-center";
 
 type Props = {
@@ -30,14 +30,19 @@ export function DesktopAppHeader(props: Props) {
       <BookOpen size={20} strokeWidth={1.5}/><span>Notebook</span>
     </button>
     {props.search}
-    <div className="notebook-window-actions ml-auto flex min-w-0 items-center gap-1">
-      <span className="notebook-window-document hidden min-w-0 truncate px-3 text-xs text-muted-foreground lg:block" title={props.documentTitle ?? props.notebookTitle}>{props.documentTitle ?? props.notebookTitle}</span>
+    <div className="notebook-window-actions ml-auto flex min-w-0 items-center justify-end gap-1">
       {props.isAdmin && <NotificationCenter onError={props.onError}/>}
-      <Button variant="ghost" size="icon" aria-label={t("quickNotes.title")} title={`${t("quickNotes.title")} (Ctrl/Cmd + Shift + N)`} onClick={props.onCapture}><StickyNote size={16}/></Button>
-      <Button variant="ghost" size="icon" aria-label="Настройки" onClick={props.onSettings}><Settings size={16}/></Button>
-      <Button variant="ghost" size="icon" aria-label="Переключить тему" title={`Тема: ${themeLabel(props.theme)}`} onClick={props.onTheme}><ThemeIcon size={16}/></Button>
-      <span className="notebook-account-name hidden max-w-28 truncate px-2 text-xs text-muted-foreground xl:block">{props.userName}</span>
-      <Button variant="ghost" size="icon" aria-label="Выйти" onClick={props.onLogout}><LogOut size={16}/></Button>
+      <DropdownMenu.Root><DropdownMenu.Trigger asChild><Button variant="ghost" size="icon" className="notebook-profile-trigger" aria-label={`Профиль: ${props.userName}`} title={props.userName}><UserRound size={18}/></Button></DropdownMenu.Trigger>
+        <DropdownMenu.Portal><DropdownMenu.Content align="end" sideOffset={6} onCloseAutoFocus={event => { if (document.querySelector(".quick-search-panel")) event.preventDefault(); }} className="notebook-profile-menu z-50 min-w-56 max-w-[calc(100vw-24px)] rounded-md border border-border bg-popover p-1 text-popover-foreground shadow-sm">
+          <DropdownMenu.Label className="max-w-64 truncate px-3 py-2 text-sm font-semibold">{props.userName}</DropdownMenu.Label>
+          <DropdownMenu.Separator className="my-1 h-px bg-border"/>
+          <DropdownMenu.Item className="notebook-profile-item" onSelect={props.onCapture}><StickyNote size={16}/>Быстрая заметка<kbd className="ml-auto text-[10px] text-muted-foreground">Ctrl ⇧ N</kbd></DropdownMenu.Item>
+          <DropdownMenu.Item className="notebook-profile-item" onSelect={props.onSettings}><Settings size={16}/>Настройки</DropdownMenu.Item>
+          <DropdownMenu.Item className="notebook-profile-item" onSelect={props.onTheme}><ThemeIcon size={16}/><span>Переключить тему<span className="block text-xs text-muted-foreground">{themeLabel(props.theme)}</span></span></DropdownMenu.Item>
+          <DropdownMenu.Separator className="my-1 h-px bg-border"/>
+          <DropdownMenu.Item className="notebook-profile-item" onSelect={props.onLogout}><LogOut size={16}/>Выйти</DropdownMenu.Item>
+        </DropdownMenu.Content></DropdownMenu.Portal>
+      </DropdownMenu.Root>
     </div>
   </header>;
 }

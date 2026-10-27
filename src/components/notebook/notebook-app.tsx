@@ -1446,6 +1446,7 @@ function NotebookWorkspace({ user, initialLocation }: NotebookAppProps) {
           <>
           {navigationSidebar}
           <StickerBoard
+            userId={user.id}
             notebooks={notebooks}
             revision={workspaceRevision}
             onBack={() => setScreen("workspace")}
