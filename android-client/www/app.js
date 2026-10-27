@@ -1,5 +1,6 @@
 import { normalizeServerUrl } from "./server-url.js";
 import { androidClientUrl, readNativeAppInfo } from "./app-info.js";
+import { openNotebook } from "./open-notebook.js";
 
 async function configureStatusBar() {
   const StatusBar = globalThis.Capacitor?.Plugins?.StatusBar;
@@ -70,7 +71,7 @@ async function connect(value, automatic = false) {
     if (automatic) showBootstrap("Подключено. Открываем Notebook…");
     else status.textContent = "Подключено. Открываем Notebook…";
     // Bootstrap configuration must never become a Notebook Back destination.
-    window.location.replace(notebookUrl(server));
+    await openNotebook(notebookUrl(server));
   } catch (error) {
     const message = error instanceof Error ? error.message : "Не удалось подключиться к серверу";
     if (automatic) showBootstrap(`${message}. Повторите попытку или явно смените сервер.`);

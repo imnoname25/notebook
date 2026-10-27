@@ -20,7 +20,7 @@ if (packageJson.dependencies?.["@capacitor/status-bar"] !== "^8.0.0") throw new 
 if (!config.includes("overlaysWebView: false")) throw new Error("Status bar overlay должен быть отключён в native config");
 if (!config.includes('insetsHandling: "css"')) throw new Error("Android edge-to-edge insets должны экспортироваться в CSS");
 if (!app.includes("StatusBar.setOverlaysWebView({ overlay: false })")) throw new Error("Status bar overlay должен отключаться при запуске shell");
-if (!app.includes("window.location.replace(notebookUrl(server))")) throw new Error("Server chooser must be replaced after successful bootstrap");
+if (!app.includes("await openNotebook(notebookUrl(server))") || !sessionPlugin.includes("webView.loadUrl(target)") || !sessionPlugin.includes("webView.clearHistory()")) throw new Error("Android bootstrap must use native navigation with cleared chooser history to preserve Strict session cookies");
 if (!app.includes('get("changeServer") === "1"')) throw new Error("Server chooser must require initial setup or an explicit change action");
 if (activity.includes(".canGoBack()") || activity.includes(".goBack()")) throw new Error("Android Back must not traverse raw WebView/bootstrap history");
 if (!activity.includes("__NOTEBOOK_ANDROID_BACK__") || !activity.includes("evaluateJavascript")) throw new Error("Native/WebView Back contract is missing");

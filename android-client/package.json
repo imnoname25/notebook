@@ -5,7 +5,8 @@
   "private": true,
   "scripts": {
     "sync": "cap sync android",
-    "check": "node scripts/validate-client.mjs && node scripts/check-server-url.mjs && node scripts/check-app-info.mjs",
+    "check": "node scripts/validate-client.mjs && node scripts/check-server-url.mjs && node scripts/check-app-info.mjs && node scripts/check-session-navigation.mjs",
+    "check:session-browser": "node scripts/check-session-cookies.mjs",
     "build:debug": "npm run sync && cd android && gradlew.bat assembleDebug",
     "build:release": "npm run sync && cd android && gradlew.bat assembleRelease bundleRelease"
   },

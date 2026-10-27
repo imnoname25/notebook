@@ -31,7 +31,7 @@ describe("Android and mobile shell contract", () => {
     expect(activity).toContain("JSONTokener");
     expect(activity).toContain("NotebookSessionPlugin.class");
     expect(activity).toContain("CookieManager.getInstance().flush()");
-    expect(shell).toContain("window.location.replace(notebookUrl(server))");
+    expect(shell).toContain("await openNotebook(notebookUrl(server))");
     expect(shell).toContain('get("changeServer") === "1"');
     expect(mobileHeader).toContain("Выйти на всех устройствах");
   });
