@@ -35,6 +35,7 @@ export class DocumentTransitionQueue {
   private version = 0;
   private tail: Promise<unknown> = Promise.resolve();
   cancel() { this.version++; }
+  async idle() { await this.tail; }
   run<T>(operation: (current: () => boolean) => Promise<T>): Promise<T | undefined> {
     const version = ++this.version;
     const current = () => version === this.version;

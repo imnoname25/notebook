@@ -3,6 +3,7 @@
 import {
   useCallback,
   useEffect,
+  useLayoutEffect,
   useMemo,
   useRef,
   useState,
@@ -21,7 +22,10 @@ import { cn } from "@/lib/utils";
 import { EditorPane } from "./editor-pane";
 import { useWorkspaceViewport } from "./use-workspace-viewport";
 import { useDocumentAlignment } from "./document-alignment";
-import { useDocumentTabs, type DocumentHistory } from "./use-document-tabs";
+import type { DocumentHistory } from "./use-document-tabs";
+import { useWorkspaceTabs } from "./use-workspace-tabs";
+import { WorkspaceEditors } from "./workspace-editors";
+import type { WorkspacePaneId } from "@/lib/split-workspace";
 import { parseTabSession, tabSessionKey, type DocumentTab } from "@/lib/document-tabs";
 import { DocumentTabs } from "./document-tabs";
 import { DesktopPanelResizers } from "./desktop-panel-resizers";
@@ -167,7 +171,6 @@ function NotebookWorkspace({ user, initialLocation }: NotebookAppProps) {
   const [pages, setPages] = useState<PageSummary[]>([]);
   const [activePage, setActivePage] = useState<PageDocument | null>(null);
   const [pagesLoading, setPagesLoading] = useState(false);
-  const [pageLoading, setPageLoading] = useState(false);
   const [mobileView, setMobileView] = useState<MobileView>("navigation");
   const [error, setError] = useState("");
   const [actionTarget, setActionTarget] = useState<ActionTarget | null>(null);
@@ -199,7 +202,6 @@ function NotebookWorkspace({ user, initialLocation }: NotebookAppProps) {
     useState<SectionAccentIntensity>("moderate");
   const [pageListView, setPageListView] = useState<PageListView>("standard");
   const [moveTarget, setMoveTarget] = useState<MoveTarget | null>(null);
-  const [editorEpoch, setEditorEpoch] = useState(0);
   const [dataSettingsOpen, setDataSettingsOpen] = useState(false);
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [notice, setNotice] = useState("");
@@ -233,7 +235,6 @@ function NotebookWorkspace({ user, initialLocation }: NotebookAppProps) {
   const mobileBackStateRef = useRef<MobileBackRuntimeState | null>(null);
   const recentRecordedAt = useRef(new Map<string, number>());
   const startScreenApplied = useRef(false);
-  const pendingPageLoad = useRef<{ id: string; result: Promise<{ page: PageDocument }> } | null>(null);
   const pendingBlock = useRef<{ pageId: string; blockId: string } | null>(null);
 
   mobileBackStateRef.current = {
@@ -471,21 +472,11 @@ function NotebookWorkspace({ user, initialLocation }: NotebookAppProps) {
     });
   }
 
-  const loadTabDocument = useCallback(
-    async (pageId: string, history: DocumentHistory, current: () => boolean) => {
-      setPageLoading(!activePageRef.current);
-      if (!activePageRef.current) { setScreen("workspace");setMobileView("editor");setNavigationOpen(false); }
+  async function loadTabDocument(pane: WorkspacePaneId, pageId: string, history: DocumentHistory, current: () => boolean, preloaded?: PageDocument) {
+      const previous = workspace.docs.current[pane];
       try {
-        if (activePageRef.current?.id === pageId) {
-          if (!current()) return null;
-          setScreen("workspace");setMobileView("editor");setNavigationOpen(false);
-          if (history !== "none") setPageUrl(pageId, history);
-          const block = blockIdFromHash(window.location.hash);
-          if (block) editorController.current?.scrollToBlock(block);
-          return activePageRef.current;
-        }
-        if (pendingPageLoad.current?.id !== pageId) pendingPageLoad.current = { id: pageId, result: api<{ page: PageDocument }>(`/api/pages/${encodeURIComponent(pageId)}`) };
-        const page = (await pendingPageLoad.current.result).page;
+        if (previous?.id === pageId) { if (!current()) return null;return previous; }
+        const page = preloaded ?? (await api<{ page: PageDocument }>(`/api/pages/${encodeURIComponent(pageId)}`)).page;
         let availableNotebooks = notebooks;
         let notebook = availableNotebooks.find((item) =>
           item.sections.some((section) => section.id === page.sectionId),
@@ -499,43 +490,37 @@ function NotebookWorkspace({ user, initialLocation }: NotebookAppProps) {
         }
         if (!notebook) throw new Error("PAGE_LOCATION_UNAVAILABLE");
         if (!current()) return null;
-        await editorController.current?.flush(false);
+        await workspace.editor(pane)?.flush(false);
         if (!current()) return null;
-        setActiveNotebookId(notebook.id);
-        setActiveSectionId(page.sectionId);
-        activePageRef.current = page;
-        pendingPageLoad.current = null;
-        setActivePage(page);
-        setOutline([]);
-        setOutlineOpen(false);
+        workspace.accept(pane, page);
         recordOpenedPage(page.id);
-        setScreen("workspace");
-        setMobileView("editor");
-        setNavigationOpen(false);
-        if (history !== "none") setPageUrl(page.id, history);
+        if (workspace.activeRef.current.active === pane && !workspace.transaction.current) {
+          setActiveNotebookId(notebook.id);setActiveSectionId(page.sectionId);
+          setScreen("workspace");setMobileView("editor");setNavigationOpen(false);
+          if (history !== "none") setPageUrl(page.id, history);
+        }
         setError("");
         return page;
       } catch (cause) {
-        pendingPageLoad.current = null;
         if (!current()) return null;
         report(cause);
         setNotice(activePageRef.current ? "Не удалось перейти. Текущая заметка остаётся открытой; повторите попытку после проверки соединения." : "Не удалось загрузить документ. Вкладки сохранены; повторите открытие после восстановления соединения.");
         if (history === "none" && activePageRef.current) window.history.replaceState(null, "", getPageHref(activePageRef.current.id));
         return null;
-      } finally {
-        setPageLoading(false);
       }
-    },
-    [notebooks, recordOpenedPage, report],
-  );
+  }
 
-  const tabs = useDocumentTabs({ userId: user.id, load: loadTabDocument,
-    flush: async () => { await editorController.current?.flush(false); },
-    clear: () => { activePageRef.current = null;setActivePage(null);setOutline([]);setMobileView("pages");window.history.replaceState(null, "", WORKSPACE_ROOT_HREF); },
-    report, notice: setNotice,
+  const workspace = useWorkspaceTabs({ userId: user.id, load: loadTabDocument,
+    present: page => {
+      activePageRef.current = page;setActivePage(page);setScreen("workspace");setMobileView("editor");setNavigationOpen(false);
+      if (page) { const book = notebooks.find(item => item.sections.some(section => section.id === page.sectionId));if (book) setActiveNotebookId(book.id);setActiveSectionId(page.sectionId); }
+    }, onController: registerEditorController, report, notice: setNotice,
   });
-  const { open: openTab, restore: restoreTabs, leave: leaveTabs } = tabs;
-  const openPageById = useCallback((id: string, history: DocumentHistory = "push", mode: DocumentTab["mode"] = "preview") => openTab(id, mode, history), [openTab]);
+  const { syncActive, active: workspacePane } = workspace;
+  useLayoutEffect(() => { syncActive(activePage); }, [activePage, workspacePane, syncActive]);
+  const tabs = { ...workspace.controller(workspace.active), leave: workspace.leave };
+  const openTab = workspace.open;const restoreTabs = workspace.restore;const leaveTabs = workspace.leave;
+  const openPageById = useCallback(async (id: string, history: DocumentHistory = "push", mode: DocumentTab["mode"] = "preview") => { const opened = await openTab(id, mode, history);const block = blockIdFromHash(location.hash);if (opened && block) editorController.current?.scrollToBlock(block);return opened; }, [openTab]);
   const search = useWorkspaceSearch({ leave: leaveTabs, setScreen });
   const { open: openSearch, back: backSearch } = search;
   const openGlobalSearch = useCallback((patch?: Partial<WorkspaceSearch>) => {
@@ -810,6 +795,7 @@ function NotebookWorkspace({ user, initialLocation }: NotebookAppProps) {
       | "appearance"
       | "template"
       | "open-tab"
+      | "open-right"
       | "print",
   ) {
     const target = actionTarget;
@@ -831,7 +817,7 @@ function NotebookWorkspace({ user, initialLocation }: NotebookAppProps) {
               `Переместить блокнот «${target.item.title}» и его содержимое в корзину?`,
             )
           ) {
-            await editorController.current?.flush(false);
+            await workspace.flushAll();
             await api(
               `/api/notebooks/${target.item.id}`,
               jsonOptions("DELETE"),
@@ -863,12 +849,13 @@ function NotebookWorkspace({ user, initialLocation }: NotebookAppProps) {
               `Переместить раздел «${target.item.title}» и его содержимое в корзину?`,
             )
           ) {
-            await editorController.current?.flush(false);
+            await workspace.flushAll();
             await api(`/api/sections/${target.item.id}`, jsonOptions("DELETE"));
             await loadNotebooks();
           }
         } else await reorderSections(target.item, action === "up" ? -1 : 1);
       } else {
+        if (action === "open-right") { if (!workspace.split) workspace.enable();await workspace.open(target.item.id, "permanent", "push", "right");return; }
         if (action === "open-tab") { await openPageById(target.item.id, "push", "permanent");return; }
         if (action === "appearance") {
           setAppearancePage(target.item);
@@ -911,7 +898,7 @@ function NotebookWorkspace({ user, initialLocation }: NotebookAppProps) {
           return;
         }
         if (action === "duplicate") {
-          await editorController.current?.flush(false);
+          await workspace.editorFor(target.item.id)?.flush(false);
           const { page } = await api<{ page: PageDocument }>(
             `/api/pages/${target.item.id}/duplicate`,
             jsonOptions("POST"),
@@ -925,7 +912,7 @@ function NotebookWorkspace({ user, initialLocation }: NotebookAppProps) {
           return;
         }
         if (action === "rename") {
-          if (activePageRef.current?.id === target.item.id) await editorController.current?.flush(false);
+          await workspace.editorFor(target.item.id)?.flush(false);
           const title = window.prompt("Новое название", target.item.title);
           if (title?.trim()) {
             const { page } = await api<{ page: PageDocument }>(
@@ -940,10 +927,10 @@ function NotebookWorkspace({ user, initialLocation }: NotebookAppProps) {
               `Переместить страницу «${target.item.title}» в корзину?`,
             )
           ) {
-            await editorController.current?.flush(false);
+            await workspace.editorFor(target.item.id)?.flush(false);
             await api(`/api/pages/${target.item.id}`, jsonOptions("DELETE"));
             setPages((items) => items.filter((p) => p.id !== target.item.id));
-            await tabs.close([target.item.id], true);
+            await workspace.close([target.item.id], true);
             setUndoAction(createReversibleAction(t("undo.trashed"), async () => {
               await api("/api/trash/restore", jsonOptions("POST", { type: "page", id: target.item.id }));
               setActiveNotebookId(activeNotebook?.id ?? null);
@@ -1047,6 +1034,7 @@ function NotebookWorkspace({ user, initialLocation }: NotebookAppProps) {
     }
   }
   function pageSaved(page: PageDocument) {
+    workspace.updatePage(page);
     tabs.title(page.id, page.title);
     setPages((items) =>
       items.map((item) => (item.id === page.id ? { ...item, ...page } : item)),
@@ -1090,7 +1078,7 @@ function NotebookWorkspace({ user, initialLocation }: NotebookAppProps) {
   async function logout() {
     setAuthLeaving(true);
     try {
-      await stickerSaves.flushAll();await editorController.current?.flush(false);
+      await stickerSaves.flushAll();await workspace.flushAll();
       await api("/api/auth/logout", jsonOptions("POST"));
       await flushNativeAuthCookies();
       router.replace("/login");
@@ -1101,7 +1089,7 @@ function NotebookWorkspace({ user, initialLocation }: NotebookAppProps) {
     if (!window.confirm("Выйти на всех устройствах, включая это?")) return;
     setAuthLeaving(true);
     try {
-      await stickerSaves.flushAll();await editorController.current?.flush(false);
+      await stickerSaves.flushAll();await workspace.flushAll();
       await api("/api/auth/logout-all", jsonOptions("POST"));
       await flushNativeAuthCookies();
       router.replace("/login");
@@ -1111,7 +1099,7 @@ function NotebookWorkspace({ user, initialLocation }: NotebookAppProps) {
   async function changeAndroidServer() {
     if (!window.confirm(t("mobile.changeServerConfirm"))) return;
     setAuthLeaving(true);
-    try { await stickerSaves.flushAll();await editorController.current?.flush(false);window.location.replace("https://localhost/?changeServer=1"); }
+    try { await stickerSaves.flushAll();await workspace.flushAll();window.location.replace("https://localhost/?changeServer=1"); }
     catch (cause) { setAuthLeaving(false);report(cause); }
   }
 
@@ -1135,7 +1123,7 @@ function NotebookWorkspace({ user, initialLocation }: NotebookAppProps) {
     try {
       if (target.type === "page") {
         const sourceSectionId = target.currentSectionId;
-        await editorController.current?.flush(false);
+        await workspace.editorFor(target.id)?.flush(false);
         const { page } = await api<{ page: PageDocument }>(
           `/api/pages/${target.id}/move`,
           jsonOptions("POST", { destinationSectionId: destinationId }),
@@ -1146,6 +1134,7 @@ function NotebookWorkspace({ user, initialLocation }: NotebookAppProps) {
         setPages((items) => items.filter((item) => item.id !== target.id));
         setActiveNotebookId(notebook?.id ?? null);
         setActiveSectionId(destinationId);
+        workspace.updatePage(page);
         activePageRef.current = page;
         setActivePage(page);
         setMobileView("editor");
@@ -1153,7 +1142,7 @@ function NotebookWorkspace({ user, initialLocation }: NotebookAppProps) {
         setPageUrl(page.id, "replace");
         await tabs.open(page.id, "permanent", "replace");
         setUndoAction(createReversibleAction(t("undo.moved"), async () => {
-          await editorController.current?.flush(false);
+          await workspace.editorFor(target.id)?.flush(false);
           const { page: restored } = await api<{ page: PageDocument }>(
             `/api/pages/${target.id}/move`,
             jsonOptions("POST", { destinationSectionId: sourceSectionId }),
@@ -1161,6 +1150,7 @@ function NotebookWorkspace({ user, initialLocation }: NotebookAppProps) {
           const sourceNotebook = notebooks.find((item) => item.sections.some((section) => section.id === sourceSectionId));
           setActiveNotebookId(sourceNotebook?.id ?? null);
           setActiveSectionId(sourceSectionId);
+          workspace.updatePage(restored);
           activePageRef.current = restored;
           setActivePage(restored);
           setWorkspaceRevision((value) => value + 1);
@@ -1205,7 +1195,7 @@ function NotebookWorkspace({ user, initialLocation }: NotebookAppProps) {
       activePageRef.current = page;
       setActivePage(page);
       pageSaved(page);
-      setEditorEpoch((value) => value + 1);
+      workspace.refresh(page.id);
     } catch (cause) {
       report(cause);
       throw cause;
@@ -1533,23 +1523,20 @@ function NotebookWorkspace({ user, initialLocation }: NotebookAppProps) {
                 }}
               />}
             </div>
-            <div
-              data-mobile-screen="editor"
-              className={cn(
-                "min-h-0 min-w-0",
-                mobileView !== "editor" && "hidden md:block",
-              )}
-            >
-              {activeNotebook && !activeSection && !activePage && mobileView !== "editor" ? <div className="flex h-full min-h-0 flex-col"><DocumentTabs controller={tabs}/><div className="min-h-0 flex-1"><NotebookOverview notebook={activeNotebook} revision={workspaceRevision} onSection={openSection} onPage={(id) => void openPageById(id).catch(report)} onAddSection={() => void addSection(activeNotebook.id)} onError={report} onBack={openNavigation} /></div></div> : <EditorPane
-                searchMatch={searchMatch?.pageId === activePage?.id ? searchMatch : null}
+
+          </>
+        )}
+        <div data-mobile-screen="editor" className={cn("min-h-0 min-w-0", mobileView !== "editor" && "hidden md:block")} style={screen === "workspace" ? undefined : { display: "none" }}>
+          {activeNotebook && !activeSection && !activePage && mobileView !== "editor" && !workspace.split && <div className="flex h-full min-h-0 flex-col"><DocumentTabs controller={tabs}/><div className="min-h-0 flex-1"><NotebookOverview notebook={activeNotebook} revision={workspaceRevision} onSection={openSection} onPage={(id) => void openPageById(id).catch(report)} onAddSection={() => void addSection(activeNotebook.id)} onError={report} onBack={openNavigation}/></div></div>}
+          <WorkspaceEditors workspace={workspace} notebooks={notebooks} blocked={authLeaving} onActiveOutline={setOutline} enabled={studioTheme} suspended={screen !== "workspace" || Boolean(activeNotebook && !activeSection && !activePage && mobileView !== "editor" && !workspace.split)} renderBase={overrides => <EditorPane
+                searchMatch={searchMatch?.pageId === overrides.page?.id ? searchMatch : null}
                 onSearchMatchClose={() => setSearchMatch(null)}
                 page={activePage}
-                documentTabs={<DocumentTabs controller={tabs}/>}
-                navigationBusy={tabs.busy || authLeaving}
+                navigationBusy={authLeaving}
                 notebook={activeNotebook}
                 section={activeSection}
-                loading={pageLoading}
-                editorEpoch={editorEpoch}
+                loading={false}
+                editorEpoch={0}
                 onBack={() => {
                   setFocusMode(false);
                   window.history.replaceState(null, "", "/app");
@@ -1585,10 +1572,9 @@ function NotebookWorkspace({ user, initialLocation }: NotebookAppProps) {
                     throw cause;
                   }
                 }}
-              />}
-            </div>
-          </>
-        )}
+                {...overrides}
+              />}/>
+        </div>
       </div>
       <CommandPalette open={searchOpen} onOpenChange={setSearchOpen} commands={paletteCommands}/>
       <QuickCapture
@@ -1641,7 +1627,8 @@ function NotebookWorkspace({ user, initialLocation }: NotebookAppProps) {
             <p className="truncate px-3 py-2 text-sm font-semibold">
               {actionTarget.item.title}
             </p>
-            {actionTarget.type === "page" && <button className="block min-h-11 w-full rounded-lg px-3 py-2 text-left text-sm hover:bg-accent" onClick={() => void runAction("open-tab")}>Открыть в новой вкладке</button>}
+            {actionTarget.type === "page" && <><button className="block min-h-11 w-full rounded-lg px-3 py-2 text-left text-sm hover:bg-accent" onClick={() => void runAction("open-tab")}>Открыть в новой вкладке</button>
+                <button className="block w-full rounded-lg px-3 py-2 text-left text-sm hover:bg-accent" onClick={() => void runAction("open-right")}>Открыть справа</button></>}
             <button
               className="block w-full rounded-lg px-3 py-2 text-left text-sm hover:bg-accent"
               onClick={() => void runAction("rename")}

@@ -10,6 +10,8 @@ export type DocumentHistory = "push" | "replace" | "none";
 type Meta = { id: string; title: string };
 type Options = {
   userId: string;
+  storageKey?: string;
+  excludeRestored?(): Set<string>;
   load(id: string, history: DocumentHistory, current: () => boolean): Promise<Meta | null>;
   flush(): Promise<void>;
   clear(): void;
@@ -28,7 +30,7 @@ export function useDocumentTabs(options: Options) {
   const alive = useRef(true);
   const commit = useCallback((next: TabState) => {
     ref.current = next;setState(next);
-    if (hydrated.current) try { localStorage.setItem(tabSessionKey(callbacks.current.userId), serializeTabSession(next)); } catch { callbacks.current.notice("Не удалось сохранить сессию вкладок в этом браузере"); }
+    if (hydrated.current) try { localStorage.setItem(callbacks.current.storageKey ?? tabSessionKey(callbacks.current.userId), serializeTabSession(next)); } catch { callbacks.current.notice("Не удалось сохранить сессию вкладок в этом браузере"); }
   }, []);
   const title = useCallback((id: string, value: string) => setTitles(old => old[id] === value ? old : { ...old, [id]: value }), []);
   const run = useCallback(async (operation: (current: () => boolean) => Promise<boolean>) => {
@@ -73,7 +75,9 @@ export function useDocumentTabs(options: Options) {
     hydrated.current = true;
     const originalIntent = intent.current;
     let saved = EMPTY_TABS;
-    try { saved = parseTabSession(localStorage.getItem(tabSessionKey(callbacks.current.userId))); } catch { /* Fresh session. */ }
+    try { saved = parseTabSession(localStorage.getItem(callbacks.current.storageKey ?? tabSessionKey(callbacks.current.userId))); } catch { /* Fresh session. */ }
+    const excluded = callbacks.current.excludeRestored?.();
+    if (excluded) saved = { ...saved, tabs: saved.tabs.filter(tab => !excluded.has(tab.pageId)), activePageId: saved.activePageId && !excluded.has(saved.activePageId) ? saved.activePageId : null };
     const available = new Set<string>();let missing = 0;let offline = false;
     const metaSchema = z.object({ page: z.object({ id: z.string(), title: z.string() }) });
     // Bound validation concurrency; no restored document content enters session state.
@@ -105,5 +109,7 @@ export function useDocumentTabs(options: Options) {
     const queue = transitions.current;
     return () => { alive.current = false;queue.cancel();window.removeEventListener("notebook:document-dirty", dirty); };
   }, [promote]);
-  return { ...state, titles, busy, open, close, leave, promote, pin, reorder, restore, title };
+  return { ...state, titles, busy, open, close, leave, promote, pin, reorder, restore, title, replaceSession: commit, snapshot: () => ref.current,
+    settle: async () => { transitions.current.cancel();await transitions.current.idle(); },
+  };
 }

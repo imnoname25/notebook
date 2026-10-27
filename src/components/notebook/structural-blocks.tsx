@@ -1,6 +1,7 @@
 "use client";
 
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useContext, useEffect, useMemo, useRef, useState } from "react";
+import { LiveWidgetPageContext } from "./live-widget-block";
 import { createReactBlockSpec } from "@blocknote/react";
 import { ChevronLeft, ChevronRight, Plus, Trash2 } from "lucide-react";
 import { extractPageOutline, type PageOutlineItem } from "@/lib/page-outline";
@@ -22,7 +23,7 @@ export const dividerBlock = createReactBlockSpec({
   toExternalHTML: ({ block, contentRef }) => block.props.style === "label" ? <div className="notebook-divider-export"><hr/><strong ref={contentRef}/><hr/></div> : <hr/>,
 })();
 
-type TabsEvent = { panelIds: string[]; activeId: string };
+type TabsEvent = { pageId: string | null; panelIds: string[]; activeId: string };
 
 export const tabPanelBlock = createReactBlockSpec({ type: "tabPanel", propSchema: { label: { default: "Вкладка" } }, content: "none" }, {
   render: ({ block }) => <TabPanelView block={block}/>,
@@ -56,36 +57,40 @@ export const pageVariablesBlock = createReactBlockSpec({ type: "pageVariables", 
 
 function TabPanelView({ block }: { block: { id: string; props: { label: string } } }) {
   const marker = useRef<HTMLDivElement | null>(null);
+  const pageId = useContext(LiveWidgetPageContext);
   useEffect(() => {
     const show = (event: Event) => {
       const detail = (event as CustomEvent<TabsEvent>).detail;
-      if (!detail?.panelIds.includes(block.id)) return;
+      if (detail?.pageId !== pageId || !detail?.panelIds.includes(block.id)) return;
       const outer = marker.current?.closest<HTMLElement>(".bn-block-outer");
       if (outer) outer.hidden = detail.activeId !== block.id;
     };
     window.addEventListener("notebook:tabs-active", show);
     return () => window.removeEventListener("notebook:tabs-active", show);
-  }, [block.id]);
+  }, [block.id, pageId]);
   return <div ref={marker} className="notebook-tab-panel-marker" aria-label={block.props.label}/>;
 }
 
 function TabsView({ block, editor }: { block: NotebookFullBlock; editor: NotebookEditor }) {
+  const pageId = useContext(LiveWidgetPageContext);
   const panels = useMemo(() => block.children.filter((child) => child.type === "tabPanel"), [block.children]);
   const [activeId, setActiveId] = useState(() => panels[0]?.id ?? "");
   const active = panels.find((panel) => panel.id === activeId) ?? panels[0];
   useEffect(() => {
     if (!active) return;
-    window.dispatchEvent(new CustomEvent<TabsEvent>("notebook:tabs-active", { detail: { panelIds: panels.map((panel) => panel.id), activeId: active.id } }));
-  }, [active, panels]);
+    window.dispatchEvent(new CustomEvent<TabsEvent>("notebook:tabs-active", { detail: { pageId, panelIds: panels.map((panel) => panel.id), activeId: active.id } }));
+  }, [active, panels, pageId]);
   useEffect(() => {
     const reveal = (event: Event) => {
-      const targetId = (event as CustomEvent<string>).detail;
+      const detail = (event as CustomEvent<{ blockId: string; pageId: string | null }>).detail;
+      if (detail.pageId !== pageId) return;
+      const targetId = detail.blockId;
       const panel = panels.find((candidate) => candidate.id === targetId || containsBlock(candidate.children, targetId));
       if (panel) setActiveId(panel.id);
     };
     window.addEventListener("notebook:reveal-block", reveal);
     return () => window.removeEventListener("notebook:reveal-block", reveal);
-  }, [panels]);
+  }, [panels, pageId]);
   const activeIndex = active ? panels.findIndex((panel) => panel.id === active.id) : -1;
   const add = () => {
     if (panels.length >= 8) return;

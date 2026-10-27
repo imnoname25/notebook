@@ -44,7 +44,7 @@ import {
   insertLiveWidget,
 } from "./editor-schema";
 import { LiveWidgetPageContext } from "./live-widget-block";
-import { EditorSuggestionOverlayBridge, NotebookSideMenu } from "./editor-block-menu";
+import { EditorActivityContext, EditorSuggestionOverlayBridge, NotebookSideMenu } from "./editor-block-menu";
 import { PageVariablesDialog } from "./page-variables-dialog";
 import { blockIdFromHash, getPageHref, pageIdFromPath } from "@/lib/workspace-navigation";
 import { EditorSaveQueue } from "@/lib/editor-save-queue";
@@ -89,6 +89,7 @@ export function RichTextEditor({
   onOutlineChange,
   searchMatch,
   onSearchMatchClose,
+  paneActive = true,
   navigationBusy = false,
 }: {
   page: PageDocument;
@@ -99,9 +100,11 @@ export function RichTextEditor({
   onOutlineChange(items: PageOutlineItem[]): void;
   searchMatch?: DocumentSearchRequest | null;
   onSearchMatchClose(): void;
+  paneActive?: boolean;
   navigationBusy?: boolean;
 }) {
   const { resolvedTheme } = useTheme();
+  const highlightPrefix = "notebook-" + Array.from(page.id, char => char.codePointAt(0)!.toString(16)).join("-");
   const [title, setTitle] = useState(page.title);
   const [status, setStatus] = useState<"saved" | "saving" | "error">("saved");
   const [preferences, setPreferences] = useState(defaultPreferences);
@@ -267,11 +270,11 @@ export function RichTextEditor({
         }
         node = walker.nextNode();
       }
-      registry.set("notebook-hashtag", new HighlightConstructor(...ranges));
-      registry.set("notebook-variable", new HighlightConstructor(...variableRanges));
-      registry.set("notebook-variable-unknown", new HighlightConstructor(...unknownVariableRanges));
+      registry.set(`${highlightPrefix}-hashtag`, new HighlightConstructor(...ranges));
+      registry.set(`${highlightPrefix}-variable`, new HighlightConstructor(...variableRanges));
+      registry.set(`${highlightPrefix}-variable-unknown`, new HighlightConstructor(...unknownVariableRanges));
     }, 180);
-  }, [editor, variables]);
+  }, [editor, variables, highlightPrefix]);
 
   useEffect(() => {
     onOutlineChange(extractPageOutline(editor.document));
@@ -280,21 +283,23 @@ export function RichTextEditor({
       if (outlineTimer.current) clearTimeout(outlineTimer.current);
       if (hashtagTimer.current) clearTimeout(hashtagTimer.current);
       if (linkPreviewTimer.current) clearTimeout(linkPreviewTimer.current);
-      (CSS as typeof CSS & { highlights?: { delete(name: string): void } }).highlights?.delete("notebook-hashtag");
-      (CSS as typeof CSS & { highlights?: { delete(name: string): void } }).highlights?.delete("notebook-variable");
-      (CSS as typeof CSS & { highlights?: { delete(name: string): void } }).highlights?.delete("notebook-variable-unknown");
+      (CSS as typeof CSS & { highlights?: { delete(name: string): void } }).highlights?.delete(`${highlightPrefix}-hashtag`);
+      (CSS as typeof CSS & { highlights?: { delete(name: string): void } }).highlights?.delete(`${highlightPrefix}-variable`);
+      (CSS as typeof CSS & { highlights?: { delete(name: string): void } }).highlights?.delete(`${highlightPrefix}-variable-unknown`);
     };
-  }, [editor, onOutlineChange, scheduleHashtags]);
+  }, [editor, onOutlineChange, scheduleHashtags, highlightPrefix]);
 
   useEffect(() => {
     const saveNow = () => {
+      if (!paneActive) return;
       void flush(true).catch(() => undefined);
     };
     window.addEventListener("notebook:save-now", saveNow);
     return () => window.removeEventListener("notebook:save-now", saveNow);
-  }, [flush]);
+  }, [flush, paneActive]);
 
   useEffect(() => {
+    if (!paneActive) return;
     window.dispatchEvent(new CustomEvent("notebook:editor-overlay", { detail: Boolean(smartPaste) }));
     const close = () => setSmartPaste(null);
     window.addEventListener("notebook:close-editor-overlay", close);
@@ -302,10 +307,11 @@ export function RichTextEditor({
       window.removeEventListener("notebook:close-editor-overlay", close);
       window.dispatchEvent(new CustomEvent("notebook:editor-overlay", { detail: false }));
     };
-  }, [smartPaste]);
+  }, [smartPaste, paneActive]);
 
   useEffect(() => {
     onController({
+      focus: () => editor.focus(),
       pageId: page.id,
       flush,
       isDirty: () => writer.current?.isDirty() ?? false,
@@ -318,12 +324,12 @@ export function RichTextEditor({
   }, [editor, flush, onController, page.id]);
 
   useEffect(() => {
-    const scroll = (event: Event) => revealAndScrollBlock(editorRoot.current, (event as CustomEvent<string>).detail);
+    const scroll = (event: Event) => { if (paneActive) revealAndScrollBlock(editorRoot.current, (event as CustomEvent<string>).detail); };
     window.addEventListener("notebook:scroll-to-block", scroll);
     const blockId = blockIdFromHash(window.location.hash);
-    if (blockId) window.setTimeout(() => revealAndScrollBlock(editorRoot.current, blockId), 120);
+    if (blockId && paneActive && pageIdFromPath(location.pathname) === page.id) window.setTimeout(() => revealAndScrollBlock(editorRoot.current, blockId), 120);
     return () => window.removeEventListener("notebook:scroll-to-block", scroll);
-  }, [editor]);
+  }, [editor, paneActive, page.id]);
 
   useEffect(
     () => () => {
@@ -382,6 +388,7 @@ export function RichTextEditor({
 
   return (
     <div
+      data-page-id={page.id}
       className="notebook-page-surface relative flex min-h-0 flex-1 flex-col overflow-hidden"
       data-background-type={valueFromAllowlist(
         page.backgroundType,
@@ -424,8 +431,8 @@ export function RichTextEditor({
           : undefined
       }
     >
-      <style>{"::highlight(notebook-hashtag){color:var(--page-accent);background-color:color-mix(in srgb,var(--page-accent) 14%,transparent);}"}</style>
-      <style>{"::highlight(notebook-variable){color:var(--page-accent);background-color:color-mix(in srgb,var(--page-accent) 14%,transparent);}::highlight(notebook-variable-unknown){color:var(--destructive);text-decoration:underline wavy color-mix(in srgb,var(--destructive) 65%,transparent);}"}</style>
+      <style>{`::highlight(${highlightPrefix}-hashtag){color:var(--page-accent);background-color:color-mix(in srgb,var(--page-accent) 14%,transparent);}`}</style>
+      <style>{`::highlight(${highlightPrefix}-variable){color:var(--page-accent);background-color:color-mix(in srgb,var(--page-accent) 14%,transparent);}::highlight(${highlightPrefix}-variable-unknown){color:var(--destructive);text-decoration:underline wavy color-mix(in srgb,var(--destructive) 65%,transparent);}`}</style>
       {page.coverUploadId && (
         <div className="notebook-page-cover relative mx-5 mt-4 h-[clamp(180px,20vh,240px)] shrink-0 overflow-hidden rounded-lg md:mx-8">
           <Image
@@ -608,7 +615,7 @@ export function RichTextEditor({
           setLinkPreview(null);
         }}
       >
-        <LiveWidgetPageContext.Provider value={page.id}><BlockNoteView
+        <EditorActivityContext.Provider value={paneActive}><LiveWidgetPageContext.Provider value={page.id}><BlockNoteView
           editor={editor}
           editable={!navigationBusy}
           slashMenu={false}
@@ -633,7 +640,7 @@ export function RichTextEditor({
             getItems={mentionItems}
           />
           <EditorSuggestionOverlayBridge/>
-        </BlockNoteView></LiveWidgetPageContext.Provider>
+        </BlockNoteView></LiveWidgetPageContext.Provider></EditorActivityContext.Provider>
         <PageKnowledge pageId={page.id} revision={page.revision} onNavigate={onInternalNavigate}/>
       </div>
       {smartPaste && <div className="notebook-smart-paste notebook-no-print absolute bottom-4 left-1/2 z-30 w-[calc(100%-2rem)] max-w-md -translate-x-1/2 rounded-xl border border-border bg-popover p-3 shadow-xl" role="dialog" aria-label={t("editor.pasteAs")}><p className="mb-2 truncate text-xs text-muted-foreground">{smartPaste.url}</p><div className="grid grid-cols-3 gap-2"><button className="min-h-11 rounded-lg bg-accent px-2 text-sm font-medium" onClick={() => { editor.insertInlineContent([{ type: "link", href: smartPaste.url, content: smartPaste.url }]); setSmartPaste(null); }}>{t("editor.pasteLink")}</button><button className="min-h-11 rounded-lg bg-primary px-2 text-sm font-medium text-primary-foreground" onClick={() => { const hostname = new URL(smartPaste.url).hostname; editor.updateBlock(smartPaste.blockId, { type: "bookmark", props: { url: smartPaste.url, title: hostname, description: smartPaste.url } }); setSmartPaste(null); }}>{t("editor.pasteCard")}</button><button className="min-h-11 rounded-lg bg-accent px-2 text-sm font-medium" onClick={() => { editor.insertInlineContent(smartPaste.url); setSmartPaste(null); }}>{t("editor.pasteText")}</button></div></div>}
@@ -650,7 +657,7 @@ export function RichTextEditor({
 
 function revealAndScrollBlock(root: HTMLDivElement | null, blockId: string) {
   if (!root || !blockId) return;
-  window.dispatchEvent(new CustomEvent("notebook:reveal-block", { detail: blockId }));
+  window.dispatchEvent(new CustomEvent("notebook:reveal-block", { detail: { blockId, pageId: root?.closest("[data-page-id]")?.getAttribute("data-page-id") ?? null } }));
   window.requestAnimationFrame(() => window.requestAnimationFrame(() => {
     const block = Array.from(root.querySelectorAll<HTMLElement>("[data-id]")).find((node) => node.dataset.id === blockId);
     if (!block) return;

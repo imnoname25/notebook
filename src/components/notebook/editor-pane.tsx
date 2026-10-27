@@ -52,6 +52,8 @@ export function EditorPane({
   documentTabs,
   searchMatch,
   onSearchMatchClose,
+  paneId,
+  paneActive,
   navigationBusy,
 }: {
   page: PageDocument | null;
@@ -76,6 +78,8 @@ export function EditorPane({
   documentTabs?: ReactNode;
   searchMatch?: DocumentSearchRequest | null;
   onSearchMatchClose(): void;
+  paneId?: string;
+  paneActive?: boolean;
   navigationBusy?: boolean;
 }) {
   const unsupported = page ? unsupportedEditorBlocks(page.content) : [];
@@ -133,7 +137,7 @@ export function EditorPane({
           <Loader2 className="animate-spin" />
         </div>
       ) : page ? (
-        <div id="notebook-document-panel" role={documentTabs && page ? "tabpanel" : undefined} aria-labelledby={documentTabs && page ? `document-tab-${page.id}` : undefined} className="notebook-document-layout flex min-h-0 min-w-0 flex-1">
+        <div id={paneId ? `notebook-document-panel-${paneId}` : "notebook-document-panel"} role={documentTabs && page ? "tabpanel" : undefined} aria-labelledby={documentTabs && page ? `document-tab-${page.id}` : undefined} className="notebook-document-layout flex min-h-0 min-w-0 flex-1">
           {unsupported.length ? <section className="min-w-0 flex-1 overflow-y-auto p-6" role="status">
             <h2 className="font-semibold">Документ содержит неподдерживаемые блоки</h2>
             <p className="mt-2 break-words text-sm">{unsupported.join(", ")}</p>
@@ -142,6 +146,7 @@ export function EditorPane({
           </section> : <RichTextEditor
             key={`${page.id}:${editorEpoch}`}
             page={page}
+            paneActive={paneActive}
             searchMatch={searchMatch}
             onSearchMatchClose={onSearchMatchClose}
             navigationBusy={navigationBusy}
@@ -154,7 +159,7 @@ export function EditorPane({
           {outlineVisible && outline.length > 0 && <aside className="notebook-document-context notebook-no-print hidden w-56 shrink-0 overflow-y-auto border-l border-border/50 p-3 lg:block"><p className="mb-2 px-2 text-xs font-semibold uppercase tracking-wide text-muted-foreground">{t("outline.title")}</p><OutlineList items={outline} onSelect={onOutlineSelect}/></aside>}
         </div>
       ) : (
-        <div id="notebook-document-panel" role={documentTabs ? "tabpanel" : undefined} aria-label="Выберите доступный документ" className="flex flex-1 items-center justify-center p-8 text-center">
+        <div id={paneId ? `notebook-document-panel-${paneId}` : "notebook-document-panel"} role={documentTabs ? "tabpanel" : undefined} aria-label="Выберите доступный документ" className="flex flex-1 items-center justify-center p-8 text-center">
           <div className="max-w-xs">
             <span className="mx-auto flex size-11 items-center justify-center rounded-lg bg-muted text-muted-foreground">
               <FileText size={20} />

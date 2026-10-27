@@ -8,7 +8,7 @@ import type { useDocumentTabs } from "./use-document-tabs";
 import type { DocumentTab } from "@/lib/document-tabs";
 
 type Controller = ReturnType<typeof useDocumentTabs>;
-export function DocumentTabs({ controller }: { controller: Controller }) {
+export function DocumentTabs({ controller, keyboardActive = true, paneId, onMove, onReceive }: { controller: Controller; keyboardActive?: boolean; paneId?: string; onMove?(id: string): void; onReceive?(id: string): void }) {
   const { tabs, activePageId, titles } = controller;
   const [sheet, setSheet] = useState(false);
   const strip = useRef<HTMLDivElement>(null);
@@ -24,6 +24,7 @@ export function DocumentTabs({ controller }: { controller: Controller }) {
     strip.current?.querySelector('[aria-selected="true"]')?.scrollIntoView({ block: "nearest", inline: "nearest" });
   }, [activePageId]);
   useEffect(() => {
+    if (!keyboardActive) return;
     const keys = (event: globalThis.KeyboardEvent) => {
       if (!(event.ctrlKey || event.metaKey) || event.altKey || event.defaultPrevented || !tabs.length || (event.target instanceof Element && event.target.closest('[role="dialog"], [role="menu"]'))) return;
       const index = Math.max(0, tabs.findIndex(t => t.pageId === activePageId));
@@ -38,7 +39,7 @@ export function DocumentTabs({ controller }: { controller: Controller }) {
       if (target) { event.preventDefault();void controller.open(target.pageId); }
     };
     window.addEventListener("keydown", keys);return () => window.removeEventListener("keydown", keys);
-  }, [active, activePageId, controller, tabs]);
+  }, [active, activePageId, controller, tabs, keyboardActive]);
   const activate = (id: string) => { setSheet(false);void controller.open(id); };
   const rove = (event: KeyboardEvent, index: number) => {
     let next = index;
@@ -57,6 +58,7 @@ export function DocumentTabs({ controller }: { controller: Controller }) {
       <DropdownMenu.Item onSelect={() => controller.pin(tab.pageId)}>{tab.pinned ? "Открепить вкладку" : "Закрепить вкладку"}</DropdownMenu.Item>
       <DropdownMenu.Item disabled={index === 0 || tabs[index-1]?.pinned !== tab.pinned} onSelect={() => controller.reorder(tab.pageId, tabs[index-1]!.pageId)}>Переместить влево</DropdownMenu.Item>
       <DropdownMenu.Item disabled={index === tabs.length-1 || tabs[index+1]?.pinned !== tab.pinned} onSelect={() => controller.reorder(tab.pageId, tabs[index+1]!.pageId)}>Переместить вправо</DropdownMenu.Item>
+      {onMove && <DropdownMenu.Item onSelect={() => onMove(tab.pageId)}>Перенести в соседнюю панель · Ctrl/⌘ Alt Enter</DropdownMenu.Item>}
       <DropdownMenu.Separator className="my-1 border-t"/>
       <DropdownMenu.Item onSelect={() => void controller.close([tab.pageId], true)}>{tab.pinned ? "Закрыть закреплённую вкладку" : "Закрыть вкладку"}</DropdownMenu.Item>
       <DropdownMenu.Item onSelect={() => void controller.close(tabs.filter(t => t.pageId !== tab.pageId).map(t => t.pageId))}>Закрыть остальные</DropdownMenu.Item>
@@ -67,9 +69,9 @@ export function DocumentTabs({ controller }: { controller: Controller }) {
   return <div className="document-tabs notebook-no-print" aria-busy={controller.busy}>
     <div ref={strip} role="tablist" aria-label="Открытые документы" className="document-tabs-strip">
       {tabs.map((tab, index) => <div key={tab.pageId} className="document-tab" data-active={tab.pageId === activePageId} data-preview={tab.mode === "preview"} data-pinned={tab.pinned}
-        draggable onDragStart={event => event.dataTransfer.setData("text/notebook-tab", tab.pageId)} onDragOver={event => event.preventDefault()} onDrop={event => { event.preventDefault();controller.reorder(event.dataTransfer.getData("text/notebook-tab"), tab.pageId); }}>
+        draggable onDragStart={event => event.dataTransfer.setData("text/notebook-tab", tab.pageId)} onDragOver={event => event.preventDefault()} onDrop={event => { event.preventDefault();event.stopPropagation();const id = event.dataTransfer.getData("text/notebook-tab");if (tabs.some(item => item.pageId === id)) controller.reorder(id, tab.pageId);else onReceive?.(id); }}>
         <span id={`document-tab-state-${tab.pageId}`} className="sr-only">{tab.pinned ? "Закреплена" : tab.mode === "preview" ? "Временная вкладка" : "Постоянная вкладка"}</span>
-        <button id={`document-tab-${tab.pageId}`} type="button" role="tab" aria-controls="notebook-document-panel" aria-selected={tab.pageId === activePageId} aria-describedby={`document-tab-state-${tab.pageId}`} tabIndex={tab.pageId === activePageId ? 0 : -1} className="document-tab-activate" title={label(tab.pageId)}
+        <button id={`document-tab-${tab.pageId}`} type="button" role="tab" aria-controls={paneId ? `notebook-document-panel-${paneId}` : "notebook-document-panel"} aria-selected={tab.pageId === activePageId} aria-describedby={`document-tab-state-${tab.pageId}`} tabIndex={tab.pageId === activePageId ? 0 : -1} className="document-tab-activate" title={label(tab.pageId)}
           onKeyDown={event => rove(event,index)} onClick={() => activate(tab.pageId)} onDoubleClick={() => controller.promote(tab.pageId)}>{tab.pinned && <Pin size={12} aria-hidden="true"/>}<span>{label(tab.pageId)}</span></button>
         {menu(tab,index)}
         {!tab.pinned && <button type="button" className="document-tab-close" aria-label={`Закрыть вкладку: ${label(tab.pageId)}`} onClick={() => void controller.close([tab.pageId])}><X size={13}/></button>}

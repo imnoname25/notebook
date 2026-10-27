@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { createContext, useContext, useEffect, useState } from "react";
 import { SideMenuExtension, SuggestionMenu as SuggestionMenuExtension } from "@blocknote/core/extensions";
 import { AddBlockButton, DragHandleMenu, SideMenu, useBlockNoteEditor, useComponentsContext, useExtension, useExtensionState } from "@blocknote/react";
 import { ArrowDown, ArrowUp, Check, Clipboard, Copy, GripVertical, Link2, Palette, Trash2, Wand2 } from "lucide-react";
@@ -19,6 +19,7 @@ const BACKGROUND_LABELS = {
   purple: "Фиолетовый",
 } as const;
 const BACKGROUND_BLOCKS = new Set(["paragraph", "heading", "bulletListItem", "numberedListItem", "checkListItem", "quote", "codeBlock", "callout", "banner", "bookmark", "toggle", "toggleListItem"]);
+export const EditorActivityContext = createContext(true);
 const TRANSFORMABLE = new Set(["paragraph", "heading", "bulletListItem", "numberedListItem", "checkListItem", "quote", "toggleListItem"]);
 
 export function NotebookSideMenu({ pageId }: { pageId: string }) {
@@ -26,9 +27,11 @@ export function NotebookSideMenu({ pageId }: { pageId: string }) {
 }
 
 export function EditorSuggestionOverlayBridge() {
+  const active = useContext(EditorActivityContext);
   const suggestionMenu = useExtension(SuggestionMenuExtension);
   const shown = useExtensionState(SuggestionMenuExtension, { selector: (state) => Boolean(state?.show) });
   useEffect(() => {
+    if (!active) return;
     window.dispatchEvent(new CustomEvent("notebook:editor-overlay", { detail: shown }));
     const close = () => { if (shown) suggestionMenu.closeMenu(); };
     window.addEventListener("notebook:close-editor-overlay", close);
@@ -36,21 +39,23 @@ export function EditorSuggestionOverlayBridge() {
       window.removeEventListener("notebook:close-editor-overlay", close);
       if (shown) window.dispatchEvent(new CustomEvent("notebook:editor-overlay", { detail: false }));
     };
-  }, [shown, suggestionMenu]);
+  }, [shown, suggestionMenu, active]);
   return null;
 }
 
 function NotebookDragHandle({ pageId }: { pageId: string }) {
+  const active = useContext(EditorActivityContext);
   const Components = useComponentsContext();
   const sideMenu = useExtension(SideMenuExtension);
   const block = useExtensionState(SideMenuExtension, { selector: (state) => state?.block });
   const [open, setOpen] = useState(false);
   useEffect(() => {
+    if (!active) return;
     window.dispatchEvent(new CustomEvent("notebook:editor-overlay", { detail: open }));
     const close = () => { if (open) document.dispatchEvent(new KeyboardEvent("keydown", { key: "Escape", bubbles: true })); };
     window.addEventListener("notebook:close-editor-overlay", close);
     return () => window.removeEventListener("notebook:close-editor-overlay", close);
-  }, [open]);
+  }, [open, active]);
   if (!Components || !block) return null;
   return <Components.Generic.Menu.Root position="left" onOpenChange={(next) => { setOpen(next); if (next) sideMenu.freezeMenu(); else sideMenu.unfreezeMenu(); }}>
     <Components.Generic.Menu.Trigger><Components.SideMenu.Button label="Действия с блоком" className="bn-button notebook-block-handle" draggable onDragStart={(event) => sideMenu.blockDragStart(event, block)} onDragEnd={sideMenu.blockDragEnd} icon={<GripVertical size={19}/>}/></Components.Generic.Menu.Trigger>

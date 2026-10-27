@@ -46,6 +46,7 @@ export type PageSummary = {
 export type PageDocument = PageSummary & { content: unknown[] };
 export type EditorSaveController = {
   pageId: string;
+  focus?(): void;
   flush(manual?: boolean): Promise<void>;
   isDirty(): boolean;
   scrollToBlock(blockId: string): void;
