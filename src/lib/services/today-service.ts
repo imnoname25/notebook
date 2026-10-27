@@ -1,12 +1,13 @@
 import { db } from "@/lib/db";
 import { listFavoritePages, listRecentPages } from "./recent-page-service";
 import { listTags } from "./tag-service";
+import { quickNoteSelect } from "./quick-note-service";
 
 export async function getToday(userId: string) {
   const [inbox, recent, favorites, changed, tags, attention] = await Promise.all([
     db.quickNote.findMany({
       where: { userId, status: "INBOX" }, orderBy: [{ isPinned: "desc" }, { updatedAt: "desc" }], take: 5,
-      select: { id: true, title: true, body: true, color: true, icon: true, isPinned: true, updatedAt: true },
+      select: quickNoteSelect,
     }),
     listRecentPages(userId, 5),
     listFavoritePages(userId, undefined, 5),

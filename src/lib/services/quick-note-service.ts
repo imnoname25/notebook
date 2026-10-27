@@ -4,8 +4,9 @@ import { ApiError } from "@/lib/errors";
 import { extractBlockNoteText } from "@/lib/blocknote-text";
 import { syncPageLinks } from "@/lib/services/page-link-service";
 import { syncPageTags, syncQuickNoteTags } from "@/lib/services/tag-service";
+import { stickerBlocks } from "@/lib/sticker-checklist";
 
-const quickNoteSelect = {
+export const quickNoteSelect = {
   id: true, title: true, body: true, color: true, icon: true,
   isPinned: true, sortOrder: true, status: true, archivedAt: true, createdAt: true, updatedAt: true,
   tags: { select: { tag: { select: { name: true, normalized: true } } } },
@@ -51,13 +52,19 @@ export async function reorderQuickNotes(userId: string, ids: string[]) {
   });
 }
 
-export async function updateQuickNote(userId: string, id: string, input: { title?: string; body?: string; color?: string; icon?: string | null; isPinned?: boolean; archived?: boolean }) {
+export async function getQuickNote(userId: string, id: string) {
+  const note = await db.quickNote.findFirst({ where: { id, userId }, select: quickNoteSelect });
+  if (!note) throw new ApiError(404, "Быстрая заметка не найдена");
+  return note;
+}
+
+export async function updateQuickNote(userId: string, id: string, input: { title?: string; body?: string; color?: string; icon?: string | null; isPinned?: boolean; archived?: boolean; expectedBody?: string; expectedTitle?: string }) {
   const owned = await db.quickNote.findFirst({ where: { id, userId }, select: { id: true } });
   if (!owned) throw new ApiError(404, "Быстрая заметка не найдена");
-  const { archived, ...data } = input;
+  const { archived, expectedBody, expectedTitle, ...data } = input;
   return db.$transaction(async (tx) => {
-    const note = await tx.quickNote.update({
-      where: { id },
+    const updated = await tx.quickNote.updateMany({
+      where: { id, userId, ...(expectedBody === undefined ? {} : { body: expectedBody }), ...(expectedTitle === undefined ? {} : { title: expectedTitle }) },
       data: {
         ...data,
         ...(archived === undefined ? {} : {
@@ -65,8 +72,12 @@ export async function updateQuickNote(userId: string, id: string, input: { title
           status: archived ? "ARCHIVED" : "INBOX",
         }),
       },
-      select: quickNoteSelect,
     });
+    if (!updated.count) {
+      if (!await tx.quickNote.findFirst({ where: { id, userId }, select: { id: true } })) throw new ApiError(404, "Быстрая заметка не найдена");
+      throw new ApiError(409, "Стикер изменён в другом окне. Черновик не сохранён поверх новых данных.");
+    }
+    const note = await tx.quickNote.findUniqueOrThrow({ where: { id }, select: quickNoteSelect });
     if (input.title !== undefined || input.body !== undefined) {
       await syncQuickNoteTags(tx, userId, id, `${note.title} ${note.body}`);
     }
@@ -88,8 +99,7 @@ export async function convertQuickNote(userId: string, id: string, sectionId: st
     if (!note) throw new ApiError(404, "Быстрая заметка не найдена");
     if (!section) throw new ApiError(404, "Раздел назначения не найден");
     const last = await tx.page.aggregate({ where: { sectionId, deletedAt: null }, _max: { sortOrder: true } });
-    const lines = note.body.replace(/\r\n/g, "\n").split("\n");
-    const content = lines.map((line) => ({ type: "paragraph", content: line ? [{ type: "text", text: line, styles: {} }] : [] }));
+    const content = stickerBlocks(note.body);
     const searchText = extractBlockNoteText(content);
     const page = await tx.page.create({
       data: {

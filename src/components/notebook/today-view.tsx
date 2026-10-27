@@ -5,10 +5,14 @@ import { AlertTriangle, ArrowLeft, Clock3, FileText, Loader2, Sparkles, Star, St
 import { Button } from "@/components/ui/button";
 import { api } from "@/lib/client-api";
 import { t } from "@/lib/i18n/messages";
+import type { QuickNote } from "@/lib/quick-note";
+import { stickerLines, toggleStickerLine } from "@/lib/sticker-checklist";
+import { StickerChecklistPreview } from "./sticker-body-editor";
+import { StickerSaveStatus, useStickerDraft } from "./sticker-save-provider";
 
 type TodayPage = { id: string; title: string; icon: string | null; updatedAt: string; sectionTitle?: string; notebookTitle?: string; section?: { title: string; notebook: { title: string } } };
 type TodayData = {
-  inbox: { id: string; title: string; body: string; color: string; icon: string | null; isPinned: boolean; updatedAt: string }[];
+  inbox: QuickNote[];
   recent: TodayPage[]; favorites: TodayPage[]; changed: TodayPage[];
   tags: { name: string; normalized: string; count: number }[];
   attention: { status: "WARNING" | "OFFLINE"; value: string; detail: string | null; checkedAt: string; widget: { blockId: string; title: string; type: string; page: { id: string; title: string; icon: string | null } } }[];
@@ -28,7 +32,7 @@ export function TodayView({ revision, onBack, onCapture, onInbox, onPage, onTag,
     <div className="mx-auto max-w-6xl"><header className="mb-6 flex min-h-14 items-center gap-3"><Button variant="ghost" className="size-11 px-0 md:hidden" onClick={onBack}><ArrowLeft size={20}/></Button><span className="flex size-11 items-center justify-center rounded-xl bg-primary/10 text-primary"><Sparkles size={21}/></span><div><p className="text-sm text-muted-foreground">{new Date().toLocaleDateString("ru", { weekday: "long", day: "numeric", month: "long" })}</p><h1 className="text-2xl font-semibold tracking-tight">{t("today.title")}</h1></div><Button className="ml-auto min-h-11" onClick={onCapture}>{t("today.capture")}</Button></header>
       {!data ? <div className="flex py-20 justify-center"><Loader2 className="animate-spin text-muted-foreground"/></div> : <div className="grid items-start gap-5 lg:grid-cols-2">
         {data.attention.length > 0 && <TodaySection title={t("today.attention")} icon={<AlertTriangle size={17}/>}><div className="space-y-1">{data.attention.map((item) => <button key={`${item.widget.page.id}:${item.widget.blockId}`} className="flex min-h-14 w-full items-center gap-3 rounded-lg px-2 text-left hover:bg-accent" onClick={() => onPage(item.widget.page.id)}><span className="notebook-live-dot" style={{ "--live-rgb": item.status === "OFFLINE" ? "239 68 68" : "245 158 11" } as React.CSSProperties}/><span className="min-w-0 flex-1"><strong className="block truncate text-sm">{item.widget.title || item.widget.page.title}</strong><span className="block truncate text-xs text-muted-foreground">{item.value}{item.detail ? ` · ${item.detail}` : ""}</span></span></button>)}</div></TodaySection>}
-        {data.inbox.length > 0 && <TodaySection title={t("quickNotes.inbox")} icon={<StickyNote size={17}/>} action={onInbox}><div className="grid gap-2 sm:grid-cols-2">{data.inbox.map((note) => <button key={note.id} data-quick-note-color={note.color} className="quick-note-card min-h-24 rounded-xl p-3 text-left ring-1 ring-border/40" onClick={onInbox}><strong className="block truncate text-sm">{note.icon} {note.title || note.body.split(/\s+/).slice(0, 5).join(" ")}</strong><span className="mt-1 block line-clamp-2 text-sm leading-5 text-foreground/70">{note.body}</span></button>)}</div></TodaySection>}
+        {data.inbox.length > 0 && <TodaySection title={t("quickNotes.inbox")} icon={<StickyNote size={17}/>} action={onInbox}><div className="grid gap-2 sm:grid-cols-2">{data.inbox.map(note => <TodaySticker key={note.id} source={note} onOpen={onInbox}/>)}</div></TodaySection>}
         {data.recent.length > 0 && <TodaySection title={t("overview.recent")} icon={<Clock3 size={17}/>}><PageRows pages={data.recent} onPage={onPage}/></TodaySection>}
         {data.favorites.length > 0 && <TodaySection title={t("overview.favorites")} icon={<Star size={17}/>}><PageRows pages={data.favorites} onPage={onPage}/></TodaySection>}
         {data.changed.length > 0 && <TodaySection title={t("today.changed")} icon={<FileText size={17}/>}><PageRows pages={data.changed} onPage={onPage}/></TodaySection>}
@@ -40,3 +44,13 @@ export function TodayView({ revision, onBack, onCapture, onInbox, onPage, onTag,
 
 function TodaySection({ title, icon, action, children }: { title: string; icon?: React.ReactNode; action?: () => void; children: React.ReactNode }) { return <section className="notebook-surface rounded-xl p-4"><header className="mb-3 flex items-center gap-2 text-muted-foreground">{icon}<h2 className="font-semibold text-foreground">{title}</h2>{action && <button className="ml-auto inline-flex min-h-11 items-center rounded-md px-2 text-sm hover:text-foreground" onClick={action}>{t("common.open")}</button>}</header>{children}</section>; }
 function PageRows({ pages, onPage }: { pages: TodayPage[]; onPage(id: string): void }) { return <div className="space-y-1">{pages.map((page) => <button key={page.id} className="flex min-h-12 w-full items-center gap-3 rounded-lg px-2 text-left hover:bg-accent" onClick={() => onPage(page.id)}><span className="w-6 text-center">{page.icon || ""}</span><span className="min-w-0"><strong className="block truncate text-sm font-medium">{page.title}</strong><span className="block truncate text-xs text-muted-foreground">{page.notebookTitle ?? page.section?.notebook.title} · {page.sectionTitle ?? page.section?.title}</span></span></button>)}</div>; }
+
+function TodaySticker({ source, onOpen }: { source: QuickNote; onOpen(): void }) {
+  const { note, writer } = useStickerDraft(source);
+  const title = note.title || stickerLines(note.body).map(line => line.text).join(" ").split(/\s+/).slice(0, 5).join(" ");
+  return <article data-testid="today-sticker" data-sticker-id={note.id} data-quick-note-color={note.color} className="quick-note-card relative min-h-24 min-w-0 rounded-xl p-3 text-left ring-1 ring-border/40">
+    <button type="button" className="absolute inset-0 rounded-xl focus-visible:outline-2 focus-visible:outline-ring" aria-label={`Открыть стикер: ${title || "Без названия"}`} onClick={onOpen}/>
+    <div className="pointer-events-none"><strong className="block truncate text-sm">{note.icon} {title}</strong><div className="mt-1"><StickerChecklistPreview body={note.body} onToggle={index => writer.update({ body: toggleStickerLine(writer.getSnapshot().note.body, index) }, true)}/></div></div>
+    <div className="relative mt-2"><StickerSaveStatus writer={writer}/></div>
+  </article>;
+}

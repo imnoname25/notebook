@@ -12,12 +12,10 @@ import { ACCENT_LABELS } from "@/lib/content-appearance";
 import { SortableItem, SortableList, type SortableRenderState } from "./sortable";
 import type { Notebook, PageDocument } from "./types";
 
-export type QuickNote = {
-  id: string; title: string; body: string; color: string; icon: string | null;
-  isPinned: boolean; sortOrder: number; status: "INBOX" | "ARCHIVED" | "CONVERTED"; archivedAt: string | null;
-  createdAt: string; updatedAt: string;
-  tags: { tag: { name: string; normalized: string } }[];
-};
+import type { QuickNote, QuickNotePatch } from "@/lib/quick-note";
+export type { QuickNote } from "@/lib/quick-note";
+import { StickerBodyEditor, type StickerEditorHandle } from "./sticker-body-editor";
+import { StickerSaveStatus, useStickerDraft, useStickerSaves } from "./sticker-save-provider";
 
 const COLORS = ["amber", "orange", "pink", "blue", "green", "violet", "neutral"] as const;
 const orderNotes = (items: QuickNote[]) => [...items].sort((a, b) => Number(b.isPinned) - Number(a.isPinned) || a.sortOrder - b.sortOrder || a.id.localeCompare(b.id));
@@ -45,7 +43,8 @@ export function QuickCapture({ open, initialTitle = "", initialBody = "", onOpen
     <Dialog.Content aria-describedby={undefined} className="notebook-mobile-sheet fixed inset-x-0 bottom-0 z-50 rounded-t-2xl bg-card p-4 shadow-2xl ring-1 ring-border sm:left-1/2 sm:top-1/2 sm:bottom-auto sm:w-[min(500px,calc(100vw-2rem))] sm:-translate-x-1/2 sm:-translate-y-1/2 sm:rounded-2xl sm:p-5">
       <header className="mb-4 flex items-center gap-3"><span className="flex size-10 items-center justify-center rounded-xl bg-amber-400/15 text-amber-600 dark:text-amber-300"><StickyNote size={20}/></span><div className="min-w-0 flex-1"><Dialog.Title className="font-semibold">{t("quickNotes.captureTitle")}</Dialog.Title><p className="text-sm text-muted-foreground">{t("quickNotes.subtitle")}</p></div><Dialog.Close className="flex size-11 items-center justify-center rounded-lg hover:bg-accent" aria-label={t("common.close")}><X size={19}/></Dialog.Close></header>
       <input value={title} onChange={(event) => setTitle(event.target.value)} maxLength={120} placeholder={t("quickNotes.optionalTitle")} className="mb-2 h-11 w-full rounded-lg bg-muted/55 px-3 text-sm font-medium outline-none ring-1 ring-border/50 focus:ring-ring"/>
-      <textarea autoFocus value={body} onChange={(event) => setBody(event.target.value)} onKeyDown={(event) => { if ((event.ctrlKey || event.metaKey) && event.key === "Enter") void save(); }} rows={5} maxLength={10_000} placeholder={t("quickNotes.placeholder")} className="w-full resize-none rounded-xl bg-muted/55 p-3 text-base leading-6 outline-none ring-1 ring-border/50 focus:ring-ring"/>
+      <StickerBodyEditor value={body} onChange={value => setBody(value)} autoFocus placeholder={t("quickNotes.placeholder")} onSubmit={() => void save()}/>
+
       <div className="mt-3 flex flex-wrap items-center gap-2"><div className="flex gap-1">{COLORS.map((item) => <button key={item} data-color={item} className={cn("quick-note-swatch size-8 rounded-full ring-offset-2", color === item && "ring-2 ring-foreground/60")} aria-label={ACCENT_LABELS[item]} title={ACCENT_LABELS[item]} onClick={() => setColor(item)}/>)}</div><button type="button" className={cn("ml-auto flex min-h-11 items-center gap-2 rounded-lg px-3 text-sm hover:bg-accent", isPinned && "bg-accent")} onClick={() => setIsPinned((value) => !value)}><Pin size={16}/>{t("quickNotes.pin")}</button><Button className="min-h-11" disabled={!body.trim() || saving} onClick={() => void save()}>{saving ? <Loader2 className="animate-spin"/> : <Plus/>}{t("quickNotes.saveInbox")}</Button></div>
     </Dialog.Content>
   </Dialog.Portal></Dialog.Root>;
@@ -61,7 +60,7 @@ export function StickerBoard({ notebooks, revision, onBack, onConverted, onTag, 
   const [menuFor, setMenuFor] = useState<string | null>(null);
   const [focusId, setFocusId] = useState<string | null>(null);
   const [creating, setCreating] = useState(false);
-  const saveTimers = useRef(new Map<string, ReturnType<typeof setTimeout>>());
+  const saves = useStickerSaves();
   const sections = notebooks.flatMap((notebook) => notebook.sections.filter((section) => !section.parentId).map((section) => ({ id: section.id, label: `${notebook.title} / ${section.title}` })));
 
   useEffect(() => {
@@ -96,33 +95,30 @@ export function StickerBoard({ notebooks, revision, onBack, onConverted, onTag, 
       setFocusId(note.id);
     } catch (error) { onError(error); } finally { setCreating(false); }
   }
-  async function patch(id: string, input: Record<string, unknown>) {
-    const previous = notes;
+  async function patch(id: string, input: QuickNotePatch) {
+    const source = notes.find(note => note.id === id); if (!source) return;
+    const writer = saves.writer(source);
+    writer.update(input, true);
     try {
-      const { note } = await api<{ note: QuickNote }>(`/api/quick-notes/${id}`, jsonOptions("PATCH", input));
-      setNotes((current) => orderNotes(current.map((item) => item.id === id ? note : item).filter((item) => archived ? item.status !== "INBOX" : item.status === "INBOX")));
-    } catch (error) { setNotes(previous); onError(error); }
-  }
-  function scheduleTextSave(id: string, input: { title?: string; body?: string }) {
-    setNotes((current) => current.map((note) => note.id === id ? { ...note, ...input } : note));
-    const previous = saveTimers.current.get(id); if (previous) clearTimeout(previous);
-    saveTimers.current.set(id, setTimeout(() => { saveTimers.current.delete(id); void patch(id, input); }, 650));
-  }
-  function flushTextSave(id: string, input: { title?: string; body?: string }) {
-    const timer = saveTimers.current.get(id); if (timer) clearTimeout(timer); saveTimers.current.delete(id); void patch(id, input);
+      await writer.flush();
+      const note = writer.getSnapshot().note;
+      setNotes(current => orderNotes(current.map(item => item.id === id ? note : item).filter(item => archived ? item.status !== "INBOX" : item.status === "INBOX")));
+    } catch (error) { onError(error); }
   }
   async function duplicate(note: QuickNote) {
     try {
+      await saves.writer(note).flush();
       const { note: copy } = await api<{ note: QuickNote }>(`/api/quick-notes/${note.id}/duplicate`, jsonOptions("POST"));
       setNotes((current) => orderNotes([...current, copy])); setFocusId(copy.id);
     } catch (error) { onError(error); }
   }
   async function remove(note: QuickNote) {
     if (!window.confirm(t("quickNotes.deleteConfirm"))) return;
-    try { await api(`/api/quick-notes/${note.id}`, jsonOptions("DELETE")); setNotes((current) => current.filter((item) => item.id !== note.id)); } catch (error) { onError(error); }
+    try { await saves.writer(note).flush();await api(`/api/quick-notes/${note.id}`, jsonOptions("DELETE")); setNotes((current) => current.filter((item) => item.id !== note.id)); } catch (error) { onError(error); }
   }
   async function convert(note: QuickNote, sectionId: string) {
     try {
+      await saves.writer(note).flush();
       const { page } = await api<{ page: PageDocument }>(`/api/quick-notes/${note.id}/convert`, jsonOptions("POST", { sectionId }));
       setNotes((current) => current.filter((item) => item.id !== note.id)); setDestinationFor(null); onConverted(page);
     } catch (error) { onError(error); }
@@ -145,7 +141,7 @@ export function StickerBoard({ notebooks, revision, onBack, onConverted, onTag, 
 
   const pinned = notes.filter((note) => note.isPinned); const regular = notes.filter((note) => !note.isPinned);
   const loading = loadedKey !== (archived ? "archived" : "active");
-  const shared = { archived, destinationFor, menuFor, sections, focusId, setFocusId, setDestinationFor, setMenuFor, patch, scheduleTextSave, flushTextSave, duplicate, remove, convert, moveWithin, onTag };
+  const shared = { archived, destinationFor, menuFor, sections, focusId, setFocusId, setDestinationFor, setMenuFor, patch, duplicate, remove, convert, moveWithin, onTag };
   return <main data-testid="sticker-board" className="sticker-board-shell min-h-0 min-w-0 overflow-y-auto bg-background md:col-span-2">
     <header className="sticky top-0 z-10 flex min-h-16 items-center gap-3 border-b border-border/60 bg-background/92 px-3 backdrop-blur sm:px-5"><Button variant="ghost" className="h-11 px-2 md:hidden" onClick={onBack}><ArrowLeft size={20}/></Button><span className="flex size-10 items-center justify-center rounded-xl bg-amber-400/15 text-amber-700 dark:text-amber-300"><StickyNote size={20}/></span><div className="min-w-0 flex-1"><h1 className="text-lg font-semibold">{t("quickNotes.inbox")}</h1><p className="hidden text-sm text-muted-foreground sm:block">{t("quickNotes.inboxSubtitle")}</p></div><button className="min-h-11 rounded-lg px-3 text-sm font-medium text-muted-foreground hover:bg-accent hover:text-foreground" onClick={() => setArchived((value) => !value)}>{archived ? t("quickNotes.active") : t("quickNotes.archive")}</button>{!archived && <Button className="hidden min-h-11 sm:inline-flex" onClick={() => void createSticker()} disabled={creating}>{creating ? <Loader2 className="animate-spin"/> : <Plus/>}{t("quickNotes.newSticker")}</Button>}</header>
     <div className="p-4 md:p-6">
@@ -157,8 +153,7 @@ export function StickerBoard({ notebooks, revision, onBack, onConverted, onTag, 
 
 type NoteGroupProps = {
   title?: string; notes: QuickNote[]; archived: boolean; destinationFor: string | null; menuFor: string | null; focusId: string | null; sections: { id: string; label: string }[];
-  setFocusId(value: string | null): void; setDestinationFor(value: string | null): void; setMenuFor(value: string | null): void; patch(id: string, input: Record<string, unknown>): Promise<void>;
-  scheduleTextSave(id: string, input: { title?: string; body?: string }): void; flushTextSave(id: string, input: { title?: string; body?: string }): void;
+  setFocusId(value: string | null): void; setDestinationFor(value: string | null): void; setMenuFor(value: string | null): void; patch(id: string, input: QuickNotePatch): Promise<void>;
   duplicate(note: QuickNote): Promise<void>; remove(note: QuickNote): Promise<void>; convert(note: QuickNote, sectionId: string): Promise<void>; moveWithin(note: QuickNote, direction: -1 | 1): void; onTag(tag: string): void;
   onReorder(ids: string[]): void;
 };
@@ -167,8 +162,9 @@ function NoteGroup(props: NoteGroupProps) {
   return <section className="mb-8">{props.title && <h2 className="mb-3 text-xs font-semibold uppercase tracking-wider text-muted-foreground">{props.title}</h2>}<SortableList ids={props.notes.map((note) => note.id)} onReorder={props.onReorder} strategy="rect"><div className="sticker-board-grid">{props.notes.map((note) => <SortableItem id={note.id} key={note.id}>{({ setNodeRef, style, attributes, listeners, isDragging }) => <QuickNoteCard note={note} setNodeRef={setNodeRef} sortableStyle={style} dragAttributes={attributes} dragListeners={listeners} isDragging={isDragging} {...props}/>}</SortableItem>)}</div></SortableList></section>;
 }
 type DragProps = Pick<SortableRenderState, "setNodeRef" | "attributes" | "listeners" | "isDragging"> & { sortableStyle: SortableRenderState["style"]; dragAttributes: SortableRenderState["attributes"]; dragListeners: SortableRenderState["listeners"] };
-function QuickNoteCard({ note, setNodeRef, sortableStyle, dragAttributes, dragListeners, isDragging, archived, destinationFor, menuFor, focusId, sections, setFocusId, setDestinationFor, setMenuFor, patch, scheduleTextSave, flushTextSave, duplicate, remove, convert, moveWithin, onTag }: NoteGroupProps & { note: QuickNote } & Omit<DragProps, "attributes" | "listeners">) {
-  const bodyRef = useRef<HTMLTextAreaElement | null>(null);
+function QuickNoteCard({ note: source, setNodeRef, sortableStyle, dragAttributes, dragListeners, isDragging, archived, destinationFor, menuFor, focusId, sections, setFocusId, setDestinationFor, setMenuFor, patch, duplicate, remove, convert, moveWithin, onTag }: NoteGroupProps & { note: QuickNote } & Omit<DragProps, "attributes" | "listeners">) {
+  const { note, writer } = useStickerDraft(source);
+  const bodyRef = useRef<StickerEditorHandle | null>(null);
   useEffect(() => {
     if (focusId !== note.id) return;
     bodyRef.current?.focus();
@@ -177,8 +173,10 @@ function QuickNoteCard({ note, setNodeRef, sortableStyle, dragAttributes, dragLi
   }, [focusId, note.id, setFocusId]);
   const previewTags = note.tags.slice(0, 3);
   return <article ref={setNodeRef} style={sortableStyle} data-testid="sticker-card" data-sticker-id={note.id} data-quick-note-color={note.color} data-dragging={isDragging ? "true" : "false"} className="quick-note-card group relative min-w-0 rounded-xl p-4 shadow-sm ring-1 ring-black/5 transition dark:ring-white/10">
-    <div className="mb-2 flex items-center gap-2">{!archived && <button className="notebook-no-touch hidden size-8 cursor-grab touch-none items-center justify-center rounded-md text-foreground/45 hover:bg-black/5 hover:text-foreground md:flex" aria-label={`${t("quickNotes.reorder")} ${note.title || note.body.slice(0, 20)}`} {...dragAttributes} {...dragListeners}><GripVertical size={17}/></button>}<span className="text-xl">{note.icon ?? "📝"}</span><input value={note.title} onChange={(event) => scheduleTextSave(note.id, { title: event.target.value })} onBlur={(event) => flushTextSave(note.id, { title: event.target.value })} placeholder={t("quickNotes.noteTitle")} className="min-w-0 flex-1 bg-transparent text-[15px] font-semibold outline-none placeholder:text-foreground/50"/><StickerMenu note={note} archived={archived} open={menuFor === note.id} onOpenChange={(open) => setMenuFor(open ? note.id : null)} onEdit={() => { bodyRef.current?.focus(); }} onPin={() => void patch(note.id, { isPinned: !note.isPinned })} onColor={(color) => void patch(note.id, { color })} onMove={() => setDestinationFor(destinationFor === note.id ? null : note.id)} onArchive={() => void patch(note.id, { archived: !archived })} onDuplicate={() => void duplicate(note)} onDelete={() => void remove(note)} onUp={() => moveWithin(note, -1)} onDown={() => moveWithin(note, 1)}/></div>
-    <textarea ref={bodyRef} value={note.body} onChange={(event) => scheduleTextSave(note.id, { body: event.target.value })} onBlur={(event) => flushTextSave(note.id, { body: event.target.value })} rows={Math.max(4, Math.min(10, note.body.split("\n").length + 3))} maxLength={10_000} placeholder={t("quickNotes.placeholder")} className="w-full resize-none bg-transparent text-[15px] leading-6 outline-none"/>
+    <div className="mb-2 flex items-center gap-2">{!archived && <button className="notebook-no-touch hidden size-8 cursor-grab touch-none items-center justify-center rounded-md text-foreground/45 hover:bg-black/5 hover:text-foreground md:flex" aria-label={`${t("quickNotes.reorder")} ${note.title || note.body.slice(0, 20)}`} {...dragAttributes} {...dragListeners}><GripVertical size={17}/></button>}<span className="text-xl">{note.icon ?? "📝"}</span><input aria-label="Название стикера" value={note.title} onChange={(event) => writer.update({ title: event.target.value })} onBlur={() => void writer.flush().catch(() => undefined)} placeholder={t("quickNotes.noteTitle")} className="min-w-0 flex-1 bg-transparent text-[15px] font-semibold outline-none placeholder:text-foreground/50"/><StickerMenu note={note} archived={archived} open={menuFor === note.id} onOpenChange={(open) => setMenuFor(open ? note.id : null)} onEdit={() => { bodyRef.current?.focus(); }} onPin={() => void patch(note.id, { isPinned: !note.isPinned })} onColor={(color) => void patch(note.id, { color })} onMove={() => setDestinationFor(destinationFor === note.id ? null : note.id)} onArchive={() => void patch(note.id, { archived: !archived })} onDuplicate={() => void duplicate(note)} onDelete={() => void remove(note)} onUp={() => moveWithin(note, -1)} onDown={() => moveWithin(note, 1)}/></div>
+    <StickerBodyEditor ref={bodyRef} value={note.body} onChange={(body, immediate) => writer.update({ body }, immediate)} onBlur={() => void writer.flush().catch(() => undefined)} placeholder={t("quickNotes.placeholder")}/>
+    <StickerSaveStatus writer={writer}/>
+
     {previewTags.length > 0 && <div className="mb-2 flex flex-wrap gap-1">{previewTags.map(({ tag }) => <button key={tag.normalized} className="notebook-tag-chip" onClick={() => onTag(tag.normalized)}>#{tag.name}</button>)}{note.tags.length > 3 && <span className="notebook-tag-chip">+{note.tags.length - 3}</span>}</div>}
     {note.status === "CONVERTED" && <p className="mt-2 text-xs font-medium text-muted-foreground">{t("quickNotes.converted")}</p>}
     <footer className="mt-3 flex items-center gap-2 text-xs text-foreground/55">{note.isPinned && <span className="flex items-center gap-1 font-medium"><Pin size={13}/>{t("quickNotes.pinned")}</span>}<time className="ml-auto" dateTime={note.updatedAt}>{new Date(note.updatedAt).toLocaleString("ru", { day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" })}</time></footer>

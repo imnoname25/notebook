@@ -48,6 +48,7 @@ import { PrintDialog } from "./print-dialog";
 import { NotebookOverview } from "./notebook-overview";
 import { MobileOutlineSheet } from "./page-outline";
 import { UndoToast } from "./undo-toast";
+import { StickerSaveProvider, useStickerSaves } from "./sticker-save-provider";
 import { QuickCapture, StickerBoard } from "./quick-notes";
 import { TagBrowser } from "./tag-browser";
 import { TodayView } from "./today-view";
@@ -144,9 +145,10 @@ type NotebookAppProps = {
   };
   initialLocation?: InitialLocation;
 };
-export function NotebookApp(props: NotebookAppProps) { return <NotebookWorkspace key={props.user.id} {...props}/>; }
+export function NotebookApp(props: NotebookAppProps) { return <StickerSaveProvider key={props.user.id}><NotebookWorkspace {...props}/></StickerSaveProvider>; }
 function NotebookWorkspace({ user, initialLocation }: NotebookAppProps) {
   const router = useRouter();
+  const stickerSaves = useStickerSaves();
   const { theme: browserTheme, resolvedTheme: browserResolvedTheme, setTheme } = useTheme();
   const mounted = useSyncExternalStore(noClientSubscription, clientMountedSnapshot, serverMountedSnapshot);
   const theme = mounted ? browserTheme : undefined;
@@ -259,6 +261,12 @@ function NotebookWorkspace({ user, initialLocation }: NotebookAppProps) {
   );
   const report = useCallback((value: unknown) => {
     setError(value instanceof Error ? value.message : "Произошла ошибка");
+  }, []);
+  useEffect(() => stickerSaves.subscribeErrors(report), [report, stickerSaves]);
+  useEffect(() => {
+    const copied = () => { setWorkspaceRevision(value => value + 1);setNotice("Черновик сохранён отдельным стикером"); };
+    window.addEventListener("notebook:sticker-copy-saved", copied);
+    return () => window.removeEventListener("notebook:sticker-copy-saved", copied);
   }, []);
   const registerEditorController = useCallback(
     (controller: EditorSaveController | null) => {
@@ -1066,7 +1074,7 @@ function NotebookWorkspace({ user, initialLocation }: NotebookAppProps) {
   async function logout() {
     setAuthLeaving(true);
     try {
-      await editorController.current?.flush(false);
+      await stickerSaves.flushAll();await editorController.current?.flush(false);
       await api("/api/auth/logout", jsonOptions("POST"));
       await flushNativeAuthCookies();
       router.replace("/login");
@@ -1077,7 +1085,7 @@ function NotebookWorkspace({ user, initialLocation }: NotebookAppProps) {
     if (!window.confirm("Выйти на всех устройствах, включая это?")) return;
     setAuthLeaving(true);
     try {
-      await editorController.current?.flush(false);
+      await stickerSaves.flushAll();await editorController.current?.flush(false);
       await api("/api/auth/logout-all", jsonOptions("POST"));
       await flushNativeAuthCookies();
       router.replace("/login");
@@ -1087,7 +1095,7 @@ function NotebookWorkspace({ user, initialLocation }: NotebookAppProps) {
   async function changeAndroidServer() {
     if (!window.confirm(t("mobile.changeServerConfirm"))) return;
     setAuthLeaving(true);
-    try { await editorController.current?.flush(false);window.location.replace("https://localhost/?changeServer=1"); }
+    try { await stickerSaves.flushAll();await editorController.current?.flush(false);window.location.replace("https://localhost/?changeServer=1"); }
     catch (cause) { setAuthLeaving(false);report(cause); }
   }
 

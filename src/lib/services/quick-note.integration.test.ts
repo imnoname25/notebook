@@ -56,4 +56,17 @@ describe.skipIf(!enabled)("quick note integration", () => {
     await service.updateQuickNote(ids.user, note.id, { archived: false });
     expect((await service.listQuickNotes(ids.user)).map((item) => item.id)).toContain(note.id);
   });
+  it("rejects stale text, retains check states and converts to native checklist blocks", async () => {
+    const body = "Текст\n- [ ] Первый #дом\n- [x] Второй";
+    const note = await service.createQuickNote(ids.user, { title: "Checklist", body });
+    const checked = body.replace("[ ]", "[x]");
+    await service.updateQuickNote(ids.user, note.id, { body: checked, expectedBody: body, expectedTitle: note.title });
+    await expect(service.updateQuickNote(ids.user, note.id, { body: "stale overwrite", expectedBody: body })).rejects.toMatchObject({ status: 409 });
+    expect((await service.getQuickNote(ids.user, note.id)).body).toBe(checked);
+    await expect(service.getQuickNote(ids.other, note.id)).rejects.toMatchObject({ status: 404 });
+    const copy = await service.duplicateQuickNote(ids.user, note.id);
+    expect(copy.body).toBe(checked);
+    const page = await service.convertQuickNote(ids.user, note.id, ids.section);
+    expect(page.content).toMatchObject([{ type: "paragraph" }, { type: "checkListItem", props: { checked: true } }, { type: "checkListItem", props: { checked: true } }]);
+  });
 });

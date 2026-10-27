@@ -56,6 +56,8 @@ export const quickNoteCreateSchema = z.object({
   icon: z.string().max(16).nullable().optional().refine((value) => value === undefined || isPageIcon(value), "Некорректная иконка"),
 }).strict();
 export const quickNoteUpdateSchema = quickNoteCreateSchema.extend({
+  expectedBody: z.string().max(10_000).optional(),
+  expectedTitle: z.string().max(120).optional(),
   isPinned: z.boolean().optional(),
   archived: z.boolean().optional(),
 }).strict();

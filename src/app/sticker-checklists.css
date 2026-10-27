@@ -1,0 +1,6 @@
+.sticker-checkbox-target { min-width: 44px; min-height: 44px; cursor: pointer; }
+.sticker-checkbox-target input { width: 18px; height: 18px; flex-shrink: 0; accent-color: var(--primary); cursor: pointer; }
+.sticker-checkbox-target input:focus-visible { outline: 2px solid var(--ring); outline-offset: 3px; }
+.sticker-checklist-line[data-checked="true"] textarea { text-decoration: line-through; opacity: 0.65; }
+.sticker-body-editor textarea { overflow-wrap: anywhere; }
+.sticker-save-status { overflow-wrap: anywhere; }

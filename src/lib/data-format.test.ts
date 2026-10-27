@@ -81,6 +81,13 @@ describe("portable data contracts", () => {
     });
     expect(parsed.quickNotes?.[0]).toMatchObject({ title: "Idea", isPinned: true, sortOrder: 3 });
   });
+  it("round-trips mixed checklist bodies exactly through the portable backup format", () => {
+    const now = new Date().toISOString();
+    const body = "Обычный текст\r\n- [x] Сделано #дом\r\n- [ ] Сделать\r\n\r\nВторой список\n- [ ] Ещё";
+    const exported = archiveDataSchema.parse({ notebooks: [], attachments: [], quickNotes: [{ title: "Checklist", body, color: "amber", icon: null, isPinned: false, archivedAt: null, createdAt: now, updatedAt: now }] });
+    const imported = archiveDataSchema.parse(JSON.parse(JSON.stringify(exported)));
+    expect(imported.quickNotes?.[0]?.body).toBe(body);
+  });
   it("preserves curated notebook cover metadata", () => {
     const now = new Date().toISOString();
     const parsed = archiveDataSchema.parse({
