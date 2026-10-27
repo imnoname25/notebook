@@ -1,5 +1,6 @@
 import { Prisma } from "@/generated/prisma/client";
 import { db } from "@/lib/db";
+import type { SearchFilters } from "@/lib/workspace-search";
 import { hashtagQuery } from "@/lib/hashtags";
 
 export const SEARCH_QUERY_MAX_LENGTH = 300;
@@ -16,6 +17,7 @@ export type SearchResult = {
   notebookIcon: string;
   sectionId?: string;
   sectionTitle?: string;
+  updatedAt?: string;
   snippet?: string;
   snippetParts?: HighlightPart[];
   titleParts: HighlightPart[];
@@ -32,6 +34,7 @@ type SearchRow = {
   sectionId: string | null;
   sectionTitle: string | null;
   snippet: string | null;
+  updatedAt: Date;
 };
 
 const START = "__NOTEBOOK_HIGHLIGHT_START__";
@@ -67,60 +70,28 @@ export function highlightTitle(title: string, query: string): HighlightPart[] {
   return title.split(expression).filter(Boolean).map((text) => ({ text, highlight: expression.test(text) }));
 }
 
-export async function searchNotebook(userId: string, rawQuery: string, limit = SEARCH_PAGE_SIZE, offset = 0) {
-  const query = normalizeSearchQuery(rawQuery);
+export async function searchNotebook(userId: string, rawQuery: string, limit = SEARCH_PAGE_SIZE, offset = 0, filters: Partial<SearchFilters> = {}) {
+  const normalized = normalizeSearchQuery(rawQuery);
+  const queryTag = hashtagQuery(normalized);
+  const query = queryTag ? "" : normalized;
+  const tags = [...new Set([queryTag, hashtagQuery(`#${filters.tag?.replace(/^#/, "") ?? ""}`)].filter((tag): tag is string => Boolean(tag)))];
   const take = Math.min(Math.max(limit, 1), 30);
   const skip = Math.min(Math.max(offset, 0), 250);
-  const tag = hashtagQuery(query);
-  if (tag) {
-    const matchedTag = await db.tag.findFirst({
-      where: { userId, normalized: tag },
-      select: {
-        name: true, normalized: true,
-        pages: {
-          where: { page: { deletedAt: null, section: { deletedAt: null, notebook: { userId, deletedAt: null } } } },
-          orderBy: { page: { updatedAt: "desc" } },
-          take,
-          select: { page: { select: { id: true, title: true, searchText: true, section: { select: { id: true, title: true, notebook: { select: { id: true, title: true, color: true, icon: true } } } } } } },
-        },
-        quickNotes: {
-          where: { quickNote: { userId, status: "INBOX" } },
-          orderBy: { quickNote: { updatedAt: "desc" } },
-          take,
-          select: { quickNote: { select: { id: true, title: true, body: true } } },
-        },
-      },
-    });
-    const pages = matchedTag?.pages.map(({ page }) => page) ?? [];
-    const quickNotes = matchedTag?.quickNotes.map(({ quickNote }) => quickNote) ?? [];
-    const tagResults: SearchResult[] = matchedTag ? [{ type: "tag", id: matchedTag.normalized, title: `#${matchedTag.name}`, titleParts: highlightTitle(`#${matchedTag.name}`, query), notebookId: "", notebookTitle: "", notebookColor: "default", notebookIcon: "notebook" }] : [];
-    return {
-      results: [...tagResults, ...pages.map((page): SearchResult => ({
-        type: "page",
-        id: page.id,
-        title: page.title,
-        titleParts: highlightTitle(page.title, `#${tag}`),
-        notebookId: page.section.notebook.id,
-        notebookTitle: page.section.notebook.title,
-        notebookColor: page.section.notebook.color,
-        notebookIcon: page.section.notebook.icon,
-        sectionId: page.section.id,
-        sectionTitle: page.section.title,
-        snippet: page.searchText.slice(0, 180),
-      })), ...quickNotes.map((note): SearchResult => ({
-        type: "quickNote", id: note.id,
-        title: note.title || note.body.split(/\s+/).slice(0, 6).join(" "),
-        titleParts: highlightTitle(note.title || note.body, query),
-        notebookId: "", notebookTitle: "", notebookColor: "default", notebookIcon: "notebook",
-        snippet: note.body.slice(0, 180),
-      }))].slice(skip, skip + take),
-      nextOffset: null,
-    };
-  }
+  const from = filters.dateFrom ? new Date(`${filters.dateFrom}T00:00:00Z`) : null;
+  const until = filters.dateTo ? new Date(new Date(`${filters.dateTo}T00:00:00Z`).getTime() + 86400000) : null;
+  const pageScope = Prisma.sql`
+    ${filters.notebookId ? Prisma.sql`AND notebook.id = ${filters.notebookId}` : Prisma.empty}
+    ${filters.sectionId ? Prisma.sql`AND section.id = ${filters.sectionId}` : Prisma.empty}
+    ${from ? Prisma.sql`AND page."updatedAt" >= ${from}` : Prisma.empty}
+    ${until ? Prisma.sql`AND page."updatedAt" < ${until}` : Prisma.empty}
+    ${filters.group === "favorites" ? Prisma.sql`AND page."isFavorite" = true` : Prisma.empty}
+    ${filters.group === "recent" ? Prisma.sql`AND EXISTS (SELECT 1 FROM "RecentPage" recent WHERE recent."pageId" = page.id AND recent."userId" = ${userId})` : Prisma.empty}
+    ${tags.length ? Prisma.join(tags.map(tag => Prisma.sql`AND EXISTS (SELECT 1 FROM "PageTag" link JOIN "Tag" tag ON tag.id = link."tagId" WHERE link."pageId" = page.id AND tag."userId" = ${userId} AND tag.normalized = ${tag})`), " ") : Prisma.empty}
+  `;
+  const pagesOnly = Boolean(!query || tags.length || filters.dateFrom || filters.dateTo || (filters.group && filters.group !== "all"));
   const rows = await db.$queryRaw<SearchRow[]>(Prisma.sql`
     WITH search_input AS (
-      SELECT websearch_to_tsquery('simple', ${query}) AS query,
-             lower(${query}) AS normalized
+      SELECT websearch_to_tsquery('simple', ${query}) AS query, lower(${query}) AS normalized
     ), ranked AS (
       SELECT 'page'::text AS type, page.id, page.title,
              notebook.id AS "notebookId", notebook.title AS "notebookTitle",
@@ -129,61 +100,60 @@ export async function searchNotebook(userId: string, rawQuery: string, limit = S
              CASE WHEN to_tsvector('simple', coalesce(page."searchText", '')) @@ input.query
                THEN ts_headline('simple', page."searchText", input.query,
                  'StartSel=${Prisma.raw(START)}, StopSel=${Prisma.raw(STOP)}, MaxWords=22, MinWords=8, ShortWord=2')
-               ELSE NULL END AS snippet,
-             CASE
-               WHEN lower(page.title) = input.normalized THEN 600
+               ELSE left(page."searchText", 180) END AS snippet,
+             page."updatedAt" AS "updatedAt",
+             CASE WHEN lower(page.title) = input.normalized THEN 600
                WHEN lower(page.title) LIKE input.normalized || '%' THEN 500
-               WHEN to_tsvector('simple', page.title) @@ input.query THEN 400
-               ELSE 300
-             END AS priority,
+               WHEN to_tsvector('simple', page.title) @@ input.query THEN 400 ELSE 300 END AS priority,
              ts_rank_cd(page."searchVector", input.query, 32) AS score,
-             page."updatedAt" AS recency
+             CASE WHEN ${filters.group === "recent"} THEN (SELECT recent."lastOpenedAt" FROM "RecentPage" recent WHERE recent."pageId" = page.id AND recent."userId" = ${userId}) ELSE page."updatedAt" END AS recency
       FROM "Page" page
       JOIN "Section" section ON section.id = page."sectionId"
       JOIN "Notebook" notebook ON notebook.id = section."notebookId"
       CROSS JOIN search_input input
       WHERE notebook."userId" = ${userId}
         AND page."deletedAt" IS NULL AND section."deletedAt" IS NULL AND notebook."deletedAt" IS NULL
-        AND (page."searchVector" @@ input.query OR lower(page.title) LIKE '%' || input.normalized || '%')
+        AND (${query === ""} OR page."searchVector" @@ input.query OR lower(page.title) LIKE '%' || input.normalized || '%')
+        ${pageScope}
       UNION ALL
-      SELECT 'section', section.id, section.title,
-             notebook.id, notebook.title, notebook.color, notebook.icon,
-             section.id, section.title, NULL,
-             200, ts_rank_cd(section."searchVector", input.query, 32), section."updatedAt"
-      FROM "Section" section
-      JOIN "Notebook" notebook ON notebook.id = section."notebookId"
+      SELECT 'section', section.id, section.title, notebook.id, notebook.title, notebook.color, notebook.icon,
+             section.id, section.title, NULL, section."updatedAt", 200, ts_rank_cd(section."searchVector", input.query, 32), section."updatedAt"
+      FROM "Section" section JOIN "Notebook" notebook ON notebook.id = section."notebookId"
       CROSS JOIN search_input input
-      WHERE notebook."userId" = ${userId}
-        AND section."deletedAt" IS NULL AND notebook."deletedAt" IS NULL
-        AND (section."searchVector" @@ input.query OR lower(section.title) LIKE '%' || input.normalized || '%')
+      WHERE notebook."userId" = ${userId} AND section."deletedAt" IS NULL AND notebook."deletedAt" IS NULL
+        AND ${!pagesOnly} AND (section."searchVector" @@ input.query OR lower(section.title) LIKE '%' || input.normalized || '%')
+        ${filters.notebookId ? Prisma.sql`AND notebook.id = ${filters.notebookId}` : Prisma.empty}
+        ${filters.sectionId ? Prisma.sql`AND section.id = ${filters.sectionId}` : Prisma.empty}
       UNION ALL
-      SELECT 'notebook', notebook.id, notebook.title,
-             notebook.id, notebook.title, notebook.color, notebook.icon,
-             NULL, NULL, NULL,
-             100, ts_rank_cd(notebook."searchVector", input.query, 32), notebook."updatedAt"
-      FROM "Notebook" notebook
-      CROSS JOIN search_input input
-      WHERE notebook."userId" = ${userId} AND notebook."deletedAt" IS NULL
+      SELECT 'notebook', notebook.id, notebook.title, notebook.id, notebook.title, notebook.color, notebook.icon,
+             NULL, NULL, NULL, notebook."updatedAt", 100, ts_rank_cd(notebook."searchVector", input.query, 32), notebook."updatedAt"
+      FROM "Notebook" notebook CROSS JOIN search_input input
+      WHERE notebook."userId" = ${userId} AND notebook."deletedAt" IS NULL AND ${!pagesOnly && !filters.sectionId}
         AND (notebook."searchVector" @@ input.query OR lower(notebook.title) LIKE '%' || input.normalized || '%')
+        ${filters.notebookId ? Prisma.sql`AND notebook.id = ${filters.notebookId}` : Prisma.empty}
+      UNION ALL
+      SELECT 'quickNote', note.id, coalesce(nullif(note.title, ''), left(note.body, 80)), '', '', 'default', 'notebook',
+             NULL, NULL,
+             CASE WHEN ${query !== ""} THEN ts_headline('simple', note.body, input.query,
+               'StartSel=${Prisma.raw(START)}, StopSel=${Prisma.raw(STOP)}, MaxWords=22, MinWords=8, ShortWord=2') ELSE left(note.body, 180) END,
+             note."updatedAt", 250, 0, note."updatedAt"
+      FROM "QuickNote" note CROSS JOIN search_input input
+      WHERE note."userId" = ${userId} AND note.status = 'INBOX'
+        AND ${!filters.notebookId && !filters.sectionId && (!filters.group || filters.group === "all")}
+        AND (${query === ""} OR to_tsvector('simple', note.title || ' ' || note.body) @@ input.query OR lower(note.title) LIKE '%' || input.normalized || '%')
+        ${from ? Prisma.sql`AND note."updatedAt" >= ${from}` : Prisma.empty}
+        ${until ? Prisma.sql`AND note."updatedAt" < ${until}` : Prisma.empty}
+        ${tags.length ? Prisma.join(tags.map(tag => Prisma.sql`AND EXISTS (SELECT 1 FROM "QuickNoteTag" link JOIN "Tag" tag ON tag.id = link."tagId" WHERE link."quickNoteId" = note.id AND tag."userId" = ${userId} AND tag.normalized = ${tag})`), " ") : Prisma.empty}
     )
-    SELECT type, id, title, "notebookId", "notebookTitle", "notebookColor", "notebookIcon",
-           "sectionId", "sectionTitle", snippet
-    FROM ranked
-    ORDER BY priority DESC, score DESC, recency DESC, title ASC
+    SELECT type, id, title, "notebookId", "notebookTitle", "notebookColor", "notebookIcon", "sectionId", "sectionTitle", snippet, "updatedAt"
+    FROM ranked ORDER BY priority DESC, score DESC, recency DESC, title ASC, id ASC
     LIMIT ${take + 1} OFFSET ${skip}
   `);
-  const page = rows.slice(0, take).map((row): SearchResult => ({
-    type: row.type,
-    id: row.id,
-    title: row.title,
-    titleParts: highlightTitle(row.title, query),
-    notebookId: row.notebookId,
-    notebookTitle: row.notebookTitle,
-    notebookColor: row.notebookColor,
-    notebookIcon: row.notebookIcon,
-    ...(row.sectionId ? { sectionId: row.sectionId } : {}),
-    ...(row.sectionTitle ? { sectionTitle: row.sectionTitle } : {}),
+  return { results: rows.slice(0, take).map((row): SearchResult => ({
+    type: row.type, id: row.id, title: row.title, titleParts: highlightTitle(row.title, query),
+    notebookId: row.notebookId, notebookTitle: row.notebookTitle, notebookColor: row.notebookColor, notebookIcon: row.notebookIcon,
+    ...(row.sectionId ? { sectionId: row.sectionId } : {}), ...(row.sectionTitle ? { sectionTitle: row.sectionTitle } : {}),
+    ...(row.updatedAt ? { updatedAt: row.updatedAt.toISOString() } : {}),
     ...(row.snippet ? { snippet: row.snippet.replaceAll(START, "").replaceAll(STOP, ""), snippetParts: parseSearchHeadline(row.snippet) } : {}),
-  }));
-  return { results: page, nextOffset: rows.length > take ? skip + take : null };
+  })), nextOffset: rows.length > take && skip + take <= 250 ? skip + take : null };
 }

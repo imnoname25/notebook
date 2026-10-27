@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { workspaceSearchSchema } from "@/lib/workspace-search";
 import { NOTEBOOK_COLORS, NOTEBOOK_ICONS } from "@/lib/notebook-appearance";
 import { ACCENT_COLORS, isPageIcon, PAGE_APPEARANCE_PRESETS, PAGE_BACKGROUND_OVERLAYS, PAGE_BACKGROUND_POSITIONS, PAGE_BACKGROUND_TYPES, PAGE_GRADIENTS, PAGE_LIST_VIEWS, PAGE_PATTERNS, SECTION_ACCENT_INTENSITIES } from "@/lib/content-appearance";
 import { SECTION_ICONS } from "@/lib/section-icons";
@@ -46,7 +47,7 @@ export const sectionReorderSchema = z.object({ notebookId: z.string().min(1), pa
 export const pageReorderSchema = z.object({ sectionId: z.string().min(1), ids: orderedIds });
 export const trashItemSchema = z.object({ type: z.enum(["notebook", "section", "page"]), id: z.string().min(1) });
 export const searchQuerySchema = z.string().trim().min(2).max(300);
-export const searchRequestSchema = z.object({ q: searchQuerySchema, offset: z.coerce.number().int().min(0).max(250).default(0) });
+export const searchRequestSchema = workspaceSearchSchema.extend({ offset: z.coerce.number().int().min(0).max(250).default(0) }).refine(value => !value.dateFrom || !value.dateTo || value.dateFrom <= value.dateTo, "Некорректный диапазон дат");
 export const quickNoteColors = ["neutral", "amber", "orange", "green", "blue", "violet", "pink"] as const;
 export const quickNoteCreateSchema = z.object({
   title: z.string().trim().max(120).optional(),

@@ -68,7 +68,7 @@ export function useDocumentTabs(options: Options) {
   const promote = useCallback((id: string) => commit(promoteDocumentTab(ref.current, id)), [commit]);
   const pin = useCallback((id: string) => commit(pinDocumentTab(ref.current, id)), [commit]);
   const reorder = useCallback((id: string, target: string) => commit(reorderDocumentTab(ref.current, id, target)), [commit]);
-  const restore = useCallback(async (explicit: string | null) => {
+  const restore = useCallback(async (explicit: string | null, activate = true) => {
     if (hydrated.current) return;
     hydrated.current = true;
     const originalIntent = intent.current;
@@ -96,7 +96,7 @@ export function useDocumentTabs(options: Options) {
     if (missing) callbacks.current.notice(`${missing} недоступных вкладок исключено из сессии`);
     if (offline) callbacks.current.notice("Часть вкладок пока не проверена: повторите открытие после восстановления соединения");
     const id = explicit ?? saved.activePageId;
-    if (id) await open(id, saved.tabs.some(t => t.pageId === id) ? "permanent" : "preview", "replace");
+    if (id && activate) await open(id, saved.tabs.some(t => t.pageId === id) ? "permanent" : "preview", "replace");
   }, [commit, open, title]);
   useEffect(() => {
     alive.current = true;

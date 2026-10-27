@@ -34,6 +34,15 @@ describe.skipIf(!enabled)("stage 6 FTS, templates and operations integration", (
 
   it("generated vector tracks edits without an explicit reindex", async () => { expect((await search.searchNotebook(ids.user, "уникальноеслово")).results).toHaveLength(0); await db.page.update({ where: { id: ids.page }, data: { searchText: "уникальноеслово" } }); expect((await search.searchNotebook(ids.user, "уникальноеслово")).results[0]?.id).toBe(ids.page); });
 
+  it("filters FTS on the server and preserves ownership for empty-query filters", async () => {
+    await db.page.update({ where: { id: ids.page }, data: { isFavorite: true } });
+    const filters = { notebookId: ids.notebook, sectionId: ids.section, group: "favorites" as const };
+    expect((await search.searchNotebook(ids.user, "", 25, 0, filters)).results.map(item => item.id)).toEqual([ids.page]);
+    expect((await search.searchNotebook(ids.other, "", 25, 0, filters)).results).toEqual([]);
+    expect((await search.searchNotebook(ids.user, "PostgreSQL", 25, 0, { ...filters, dateFrom: "2099-01-01" })).results).toEqual([]);
+    expect((await search.searchNotebook(ids.user, "PostgreSQL", 25, 0, { tag: "nonexistent" })).results).toEqual([]);
+  });
+
   it("enforces template ownership, built-in protection and creates structured copies", async () => { const list = await templates.listTemplates(ids.user); expect(list.length).toBeGreaterThanOrEqual(7); await expect(templates.deleteTemplate(ids.user, list[0]!.id)).rejects.toMatchObject({ status: 409 }); const custom = await templates.createTemplate(ids.user, { name: "Runbook", icon: "book-open", content: [{ type: "callout", props: { kind: "info" }, content: [] }] }); await expect(templates.updateTemplate(ids.other, custom.id, { name: "stolen" })).rejects.toMatchObject({ status: 404 }); expect((await templates.duplicateTemplate(ids.user, custom.id)).name).toContain("копия"); await expect(templates.createTemplate(ids.user, { name: "Image", icon: "file-text", content: [{ type: "image", props: { url: "/api/uploads/private" } }] })).rejects.toMatchObject({ status: 409 }); });
 
   it("records independent remote target outcomes without changing local success", async () => { const record = await db.backupRecord.create({ data: { type: "manual", status: "success", filename: "notebook-backup-stage6.zip", size: 3, sha256: "a".repeat(64) } }); await remotes.uploadToRemoteTargets({ id: record.id, filename: record.filename!, size: 3n, sha256: "a".repeat(64) }, [new FakeTarget("webdav"), new FakeTarget("s3", true)]); const copies = await db.backupRemoteCopy.findMany({ where: { backupRecordId: record.id }, orderBy: { provider: "asc" } }); expect(copies.map((copy) => [copy.provider, copy.status])).toEqual([["s3", "failed"], ["webdav", "success"]]); expect((await db.backupRecord.findUniqueOrThrow({ where: { id: record.id } })).status).toBe("success"); });

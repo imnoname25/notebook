@@ -1,0 +1,26 @@
+.notebook-search-view { background: var(--background); color: var(--foreground); overflow: hidden; }
+.search-action { display: flex; align-items: center; justify-content: center; min-height: 44px; min-width: 44px; border-radius: 4px; }
+.search-action:hover, .search-result:hover, .search-result[aria-current="true"] { background: var(--accent); color: var(--accent-foreground); }
+.notebook-search-view button:focus-visible { outline: 2px solid var(--ring); outline-offset: -2px; }
+.search-filters { max-height: 38dvh; overflow-y: auto; }
+.search-filters label { min-width: 0; color: var(--muted-foreground); }
+.search-filters :is(input, select) { display: block; width: 100%; min-width: 0; min-height: 44px; margin-top: 4px; padding: 6px; border: 1px solid var(--border); border-radius: 4px; background: var(--background); color: var(--foreground); }
+.search-result { overflow-wrap: anywhere; }
+.search-result mark { background: var(--accent); color: var(--accent-foreground); text-decoration: underline; text-underline-offset: 2px; }
+.notebook-app-shell[data-workspace-screen="search"] > .notebook-workspace-grid { grid-template-columns: 280px minmax(0, 1fr); }
+:is(.studio-graphite, .studio-atelier) .notebook-search-view { background: var(--studio-editor-bg); color: var(--studio-editor-text); }
+@media (min-width: 1200px) {
+  /* Global titlebar geometry is independent of the document list and its width. */
+  :is(.studio-graphite, .studio-atelier) .notebook-app-shell > .notebook-desktop-header { display: flex; gap: 16px; padding-inline: 16px; }
+  :is(.studio-graphite, .studio-atelier) .notebook-brand { flex-shrink: 0; padding-inline: 0; background: transparent; color: var(--studio-editor-text); }
+  :is(.studio-graphite, .studio-atelier) .notebook-global-search { width: clamp(220px, 28vw, 420px); height: 30px; flex-shrink: 0; margin-inline-start: 8px; padding-inline: 10px; border: 1px solid var(--studio-nav-divider); border-radius: 4px; }
+  :is(.studio-graphite, .studio-atelier) .notebook-window-actions { flex: 1; min-width: 0; }
+  :is(.studio-graphite, .studio-atelier) .notebook-app-shell[data-workspace-screen="search"] > .notebook-workspace-grid { grid-template-columns: var(--workspace-sidebar-width, var(--studio-navigation-width)) minmax(0, 1fr); }
+  .search-view-query { padding-block: 12px; }
+}
+@media (max-width: 1199px) {
+  :is(.studio-graphite, .studio-atelier) .notebook-app-shell[data-workspace-screen="search"] > .notebook-workspace-grid { grid-template-columns: minmax(0, 1fr); }
+}
+@media (max-width: 767px) {
+  .notebook-app-shell[data-workspace-screen="search"] > .notebook-workspace-grid { grid-template-columns: minmax(0, 1fr); }
+}

@@ -4,6 +4,7 @@
 @import "./studio-mobile.css";
 @import "./editor-advanced.css";
 @import "./workspace-panels.css";
+@import "./search.css";
 @source "../../node_modules/@blocknote/shadcn";
 
 @custom-variant dark (&:is(:is(.dark, .atmospheric, .studio-graphite) *));
