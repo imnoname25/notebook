@@ -1,5 +1,6 @@
 "use client";
 
+import type { DocumentSearchRequest } from "@/lib/document-search";
 import dynamic from "next/dynamic";
 import type { ReactNode } from "react";
 import { ArrowLeft, FileText, ListTree, Loader2, Maximize2, Minimize2, Plus } from "lucide-react";
@@ -49,6 +50,8 @@ export function EditorPane({
   focusMode,
   onFocusToggle,
   documentTabs,
+  searchMatch,
+  onSearchMatchClose,
   navigationBusy,
 }: {
   page: PageDocument | null;
@@ -71,6 +74,8 @@ export function EditorPane({
   focusMode: boolean;
   onFocusToggle(): void;
   documentTabs?: ReactNode;
+  searchMatch?: DocumentSearchRequest | null;
+  onSearchMatchClose(): void;
   navigationBusy?: boolean;
 }) {
   const unsupported = page ? unsupportedEditorBlocks(page.content) : [];
@@ -137,6 +142,8 @@ export function EditorPane({
           </section> : <RichTextEditor
             key={`${page.id}:${editorEpoch}`}
             page={page}
+            searchMatch={searchMatch}
+            onSearchMatchClose={onSearchMatchClose}
             navigationBusy={navigationBusy}
             resolvedAccent={resolveAppearanceAccent(page.color, section?.color, notebook?.color)}
             onSaved={onSaved}

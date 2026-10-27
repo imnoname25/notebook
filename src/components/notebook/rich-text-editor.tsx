@@ -53,6 +53,11 @@ import { blockNoteContentSchema } from "@/lib/data-format";
 import { tsvToTableHtml } from "@/lib/table-paste";
 import { extractPageVariables, type PageVariable } from "@/lib/page-variables";
 
+import { documentSearchExtension } from "./document-search-extension";
+import { useDocumentSearch } from "./use-document-search";
+import { SearchTitle } from "./search-title";
+import type { DocumentSearchRequest } from "@/lib/document-search";
+
 type SavePayload = { title: string; content: unknown[] };
 
 type Mention = {
@@ -82,6 +87,8 @@ export function RichTextEditor({
   onController,
   onInternalNavigate,
   onOutlineChange,
+  searchMatch,
+  onSearchMatchClose,
   navigationBusy = false,
 }: {
   page: PageDocument;
@@ -90,6 +97,8 @@ export function RichTextEditor({
   onController(controller: EditorSaveController | null): void;
   onInternalNavigate(pageId: string, permanent?: boolean, blockId?: string): Promise<void>;
   onOutlineChange(items: PageOutlineItem[]): void;
+  searchMatch?: DocumentSearchRequest | null;
+  onSearchMatchClose(): void;
   navigationBusy?: boolean;
 }) {
   const { resolvedTheme } = useTheme();
@@ -143,12 +152,14 @@ export function RichTextEditor({
       schema: notebookEditorSchema,
       initialContent: normalizeEditorBlocks(page.content),
       uploadFile,
-      extensions: [notebookSyntaxHighlighting],
+      extensions: [notebookSyntaxHighlighting, documentSearchExtension],
       tables: { headers: true, splitCells: true },
       dictionary: notebookBlockNoteDictionary,
     },
     [page.id],
   );
+
+  const documentSearch = useDocumentSearch(editor, title, searchMatch, onSearchMatchClose, editorRoot);
 
   const mentionItems = useCallback(
     async (query: string) => {
@@ -433,7 +444,7 @@ export function RichTextEditor({
         className="notebook-editor-header flex w-full shrink-0 flex-col items-start gap-1 pt-6 md:flex-row md:items-center md:gap-4 md:pt-10"
       >
         <h1 className="notebook-print-title hidden">{title}</h1>
-        <input
+        <SearchTitle matches={documentSearch.titleMatches} active={documentSearch.titleActive} enabled={documentSearch.enabled} theme={resolvedTheme}
           value={title}
           aria-label="Название страницы"
           title={title}
@@ -479,6 +490,7 @@ export function RichTextEditor({
         {status === "error" && <button type="button" className="notebook-editor-header-action notebook-no-print" onClick={() => void flush(false).catch(() => undefined)}>Повторить сохранение</button>}
         <button type="button" className="notebook-editor-header-action notebook-no-print" aria-label="Переменные страницы" title="Переменные страницы" onClick={() => setVariablesOpen(true)}><Variable size={16}/><span>Переменные</span></button>
       </div>
+      {documentSearch.toolbar}
       {tags.length > 0 && (
         <div className="notebook-editor-tags flex w-full flex-wrap gap-1.5 pt-2" aria-label={t("tags.title")}>
           {tags.map((tag) => <button key={tag.normalized} type="button" className="notebook-tag-chip" onClick={() => window.dispatchEvent(new CustomEvent("notebook:search-tag", { detail: tag.normalized }))}>#{tag.name}</button>)}

@@ -11,7 +11,7 @@ import { useLiveSearch } from "./use-live-search";
 
 export function QuickSearch({ open, focusRequest, onOpenChange, onSelect, onAdvanced }: {
   open: boolean; focusRequest: number; onOpenChange(value: boolean): void;
-  onSelect(result: SearchResult): Promise<boolean>; onAdvanced(query: string): void;
+  onSelect(result: SearchResult, query: string): Promise<boolean>; onAdvanced(query: string): void;
 }) {
   const [query, setQuery] = useState("");
   const [recent, setRecent] = useState<{ results: SearchResult[]; loading: boolean; error: string }>({ results: [], loading: true, error: "" });
@@ -77,7 +77,7 @@ export function QuickSearch({ open, focusRequest, onOpenChange, onSelect, onAdva
   async function select(result: SearchResult) {
     if (opening) return;
     setOpening(true);setOpenError("");
-    try { if (await onSelect(result)) close();else setOpenError("Не удалось открыть результат. Текущий документ остаётся открытым."); }
+    try { if (await onSelect(result, query)) close();else setOpenError("Не удалось открыть результат. Текущий документ остаётся открытым."); }
     catch { setOpenError("Не удалось открыть результат. Повторите попытку."); }
     finally { setOpening(false); }
   }

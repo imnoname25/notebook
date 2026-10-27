@@ -7,6 +7,7 @@ for (const theme of ["studio-graphite", "studio-atelier"]) {
     const { needsSetup } = z.object({ needsSetup: z.boolean() }).parse(await page.request.get("/api/auth/status").then(r => r.json()));
     expect((await page.request.post(needsSetup ? "/api/auth/setup" : "/api/auth/login", { data: needsSetup ? { ...credentials, name: "Polish test" } : credentials })).ok()).toBe(true);
     const { note } = z.object({ note: z.object({ id: z.string() }) }).parse(await page.request.post("/api/quick-notes", { data: { title: "Размер стикера", body: "Текст\n- [ ] Контроль", color: "amber" } }).then(r => r.json()));
+    const { note: other } = z.object({ note: z.object({ id: z.string() }) }).parse(await page.request.post("/api/quick-notes", { data: { title: "Независимый размер", body: "Текст", color: "green" } }).then(r => r.json()));
     await page.addInitScript(value => localStorage.setItem("theme", value), theme);
     await page.setViewportSize({ width: 1440, height: 900 });
     await page.goto("/app?view=stickers");
@@ -17,8 +18,12 @@ for (const theme of ["studio-graphite", "studio-atelier"]) {
     await page.mouse.move(rect.x + 134, rect.y + 104, { steps: 20 });await page.mouse.up();
     await expect.poll(async () => Math.round((await card.boundingBox())!.width)).toBe(440);
     await expect.poll(async () => Math.round((await card.boundingBox())!.height)).toBe(430);
+    const secondCard = page.locator(`[data-sticker-id="${other.id}"]`);
+    expect(Math.round((await secondCard.boundingBox())!.width)).toBe(320);
     await page.reload();
     await expect.poll(async () => Math.round((await card.boundingBox())!.width)).toBe(440);
+    await secondCard.getByRole("button", { name: "Изменить размер стикера", exact: true }).dblclick();
+    expect(Math.round((await card.boundingBox())!.width)).toBe(440);
     await card.getByRole("checkbox", { name: "Контроль", exact: true }).check();
     await expect.poll(async () => JSON.stringify(await page.request.get(`/api/quick-notes/${note.id}`).then(r => r.json()))).toContain("- [x] Контроль");
     await handle.focus();await page.keyboard.press("ArrowRight");

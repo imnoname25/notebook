@@ -7,6 +7,7 @@
 @import "./search.css";
 @import "./sticker-checklists.css";
 @import "./studio-polish.css";
+@import "./document-search.css";
 @source "../../node_modules/@blocknote/shadcn";
 
 @custom-variant dark (&:is(:is(.dark, .atmospheric, .studio-graphite) *));

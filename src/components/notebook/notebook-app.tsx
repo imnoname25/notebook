@@ -28,6 +28,7 @@ import { DesktopPanelResizers } from "./desktop-panel-resizers";
 import { NotebookSidebar } from "./notebook-sidebar";
 import { PageList } from "./page-list";
 import { CommandPalette } from "./search-dialog";
+import type { DocumentSearchRequest } from "@/lib/document-search";
 import { QuickSearch } from "./quick-search";
 import { SearchView } from "./search-view";
 import { useWorkspaceSearch, type WorkspaceScreen } from "./use-workspace-search";
@@ -173,6 +174,8 @@ function NotebookWorkspace({ user, initialLocation }: NotebookAppProps) {
   const [screen, setScreen] = useState<WorkspaceScreen>("workspace");
   const [startScreen, setStartScreen] = useState<"last" | "today" | "notebooks" | "inbox">("last");
   const [searchOpen, setSearchOpen] = useState(false);
+  const [searchMatch, setSearchMatch] = useState<DocumentSearchRequest | null>(null);
+  const searchMatchIntent = useRef(0);
   const [quickSearchOpen, setQuickSearchOpen] = useState(false);
   const [quickSearchFocus, setQuickSearchFocus] = useState(0);
   const openQuickSearch = useCallback(() => { setSearchOpen(false);setMobileMenuOpen(false);setQuickSearchOpen(true);setQuickSearchFocus(value => value + 1); }, []);
@@ -1050,7 +1053,8 @@ function NotebookWorkspace({ user, initialLocation }: NotebookAppProps) {
     setActivePage((current) => (current?.id === page.id ? page : current));
   }
 
-  async function openSearchResult(result: SearchResult) {
+  async function openSearchResult(result: SearchResult, query = "") {
+    const intent = ++searchMatchIntent.current;
     setSearchOpen(false);
     if (result.type === "tag") {
       openGlobalSearch({ tag: result.id });
@@ -1073,7 +1077,9 @@ function NotebookWorkspace({ user, initialLocation }: NotebookAppProps) {
       return;
     }
     try {
-      return await openPageById(result.id);
+      const opened = await openPageById(result.id);
+      if (opened && intent === searchMatchIntent.current) setSearchMatch(query.trim() ? { pageId: result.id, query, snippet: result.snippet, request: intent } : null);
+      return opened;
     } catch (cause) {
       report(cause);return false;
     }
@@ -1404,7 +1410,7 @@ function NotebookWorkspace({ user, initialLocation }: NotebookAppProps) {
       <DesktopAppHeader userName={user.name} isAdmin={user.role === "ADMIN"}
         notebookTitle={activeNotebook?.title}
         theme={theme} resolvedTheme={resolvedTheme} onHome={openHome}
-        search={<QuickSearch open={quickSearchOpen} focusRequest={quickSearchFocus} onOpenChange={setQuickSearchOpen} onSelect={async result => (await openSearchResult(result)) !== false} onAdvanced={q => openGlobalSearch({ q })}/>}
+        search={<QuickSearch open={quickSearchOpen} focusRequest={quickSearchFocus} onOpenChange={setQuickSearchOpen} onSelect={async (result, query) => (await openSearchResult(result, query)) !== false} onAdvanced={q => openGlobalSearch({ q })}/>}
         onCapture={() => setQuickNotesOpen(true)} onSettings={() => setSettingsOpen(true)}
         onTheme={() => setTheme(nextTheme(theme))} onLogout={() => void logout()} onError={report}/>
       {error && (
@@ -1425,7 +1431,7 @@ function NotebookWorkspace({ user, initialLocation }: NotebookAppProps) {
       )}
       <div className="notebook-workspace-grid grid min-h-0 flex-1 md:grid-cols-[280px_320px_minmax(0,1fr)]">
         <DesktopPanelResizers userId={user.id} enabled={studioTheme && screen === "workspace" && !focusMode} onError={report}/>
-        {screen === "search" ? <>{navigationSidebar}<SearchView value={search.state} onChange={search.change} focusRequest={search.focusRequest} notebooks={notebooks} onBack={search.back} onSelect={result => void openSearchResult(result)}/></> : screen === "trash" ? (
+        {screen === "search" ? <>{navigationSidebar}<SearchView value={search.state} onChange={search.change} focusRequest={search.focusRequest} notebooks={notebooks} onBack={search.back} onSelect={result => void openSearchResult(result, search.state.q)}/></> : screen === "trash" ? (
           <TrashView
             key={workspaceRevision}
             onBack={() => setScreen("workspace")}
@@ -1531,6 +1537,8 @@ function NotebookWorkspace({ user, initialLocation }: NotebookAppProps) {
               )}
             >
               {activeNotebook && !activeSection && !activePage && mobileView !== "editor" ? <div className="flex h-full min-h-0 flex-col"><DocumentTabs controller={tabs}/><div className="min-h-0 flex-1"><NotebookOverview notebook={activeNotebook} revision={workspaceRevision} onSection={openSection} onPage={(id) => void openPageById(id).catch(report)} onAddSection={() => void addSection(activeNotebook.id)} onError={report} onBack={openNavigation} /></div></div> : <EditorPane
+                searchMatch={searchMatch?.pageId === activePage?.id ? searchMatch : null}
+                onSearchMatchClose={() => setSearchMatch(null)}
                 page={activePage}
                 documentTabs={<DocumentTabs controller={tabs}/>}
                 navigationBusy={tabs.busy || authLeaving}
