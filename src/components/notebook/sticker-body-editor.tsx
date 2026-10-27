@@ -10,6 +10,7 @@ export const StickerBodyEditor = forwardRef<StickerEditorHandle, {
   onSubmit?(): void; autoFocus?: boolean; placeholder?: string;
 }>(function StickerBodyEditor({ value, onChange, onBlur, onSubmit, autoFocus, placeholder }, ref) {
   const plain = useRef<HTMLTextAreaElement | null>(null);
+  useStickerTextareaSize(plain, value);
   const fields = useRef(new Map<number, HTMLTextAreaElement>());
   const caret = useRef<number | null>(null);
   const active = useRef({ index: 0, offset: 0 });
@@ -56,7 +57,7 @@ export const StickerBodyEditor = forwardRef<StickerEditorHandle, {
   return <div className="sticker-body-editor min-w-0">
     <div className="flex min-h-9 items-center justify-between gap-2 text-xs"><button type="button" className="flex min-h-11 items-center gap-1.5 rounded px-2 hover:bg-accent focus-visible:outline-2 focus-visible:outline-ring" onMouseDown={event => event.preventDefault()} onClick={format}><ListChecks size={16}/>Чек-лист</button>{progress.total > 0 && <span aria-label="Выполнено пунктов">{progress.done}/{progress.total}</span>}</div>
     {!progress.total ? <textarea ref={plain} autoFocus={autoFocus} aria-label="Текст стикера" value={value} maxLength={10_000} rows={5} placeholder={placeholder} className="w-full resize-none bg-transparent text-base leading-6 outline-none" onChange={event => edit(event.target.value, event.target.selectionStart)} onBlur={onBlur} onKeyDown={event => { if ((event.ctrlKey || event.metaKey) && event.key === "Enter") { event.preventDefault();onSubmit?.(); } }}/>
-      : <div className="sticker-editor-lines max-h-64 overflow-y-auto overscroll-contain">{lines.map((line, index) => <div key={index} className="sticker-checklist-line flex min-w-0 items-start" data-checked={line.checked === true}>
+      : <div className="sticker-editor-lines">{lines.map((line, index) => <div key={index} className="sticker-checklist-line flex min-w-0 items-start" data-checked={line.checked === true}>
         {line.checked !== null && <label className="sticker-checkbox-target flex shrink-0 items-center justify-center" onClick={event => event.stopPropagation()}><input type="checkbox" aria-label={line.text || "Пустой пункт"} checked={line.checked} onChange={() => onChange(toggleStickerLine(value, index), true)}/></label>}
         <LineInput value={line.text} inputRef={node => { if (node) fields.current.set(index, node);else fields.current.delete(index); }} autoFocus={autoFocus && index === 0} maxLength={10_000 - value.length + line.text.length} label={line.checked === null ? "Строка стикера" : "Текст пункта"} onFocus={offset => { active.current = { index, offset }; }} onChange={(text, offset) => { active.current = { index, offset };edit(replaceStickerLine(value, index, text), line.start + line.prefix.length + offset); }} onBlur={onBlur} onKeyDown={event => keys(event, index)}/>
       </div>)}</div>}
@@ -68,13 +69,26 @@ function LineInput({ value, inputRef, autoFocus, maxLength, label, onFocus, onCh
   onFocus(offset: number): void; onChange(value: string, offset: number): void; onBlur?(): void; onKeyDown(event: KeyboardEvent<HTMLTextAreaElement>): void;
 }) {
   const ref = useRef<HTMLTextAreaElement | null>(null);
-  useLayoutEffect(() => { const node = ref.current;if (node) { node.style.height = "auto";node.style.height = `${Math.min(144, Math.max(44, node.scrollHeight))}px`; } }, [value]);
+  useStickerTextareaSize(ref, value);
   return <textarea ref={node => { ref.current = node;inputRef(node); }} autoFocus={autoFocus} aria-label={label} rows={1} maxLength={maxLength} value={value} className="min-w-0 flex-1 resize-none bg-transparent px-1 py-2.5 text-base leading-6 outline-none focus-visible:ring-2 focus-visible:ring-ring" onFocus={event => onFocus(event.target.selectionStart)} onSelect={event => onFocus(event.currentTarget.selectionStart)} onChange={event => onChange(event.target.value, event.target.selectionStart)} onBlur={onBlur} onKeyDown={onKeyDown}/>;
+}
+
+function useStickerTextareaSize(ref: React.RefObject<HTMLTextAreaElement | null>, value: string) {
+  useLayoutEffect(() => {
+    const node = ref.current;if (!node) return;
+    const measure = () => { node.style.height = "auto";node.style.height = `${Math.max(44, node.scrollHeight)}px`; };
+    let width = -1;
+    const observer = new ResizeObserver(entries => {
+      const nextWidth = entries[0]?.contentRect.width ?? 0;
+      if (nextWidth !== width) { width = nextWidth;measure(); }
+    });
+    measure();observer.observe(node);return () => observer.disconnect();
+  }, [value, ref]);
 }
 
 export function StickerChecklistPreview({ body, onToggle }: { body: string; onToggle(index: number): void }) {
   const lines = stickerLines(body);
   const progress = checklistProgress(body);
-  if (!progress.total) return <span className="block line-clamp-2 whitespace-pre-line text-sm leading-5">{body}</span>;
+  if (!progress.total) return <span className="line-clamp-2 whitespace-pre-line break-words text-sm leading-5">{body}</span>;
   return <div className="sticker-checklist-preview text-sm">{lines.slice(0, 5).map((line, index) => line.checked === null ? <p key={index} className="line-clamp-1 min-h-2 whitespace-pre-wrap break-words">{line.text}</p> : <label key={index} className="sticker-checkbox-target pointer-events-auto relative z-10 flex items-center gap-2" onClick={event => event.stopPropagation()}><input type="checkbox" aria-label={line.text || "Пустой пункт"} checked={line.checked} onChange={() => onToggle(index)}/><span className={line.checked ? "line-clamp-1 line-through opacity-60" : "line-clamp-1"}>{line.text || "Пустой пункт"}</span></label>)}<span className="mt-1 block text-xs" aria-label="Выполнено пунктов">{progress.done}/{progress.total}{lines.length > 5 ? " · …" : ""}</span></div>;
 }

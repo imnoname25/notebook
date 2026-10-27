@@ -174,6 +174,8 @@ function NotebookWorkspace({ user, initialLocation }: NotebookAppProps) {
   const [screen, setScreen] = useState<WorkspaceScreen>("workspace");
   const [startScreen, setStartScreen] = useState<"last" | "today" | "notebooks" | "inbox">("last");
   const [searchOpen, setSearchOpen] = useState(false);
+  const [stickerToReveal, setStickerToReveal] = useState<string | null>(null);
+  const stickerRevealed = useCallback(() => setStickerToReveal(null), []);
   const [searchMatch, setSearchMatch] = useState<DocumentSearchRequest | null>(null);
   const searchMatchIntent = useRef(0);
   const [quickSearchOpen, setQuickSearchOpen] = useState(false);
@@ -1452,6 +1454,8 @@ function NotebookWorkspace({ user, initialLocation }: NotebookAppProps) {
           <>
           {navigationSidebar}
           <StickerBoard
+            revealId={stickerToReveal}
+            onRevealed={stickerRevealed}
             userId={user.id}
             notebooks={notebooks}
             revision={workspaceRevision}
@@ -1473,7 +1477,7 @@ function NotebookWorkspace({ user, initialLocation }: NotebookAppProps) {
             revision={workspaceRevision}
             onBack={() => setScreen("workspace")}
             onCapture={() => setQuickNotesOpen(true)}
-            onInbox={() => openSpecial("stickers")}
+            onInbox={id => { setStickerToReveal(id ?? null);openSpecial("stickers"); }}
             onPage={(id) => void openPageById(id)}
             onTag={(tag) => {
               openGlobalSearch({ tag });
@@ -1594,7 +1598,8 @@ function NotebookWorkspace({ user, initialLocation }: NotebookAppProps) {
         initialBody={sharedCapture?.text}
         onOpenChange={(open) => { setQuickNotesOpen(open); if (!open) setSharedCapture(null); }}
         onError={report}
-        onSaved={() => {
+        onSaved={note => {
+          setStickerToReveal(note.id);
           setWorkspaceRevision((value) => value + 1);
           setNotice(t("quickNotes.savedInbox"));
         }}

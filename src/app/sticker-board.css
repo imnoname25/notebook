@@ -1,0 +1,43 @@
+/* Canvas geometry is exclusive to Sticker Board. Today and Capture never use it. */
+.sticker-board-viewport { position: relative; isolation: isolate; overscroll-behavior: contain; }
+.sticker-capture-scroll { max-height: min(48dvh, 480px); overflow-y: auto; overflow-x: hidden; }
+.sticker-freeform-canvas { position: relative; min-width: 100%; min-height: 100%; }
+.sticker-board-tools { position: sticky; top: 0; left: 0; z-index: 10005; display: flex; flex-wrap: wrap; align-items: center; gap: 8px; padding: 6px 16px; background: var(--background); border-bottom: 1px solid var(--border); }
+.sticker-board-tools :is(button, select) { min-height: 36px; padding: 4px 8px; border-radius: 3px; font-size: 12px; }
+.sticker-board-tools button:hover { background: var(--accent); }
+.sticker-board-tools label { display: flex; align-items: center; gap: 4px; font-size: 12px; }
+.sticker-board-tools select { max-width: 220px; background: var(--background); }
+.sticker-resize-handle { display: none; }
+.sticker-card-heading { flex-shrink: 0; }
+.sticker-move-handle { min-height: 40px; border-radius: 3px; }
+.sticker-move-handle > span { flex-shrink: 0; }
+.sticker-content-scroll { min-height: 0; min-width: 0; }
+.sticker-body-editor { display: flex; flex-direction: column; min-width: 0; }
+.sticker-body-editor textarea { display: block; min-width: 0; width: 100%; max-width: 100%; overflow: hidden; white-space: pre-wrap; overflow-wrap: anywhere; word-break: break-word; }
+.sticker-body-editor > textarea { flex: 1 0 auto; }
+.sticker-editor-lines { min-height: 0; min-width: 0; overflow: visible; }
+.sticker-checklist-line { width: 100%; min-width: 0; }
+.sticker-checklist-line textarea { width: 0; flex: 1 1 0; }
+.sticker-board-card[data-active="true"] { outline: 1px solid var(--ring); outline-offset: -1px; }
+.sticker-board-card[data-gesture="true"], .sticker-board-card[data-gesture="true"] * { user-select: none; }
+@media (min-width: 1200px) {
+  .sticker-list-order-actions { display: none; }
+  .sticker-freeform-canvas[data-ready="false"] { visibility: hidden; }
+  .sticker-freeform-canvas > .sticker-board-card { position: absolute; display: flex; flex-direction: column; transition: none; }
+  .sticker-freeform-canvas > .sticker-board-card > :not(.sticker-content-scroll) { flex-shrink: 0; }
+  .sticker-freeform-canvas .sticker-content-scroll { flex: 1 1 0; overflow-y: auto; overflow-x: hidden; overscroll-behavior: contain; scrollbar-width: thin; }
+  .sticker-freeform-canvas .sticker-body-editor { min-height: 100%; }
+  .sticker-move-handle { cursor: grab; touch-action: none; }
+  .sticker-board-card[data-gesture="true"] .sticker-move-handle { cursor: grabbing; }
+  .sticker-resize-handle { position: absolute; right: 0; bottom: 0; display: flex; width: 28px; height: 28px; align-items: center; justify-content: center; border-radius: 3px; color: var(--muted-foreground); cursor: nwse-resize; touch-action: none; }
+  .sticker-resize-handle:hover { background: var(--accent); color: var(--accent-foreground); }
+  .sticker-freeform-canvas .sticker-board-card footer { padding-right: 14px; }
+}
+@media (max-width: 1199px) {
+  .sticker-freeform-canvas { display: flex; flex-direction: column; gap: 16px; padding: 16px 16px 84px; }
+  .sticker-freeform-canvas > .sticker-board-card { position: relative; width: 100%; height: auto; }
+}
+@media (min-width: 1200px) and (pointer: coarse) {
+  .sticker-resize-handle { width: 44px; height: 44px; }
+  .sticker-move-handle { min-height: 44px; }
+}

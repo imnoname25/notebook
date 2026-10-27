@@ -16,6 +16,7 @@ for (const theme of ["studio-graphite", "studio-atelier"]) {
     await expect(card.getByRole("checkbox")).toHaveCount(3);
     await card.getByRole("checkbox", { name: "One", exact: true }).click();
     await card.getByRole("checkbox", { name: "Two", exact: true }).click();
+    await card.getByRole("button", { name: /^Переместить стикер/ }).click();
     await card.getByRole("textbox", { name: "Название стикера", exact: true }).fill("Updated checklist");
     const line = card.getByRole("textbox", { name: "Текст пункта", exact: true }).first();
     await line.fill("One edited");await line.press("End");await line.press("Enter");await page.keyboard.type("Next item");await page.keyboard.press("Enter");await page.keyboard.press("Backspace");
