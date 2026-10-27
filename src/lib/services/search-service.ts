@@ -2,6 +2,7 @@ import { Prisma } from "@/generated/prisma/client";
 import { db } from "@/lib/db";
 import type { SearchFilters } from "@/lib/workspace-search";
 import { hashtagQuery } from "@/lib/hashtags";
+import { isSimplePrefixSearch } from "@/lib/search-query";
 
 export const SEARCH_QUERY_MAX_LENGTH = 300;
 export const SEARCH_PAGE_SIZE = 25;
@@ -89,9 +90,13 @@ export async function searchNotebook(userId: string, rawQuery: string, limit = S
     ${tags.length ? Prisma.join(tags.map(tag => Prisma.sql`AND EXISTS (SELECT 1 FROM "PageTag" link JOIN "Tag" tag ON tag.id = link."tagId" WHERE link."pageId" = page.id AND tag."userId" = ${userId} AND tag.normalized = ${tag})`), " ") : Prisma.empty}
   `;
   const pagesOnly = Boolean(!query || tags.length || filters.dateFrom || filters.dateTo || (filters.group && filters.group !== "all"));
+  const tsquery = Prisma.sql`websearch_to_tsquery('simple', ${query}) ${isSimplePrefixSearch(query) ? Prisma.sql`|| coalesce((
+    SELECT to_tsquery('simple', string_agg(quote_literal(token) || ':*', ' & '))
+    FROM unnest(tsvector_to_array(to_tsvector('simple', ${query}))) AS token
+  ), ''::tsquery)` : Prisma.empty}`;
   const rows = await db.$queryRaw<SearchRow[]>(Prisma.sql`
     WITH search_input AS (
-      SELECT websearch_to_tsquery('simple', ${query}) AS query, lower(${query}) AS normalized
+      SELECT ${tsquery} AS query, lower(${query}) AS normalized
     ), ranked AS (
       SELECT 'page'::text AS type, page.id, page.title,
              notebook.id AS "notebookId", notebook.title AS "notebookTitle",

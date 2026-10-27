@@ -44,9 +44,9 @@ test("first user can write, search, restore and reorder notes", async ({ page })
   await page.getByRole("button", { name: `Избранное: ${title}` }).click();
 
   await page.keyboard.press("Control+K");
-  const search = page.getByPlaceholder("Поиск или быстрый переход…");
+  const search = page.getByRole("combobox", { name: "Быстрый поиск", exact: true });
   await search.fill(title);
-  const searchDialog = page.getByRole("dialog", { name: "Быстрый переход" });
+  const searchDialog = page.getByRole("region", { name: "Быстрый поиск документов" });
   await expect(searchDialog.getByText(title, { exact: true })).toBeVisible();
   await searchDialog.getByText(title, { exact: true }).click();
   await expect(page.getByPlaceholder("Название страницы")).toHaveValue(title);
@@ -138,7 +138,7 @@ test("overview, recent, outline, quick switcher and undo form one workflow", asy
   await page.getByRole("button", { name: "Оглавление" }).click();
   await expect(page.getByRole("navigation", { name: "Оглавление" })).toContainText("Главный заголовок");
   await page.keyboard.press("Control+K");
-  await expect(page.getByRole("dialog", { name: "Быстрый переход" })).toBeVisible();
+  await expect(page.getByRole("region", { name: "Быстрый поиск документов" })).toBeVisible();
   await expect(page.getByText(`Outline ${suffix}`, { exact: true }).first()).toBeVisible();
   await page.keyboard.press("Escape");
   await page.setViewportSize({ width: 390, height: 844 });

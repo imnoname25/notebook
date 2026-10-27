@@ -28,6 +28,7 @@ import { DesktopPanelResizers } from "./desktop-panel-resizers";
 import { NotebookSidebar } from "./notebook-sidebar";
 import { PageList } from "./page-list";
 import { CommandPalette } from "./search-dialog";
+import { QuickSearch } from "./quick-search";
 import { SearchView } from "./search-view";
 import { useWorkspaceSearch, type WorkspaceScreen } from "./use-workspace-search";
 import { searchFromUrl, type WorkspaceSearch } from "@/lib/workspace-search";
@@ -113,6 +114,7 @@ type MobileBackRuntimeState = {
   printOpen: boolean;
   screen: WorkspaceScreen;
   searchOpen: boolean;
+  quickSearchOpen: boolean;
   settingsOpen: boolean;
   templateManagerOpen: boolean;
   templatePickerOpen: boolean;
@@ -171,6 +173,9 @@ function NotebookWorkspace({ user, initialLocation }: NotebookAppProps) {
   const [screen, setScreen] = useState<WorkspaceScreen>("workspace");
   const [startScreen, setStartScreen] = useState<"last" | "today" | "notebooks" | "inbox">("last");
   const [searchOpen, setSearchOpen] = useState(false);
+  const [quickSearchOpen, setQuickSearchOpen] = useState(false);
+  const [quickSearchFocus, setQuickSearchFocus] = useState(0);
+  const openQuickSearch = useCallback(() => { setSearchOpen(false);setMobileMenuOpen(false);setQuickSearchOpen(true);setQuickSearchFocus(value => value + 1); }, []);
   const [workspaceRevision, setWorkspaceRevision] = useState(0);
   const [historyOpen, setHistoryOpen] = useState(false);
   const [appearanceNotebook, setAppearanceNotebook] = useState<Notebook | null>(
@@ -241,6 +246,7 @@ function NotebookWorkspace({ user, initialLocation }: NotebookAppProps) {
     printOpen,
     screen,
     searchOpen,
+    quickSearchOpen,
     settingsOpen,
     templateManagerOpen,
     templatePickerOpen,
@@ -565,7 +571,7 @@ function NotebookWorkspace({ user, initialLocation }: NotebookAppProps) {
 
   useEffect(() => {
     const pop = () => {
-      setFocusMode(false);
+      setQuickSearchOpen(false);setFocusMode(false);
       const destination = searchFromUrl(window.location.href);
       if (destination) { void leaveTabs(() => { restoreSearch(); }); return; }
       const params = new URLSearchParams(window.location.search);
@@ -600,6 +606,7 @@ function NotebookWorkspace({ user, initialLocation }: NotebookAppProps) {
         state.mobileMenuOpen ||
         state.navigationOpen ||
         state.searchOpen ||
+        state.quickSearchOpen ||
         state.outlineOpen ||
         state.historyOpen ||
         Boolean(state.appearanceNotebook) ||
@@ -630,6 +637,7 @@ function NotebookWorkspace({ user, initialLocation }: NotebookAppProps) {
         else if (state.editorOverlayOpen) window.dispatchEvent(new Event("notebook:close-editor-overlay"));
         else if (state.quickNotesOpen) setQuickNotesOpen(false);
         else if (state.searchOpen) setSearchOpen(false);
+        else if (state.quickSearchOpen) setQuickSearchOpen(false);
         else if (state.tagBrowserOpen) setTagBrowserOpen(false);
         else if (state.actionTarget) setActionTarget(null);
         else if (state.mobileMenuOpen) setMobileMenuOpen(false);
@@ -748,10 +756,10 @@ function NotebookWorkspace({ user, initialLocation }: NotebookAppProps) {
       const key = event.key.toLowerCase();
       if (key === "k") {
         event.preventDefault();
-        openGlobalSearch();
+        openQuickSearch();
         return;
       }
-      if (key === "p" && event.shiftKey) { event.preventDefault();setSearchOpen(true);return; }
+      if (key === "p" && event.shiftKey) { event.preventDefault();setQuickSearchOpen(false);setSearchOpen(true);return; }
       if (key === "n" && event.shiftKey) {
         event.preventDefault();
         setQuickNotesOpen(true);
@@ -779,7 +787,7 @@ function NotebookWorkspace({ user, initialLocation }: NotebookAppProps) {
     }
     window.addEventListener("keydown", hotkeys);
     return () => window.removeEventListener("keydown", hotkeys);
-  }, [activePage, activeSection, addPage, focusMode, openGlobalSearch]);
+  }, [activePage, activeSection, addPage, focusMode, openQuickSearch]);
 
   async function patchAndReload(url: string, body: unknown) {
     await api(url, jsonOptions("PATCH", body));
@@ -1065,9 +1073,9 @@ function NotebookWorkspace({ user, initialLocation }: NotebookAppProps) {
       return;
     }
     try {
-      await openPageById(result.id);
+      return await openPageById(result.id);
     } catch (cause) {
-      report(cause);
+      report(cause);return false;
     }
   }
 
@@ -1379,7 +1387,7 @@ function NotebookWorkspace({ user, initialLocation }: NotebookAppProps) {
         navigationOpen={studioTheme ? navigationOpen : undefined}
         onHome={openHome}
         onMenu={openNavigation}
-        onSearch={() => openGlobalSearch()}
+        onSearch={openQuickSearch}
         onQuickNotes={() => setQuickNotesOpen(true)}
         onMenuOpenChange={setMobileMenuOpen}
         onSettings={() => setSettingsOpen(true)}
@@ -1396,7 +1404,7 @@ function NotebookWorkspace({ user, initialLocation }: NotebookAppProps) {
       <DesktopAppHeader userName={user.name} isAdmin={user.role === "ADMIN"}
         notebookTitle={activeNotebook?.title}
         theme={theme} resolvedTheme={resolvedTheme} onHome={openHome}
-        onSearch={() => openGlobalSearch()}
+        search={<QuickSearch open={quickSearchOpen} focusRequest={quickSearchFocus} onOpenChange={setQuickSearchOpen} onSelect={async result => (await openSearchResult(result)) !== false} onAdvanced={q => openGlobalSearch({ q })}/>}
         onCapture={() => setQuickNotesOpen(true)} onSettings={() => setSettingsOpen(true)}
         onTheme={() => setTheme(nextTheme(theme))} onLogout={() => void logout()} onError={report}/>
       {error && (

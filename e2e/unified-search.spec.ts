@@ -28,7 +28,7 @@ for (const theme of ["studio-graphite", "studio-atelier"]) {
     await page.route(`**/api/pages/${note.id}`, failSave);
     await page.locator(".bn-inline-content").first().click();
     await page.keyboard.press("End"); await page.keyboard.type(" pending search save");
-    await page.keyboard.press("Control+k");
+    await page.keyboard.press("Control+k"); await page.getByRole("button", { name: /^(Расширенный поиск|Все результаты)$/ }).click();
     const view = page.getByRole("region", { name: "Глобальный поиск" });
     const input = page.getByRole("searchbox", { name: "Поиск по заголовкам и содержимому" });
     const result = view.locator(".search-result").filter({ hasText: "Network runbook" });
@@ -37,7 +37,7 @@ for (const theme of ["studio-graphite", "studio-atelier"]) {
     await expect(page.locator(".bn-editor")).toContainText("pending search save");
     await page.unroute(`**/api/pages/${note.id}`, failSave);
     await page.getByRole("button", { name: "Повторить сохранение", exact: true }).click();
-    await page.keyboard.press("Control+k");
+    await page.keyboard.press("Control+k"); await page.getByRole("button", { name: /^(Расширенный поиск|Все результаты)$/ }).click();
     await expect(input).toBeFocused(); await expect(page.getByRole("dialog")).toHaveCount(0);
     await expect(page.locator("#workspace-page-list-panel")).toHaveCount(0);
     await expect.poll(async () => JSON.stringify(await page.request.get(`/api/pages/${note.id}`).then(r => r.json()))).toContain("pending search save");
@@ -49,11 +49,11 @@ for (const theme of ["studio-graphite", "studio-atelier"]) {
     for (const [label, screen] of [["Сегодня", "today"], ["Стикеры", "stickers"]]) {
       await page.locator(".notebook-sidebar").getByRole("button", { name: label, exact: true }).click();
       await expect(page.locator(".notebook-app-shell")).toHaveAttribute("data-workspace-screen", screen!);
-      await page.keyboard.press("Control+k"); await expect(view).toBeVisible();
+      await page.keyboard.press("Control+k"); await page.getByRole("button", { name: /^(Расширенный поиск|Все результаты)$/ }).click(); await expect(view).toBeVisible();
       await page.getByRole("button", { name: "Вернуться из поиска" }).click();
       await expect(page.locator(".notebook-app-shell")).toHaveAttribute("data-workspace-screen", screen!);
     }
-    await page.keyboard.press("Control+k");
+    await page.keyboard.press("Control+k"); await page.getByRole("button", { name: /^(Расширенный поиск|Все результаты)$/ }).click();
     await page.getByRole("button", { name: "Фильтры поиска", exact: true }).click();
     await page.getByLabel("Блокнот", { exact: true }).selectOption(notebook.id);
     await page.getByLabel("Раздел", { exact: true }).selectOption(section.id);

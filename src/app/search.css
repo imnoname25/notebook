@@ -13,11 +13,18 @@
   /* Global titlebar geometry is independent of the document list and its width. */
   :is(.studio-graphite, .studio-atelier) .notebook-app-shell > .notebook-desktop-header { display: flex; gap: 16px; padding-inline: 16px; }
   :is(.studio-graphite, .studio-atelier) .notebook-brand { flex-shrink: 0; padding-inline: 0; background: transparent; color: var(--studio-editor-text); }
-  :is(.studio-graphite, .studio-atelier) .notebook-global-search { width: clamp(220px, 28vw, 420px); height: 30px; flex-shrink: 0; margin-inline-start: 8px; padding-inline: 10px; border: 1px solid var(--studio-nav-divider); border-radius: 4px; }
+  :is(.studio-graphite, .studio-atelier) .notebook-global-search { width: clamp(190px, 20vw, 280px); height: 30px; flex-shrink: 0; margin-inline-start: 8px; padding-inline: 10px; border: 1px solid var(--studio-divider); border-radius: 4px; }
   :is(.studio-graphite, .studio-atelier) .notebook-window-actions { flex: 1; min-width: 0; }
   :is(.studio-graphite, .studio-atelier) .notebook-app-shell[data-workspace-screen="search"] > .notebook-workspace-grid { grid-template-columns: var(--workspace-sidebar-width, var(--studio-navigation-width)) minmax(0, 1fr); }
   .search-view-query { padding-block: 12px; }
 }
+.quick-search-field { min-height: 30px; width: 240px; margin-inline: 12px; padding-inline: 8px; border: 1px solid var(--border); border-radius: 4px; background: var(--muted); color: var(--foreground); font-size: 13px; }
+:is(.studio-graphite, .studio-atelier) .notebook-global-search.quick-search-field { --background: var(--studio-editor-bg); --foreground: var(--studio-editor-text); --muted-foreground: var(--studio-editor-muted); background: var(--studio-editor-muted-bg); color: var(--studio-editor-text); }
+.quick-search-field:focus-within { outline: 2px solid var(--ring); outline-offset: 1px; }
+.quick-search-panel { position: fixed; z-index: 45; display: flex; min-height: 0; flex-direction: column; overflow: hidden; border: 1px solid var(--border); border-radius: 5px; background: var(--popover); color: var(--popover-foreground); box-shadow: var(--surface-shadow); }
+.quick-search-panel[data-mobile="true"] { inset: max(8px, env(safe-area-inset-top)) max(8px, env(safe-area-inset-right)) max(8px, env(safe-area-inset-bottom)) max(8px, env(safe-area-inset-left)); }
+.quick-search-panel .search-result[aria-selected="true"] { background: var(--accent); color: var(--accent-foreground); }
+.quick-search-panel button:focus-visible { outline: 2px solid var(--ring); outline-offset: -2px; }
 @media (max-width: 1199px) {
   :is(.studio-graphite, .studio-atelier) .notebook-app-shell[data-workspace-screen="search"] > .notebook-workspace-grid { grid-template-columns: minmax(0, 1fr); }
 }
