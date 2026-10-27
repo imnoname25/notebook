@@ -6,6 +6,7 @@ function inline(value: unknown): string {
   if (!Array.isArray(value)) return "";
   return value.map((item) => {
     const node = record(item); if (!node) return "";
+    if (node.type === "pageLink") return escapeHtml(record(node.props)?.text || "Страница недоступна");
     if (node.type === "link") { const href = String(node.href ?? ""); const label = inline(node.content); return href.startsWith("/pages/") || href.startsWith("notebook-page://") || /^(?!https?:|mailto:)[a-z][a-z\d+.-]*:/iu.test(href) ? label : `[${label}](${href.replace(/[<>()\s]/g, char => encodeURIComponent(char))})`; }
     let text = typeof node.text === "string" ? escapeHtml(node.text) : inline(node.content);
     const styles = record(node.styles);

@@ -41,6 +41,7 @@ export function EditorPane({
   onNotebookClick,
   onSectionClick,
   onInternalNavigate,
+  onAdjacentNavigate,
   outline,
   outlineVisible,
   onOutlineChange,
@@ -66,6 +67,7 @@ export function EditorPane({
   onController(controller: EditorSaveController | null): void;
   onNotebookClick(): void;
   onSectionClick(): void;
+  onAdjacentNavigate?(pageId: string): Promise<void>;
   onInternalNavigate(pageId: string, permanent?: boolean, blockId?: string): Promise<void>;
   outline: PageOutlineItem[];
   outlineVisible: boolean;
@@ -147,6 +149,7 @@ export function EditorPane({
             key={`${page.id}:${editorEpoch}`}
             page={page}
             paneActive={paneActive}
+            onAdjacentNavigate={onAdjacentNavigate}
             searchMatch={searchMatch}
             onSearchMatchClose={onSearchMatchClose}
             navigationBusy={navigationBusy}

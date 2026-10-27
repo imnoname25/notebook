@@ -9,7 +9,7 @@ import {
   type CSSProperties,
 } from "react";
 import "@blocknote/core/fonts/inter.css";
-import { SideMenuController, SuggestionMenuController, useCreateBlockNote } from "@blocknote/react";
+import { FormattingToolbar, FormattingToolbarController, getFormattingToolbarItems, SideMenuController, SuggestionMenuController, useCreateBlockNote, type DefaultReactSuggestionItem } from "@blocknote/react";
 import { BlockNoteView } from "@blocknote/shadcn";
 import "@blocknote/shadcn/style.css";
 import { useTheme } from "next-themes";
@@ -46,7 +46,7 @@ import {
 import { LiveWidgetPageContext } from "./live-widget-block";
 import { EditorActivityContext, EditorSuggestionOverlayBridge, NotebookSideMenu } from "./editor-block-menu";
 import { PageVariablesDialog } from "./page-variables-dialog";
-import { blockIdFromHash, getPageHref, pageIdFromPath } from "@/lib/workspace-navigation";
+import { blockIdFromHash, pageIdFromPath } from "@/lib/workspace-navigation";
 import { EditorSaveQueue } from "@/lib/editor-save-queue";
 import { unsupportedEditorBlocks } from "@/lib/editor-compatibility";
 import { blockNoteContentSchema } from "@/lib/data-format";
@@ -58,14 +58,15 @@ import { useDocumentSearch } from "./use-document-search";
 import { SearchTitle } from "./search-title";
 import type { DocumentSearchRequest } from "@/lib/document-search";
 
+import { PageLinksProvider, PAGE_METADATA_EVENT } from "./page-link-inline";
+import { PageLinkPicker } from "./page-link-picker";
+import { internalPageIdsInContent } from "@/lib/portable-content";
+import { linkTargetsSchema } from "@/lib/page-links";
+
+type LinkSuggestion = DefaultReactSuggestionItem;
 type SavePayload = { title: string; content: unknown[] };
 
-type Mention = {
-  id: string;
-  title: string;
-  sectionTitle: string;
-  notebookTitle: string;
-};
+
 type EditorPreferences = {
   autosaveDelayMs: number;
   editorSpellcheck: boolean;
@@ -86,6 +87,7 @@ export function RichTextEditor({
   onSaved,
   onController,
   onInternalNavigate,
+  onAdjacentNavigate,
   onOutlineChange,
   searchMatch,
   onSearchMatchClose,
@@ -96,6 +98,7 @@ export function RichTextEditor({
   resolvedAccent: AccentColor;
   onSaved(page: PageDocument): void;
   onController(controller: EditorSaveController | null): void;
+  onAdjacentNavigate?(pageId: string): Promise<void>;
   onInternalNavigate(pageId: string, permanent?: boolean, blockId?: string): Promise<void>;
   onOutlineChange(items: PageOutlineItem[]): void;
   searchMatch?: DocumentSearchRequest | null;
@@ -164,29 +167,22 @@ export function RichTextEditor({
 
   const documentSearch = useDocumentSearch(editor, title, searchMatch, onSearchMatchClose, editorRoot);
 
-  const mentionItems = useCallback(
-    async (query: string) => {
-      const result = await api<{ pages: Mention[] }>(
-        `/api/pages/mentions?q=${encodeURIComponent(query)}`,
-      );
-      return result.pages
-        .filter((item) => item.id !== page.id)
-        .map((item) => ({
-          title: item.title,
-          subtext: `${item.notebookTitle} / ${item.sectionTitle}`,
-          icon: <FileText size={16} />,
-          onItemClick: () =>
-            editor.insertInlineContent([
-              { type: "link", href: getPageHref(item.id), content: item.title },
-            ]),
-        }));
-    },
-    [editor, page.id],
-  );
-  const slashItems = useCallback(
-    async (query: string) => slashMenuItems(editor, () => undefined, query),
-    [editor],
-  );
+  const [picker, setPicker] = useState(false);
+  const mentionRequest = useRef<AbortController | null>(null);
+  useEffect(() => () => mentionRequest.current?.abort(), []);
+  const latestMentionItems = useRef<Promise<LinkSuggestion[]> | null>(null);
+  const mentionItems = useCallback((query: string): Promise<LinkSuggestion[]> => {
+    mentionRequest.current?.abort();const controller = new AbortController();mentionRequest.current = controller;
+    const result: Promise<LinkSuggestion[]> = (async () => {
+      await new Promise(resolve => setTimeout(resolve, 180));if (controller.signal.aborted) return mentionRequest.current === controller ? [] : latestMentionItems.current ?? [];
+      try {
+        const payload = linkTargetsSchema.parse(await api<unknown>(`/api/pages/mentions?q=${encodeURIComponent(query)}`, { signal: controller.signal }));
+        if (controller.signal.aborted) return mentionRequest.current === controller ? [] : latestMentionItems.current ?? [];
+        return payload.pages.map(item => ({ title: item.title, subtext: `${item.notebookTitle} / ${item.sectionTitle}`, icon: <FileText size={16}/>, onItemClick: () => editor.insertInlineContent([{ type: "pageLink", props: { pageId: item.id, text: item.title, alias: false } }, " "]) }));
+      } catch { return mentionRequest.current === controller ? [] : latestMentionItems.current ?? []; }
+    })();latestMentionItems.current = result;return result;
+  }, [editor]);
+  const slashItems = useCallback(async (query: string) => slashMenuItems(editor, () => setPicker(true), query), [editor]);
   const sideMenu = useCallback(() => <NotebookSideMenu pageId={page.id}/>, [page.id]);
   const [initialContentFingerprint] = useState(() => JSON.stringify(editor.document));
   const lastContentFingerprint = useRef(initialContentFingerprint);
@@ -202,6 +198,7 @@ export function RichTextEditor({
         );
         serverRevision.current = result.page.revision;
         onSavedRef.current(result.page);
+        window.dispatchEvent(new Event(PAGE_METADATA_EVENT));
   }, [page.id]);
   const writer = useRef<EditorSaveQueue<SavePayload> | null>(null);
   useLayoutEffect(() => {
@@ -548,6 +545,7 @@ export function RichTextEditor({
           }
           const anchor = target.closest("a");
           if (!anchor) return;
+          if (anchor.closest('[data-inline-content-type="pageLink"]')) return;
           if (anchor.getAttribute("href")?.startsWith("notebook-page://")) {
             event.preventDefault();
             anchor.dataset.broken = "true";
@@ -615,9 +613,10 @@ export function RichTextEditor({
           setLinkPreview(null);
         }}
       >
-        <EditorActivityContext.Provider value={paneActive}><LiveWidgetPageContext.Provider value={page.id}><BlockNoteView
+        <PageLinksProvider ids={[...internalPageIdsInContent(editor.document)]} adjacent={Boolean(onAdjacentNavigate)} navigate={(id, adjacent, permanent) => adjacent && onAdjacentNavigate ? onAdjacentNavigate(id) : onInternalNavigate(id, permanent)}><EditorActivityContext.Provider value={paneActive}><LiveWidgetPageContext.Provider value={page.id}><BlockNoteView
           editor={editor}
           editable={!navigationBusy}
+          formattingToolbar={false}
           slashMenu={false}
           sideMenu={false}
           theme={isDarkTheme(resolvedTheme) ? "dark" : "light"}
@@ -636,13 +635,16 @@ export function RichTextEditor({
           />
           <SideMenuController sideMenu={sideMenu}/>
           <SuggestionMenuController
+            shouldOpen={transaction => !transaction.selection.$from.parent.type.spec.code && !transaction.selection.$from.marks().some(mark => mark.type.spec.code) && !editor._tiptapEditor.view.composing}
             triggerCharacter="[["
             getItems={mentionItems}
           />
+          <FormattingToolbarController formattingToolbar={() => <FormattingToolbar>{getFormattingToolbarItems()}<button type="button" aria-label="Ссылка на страницу" className="bn-button" onMouseDown={event => event.preventDefault()} onClick={() => setPicker(true)}><FileText size={16}/></button></FormattingToolbar>}/>
           <EditorSuggestionOverlayBridge/>
-        </BlockNoteView></LiveWidgetPageContext.Provider></EditorActivityContext.Provider>
+        </BlockNoteView></LiveWidgetPageContext.Provider></EditorActivityContext.Provider></PageLinksProvider>
         <PageKnowledge pageId={page.id} revision={page.revision} onNavigate={onInternalNavigate}/>
       </div>
+      {picker && <PageLinkPicker editor={editor} onClose={() => setPicker(false)}/>}
       {smartPaste && <div className="notebook-smart-paste notebook-no-print absolute bottom-4 left-1/2 z-30 w-[calc(100%-2rem)] max-w-md -translate-x-1/2 rounded-xl border border-border bg-popover p-3 shadow-xl" role="dialog" aria-label={t("editor.pasteAs")}><p className="mb-2 truncate text-xs text-muted-foreground">{smartPaste.url}</p><div className="grid grid-cols-3 gap-2"><button className="min-h-11 rounded-lg bg-accent px-2 text-sm font-medium" onClick={() => { editor.insertInlineContent([{ type: "link", href: smartPaste.url, content: smartPaste.url }]); setSmartPaste(null); }}>{t("editor.pasteLink")}</button><button className="min-h-11 rounded-lg bg-primary px-2 text-sm font-medium text-primary-foreground" onClick={() => { const hostname = new URL(smartPaste.url).hostname; editor.updateBlock(smartPaste.blockId, { type: "bookmark", props: { url: smartPaste.url, title: hostname, description: smartPaste.url } }); setSmartPaste(null); }}>{t("editor.pasteCard")}</button><button className="min-h-11 rounded-lg bg-accent px-2 text-sm font-medium" onClick={() => { editor.insertInlineContent(smartPaste.url); setSmartPaste(null); }}>{t("editor.pasteText")}</button></div></div>}
       {linkPreview && <aside className="notebook-no-print pointer-events-none fixed z-40 w-80 rounded-xl border border-border bg-popover p-3 shadow-xl" style={{ left: Math.max(12, linkPreview.x), top: Math.max(12, linkPreview.y) }}><div className="flex gap-2"><span className="text-xl">{linkPreview.icon ?? ""}</span><span className="min-w-0"><strong className="block truncate text-sm">{linkPreview.title}</strong><span className="block truncate text-xs text-muted-foreground">{linkPreview.notebookTitle} · {linkPreview.sectionTitle}</span></span></div>{linkPreview.excerpt && <p className="mt-2 line-clamp-2 text-sm leading-5 text-muted-foreground">{linkPreview.excerpt}</p>}</aside>}
       <PageVariablesDialog open={variablesOpen} initial={variables} onOpenChange={setVariablesOpen} onApply={(next) => {

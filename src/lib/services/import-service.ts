@@ -620,7 +620,7 @@ export async function commitImport(
         const id = randomUUID();
         const source = prepared.page!.page;
         const content = rewriteAttachmentReferences(
-          blockNoteContentSchema.parse(source.content),
+          rewriteInternalPageReferences(blockNoteContentSchema.parse(source.content), new Map(), "import"),
           materialized.ids,
           "import",
         ) as Prisma.InputJsonValue;

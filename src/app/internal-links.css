@@ -1,0 +1,8 @@
+.notebook-page-surface { --notebook-internal-link: color-mix(in srgb, var(--primary) 60%, var(--foreground)); }
+.notebook-editor .bn-editor a.notebook-page-link { color: var(--notebook-internal-link); text-decoration: underline; text-decoration-thickness: 1px; text-underline-offset: 3px; cursor: pointer; border-radius: 2px; overflow-wrap: anywhere; }
+.notebook-editor .bn-editor a.notebook-page-link:hover { background: color-mix(in srgb, var(--notebook-internal-link) 12%, transparent); }
+.notebook-page-link:focus-visible { outline: 2px solid var(--ring); outline-offset: 2px; }
+.notebook-editor .bn-editor a.notebook-page-link[data-unavailable="true"] { color: var(--muted-foreground); text-decoration-style: dashed; }
+.notebook-link-error { display: inline-block; max-width: 100%; padding: 2px 4px; font-size: 0.8em; color: var(--destructive); }
+.notebook-knowledge { min-width: 0; overflow-wrap: anywhere; }
+.notebook-page-picker { max-height: 70dvh; overflow-y: auto; }

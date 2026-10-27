@@ -25,7 +25,7 @@ describe.skipIf(!enabled)("page link integration", () => {
   });
 
   it("indexes only owned targets and exposes backlinks only to the owner", async () => {
-    await db.$transaction((tx) => links.syncPageLinks(tx, ids.user, ids.source, [{ href: `/pages/${ids.target}` }, { href: `/pages/${ids.otherPage}` }]));
+    await db.$transaction((tx) => links.syncPageLinks(tx, ids.user, ids.source, [{ type: "link", href: `/pages/${ids.target}` }, { type: "link", href: `/pages/${ids.otherPage}` }]));
     expect(await db.pageLink.findMany()).toEqual([expect.objectContaining({ sourcePageId: ids.source, targetPageId: ids.target })]);
     const knowledge = await links.getPageKnowledge(ids.user, ids.target);
     expect(knowledge.backlinks.map(({ id }) => id)).toEqual([ids.source]);

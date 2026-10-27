@@ -14,8 +14,7 @@ export async function syncPageLinks(
     ? await tx.page.findMany({
         where: {
           id: { in: requested },
-          deletedAt: null,
-          section: { deletedAt: null, notebook: { userId, deletedAt: null } },
+          section: { notebook: { userId } },
         },
         select: { id: true },
       })
@@ -33,6 +32,15 @@ export async function syncPageLinks(
       skipDuplicates: true,
     });
   }
+}
+
+/** Metadata only, bounded and always scoped to the authenticated owner. */
+export async function getLinkTargets(userId: string, ids?: string[], query = "") {
+  const pages = await db.page.findMany({ where: { ...(ids ? { id: { in: ids.slice(0, 200) } } : {}), deletedAt: null,
+    ...(query ? { title: { contains: query.slice(0, 100), mode: "insensitive" as const } } : {}),
+    section: { deletedAt: null, notebook: { userId, deletedAt: null } } }, orderBy: [{ updatedAt: "desc" }, { id: "asc" }], take: ids ? 200 : 15,
+    select: { id: true, title: true, section: { select: { title: true, notebook: { select: { title: true } } } } } });
+  return pages.map(page => ({ id: page.id, title: page.title, sectionTitle: page.section.title, notebookTitle: page.section.notebook.title }));
 }
 
 export type RelatedCandidate = {

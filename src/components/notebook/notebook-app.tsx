@@ -1033,6 +1033,8 @@ function NotebookWorkspace({ user, initialLocation }: NotebookAppProps) {
       report(cause);
     }
   }
+  useEffect(() => { window.dispatchEvent(new Event("notebook:page-metadata-changed")); }, [workspaceRevision]);
+
   function pageSaved(page: PageDocument) {
     workspace.updatePage(page);
     tabs.title(page.id, page.title);

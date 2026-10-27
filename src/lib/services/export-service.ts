@@ -128,7 +128,8 @@ export async function buildPortableExport(
       : { userId, id: { in: [...attachmentIds] } },
     orderBy: { createdAt: "asc" },
   });
-  if (uploads.length !== attachmentIds.size)
+  const availableUploadIds = new Set(uploads.map(upload => upload.id));
+  if ([...attachmentIds].some(id => !availableUploadIds.has(id)))
     throw new ApiError(409, "Некоторые вложения отсутствуют в metadata");
   const uploadKey = new Map(
     uploads.map((upload, index) => [upload.id, `attachment-${index + 1}`]),
