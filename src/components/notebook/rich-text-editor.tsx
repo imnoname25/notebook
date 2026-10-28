@@ -10,16 +10,15 @@ import {
 } from "react";
 import "@blocknote/core/fonts/inter.css";
 import { blockToNode, nodeToBlock } from "@blocknote/core";
-import { FormattingToolbar, FormattingToolbarController, getFormattingToolbarItems, SideMenuController, SuggestionMenuController, useCreateBlockNote, type DefaultReactSuggestionItem } from "@blocknote/react";
+import { useCreateBlockNote } from "@blocknote/react";
 import { BlockNoteView } from "@blocknote/shadcn";
 import "@blocknote/shadcn/style.css";
 import { useTheme } from "next-themes";
 import { isDarkTheme } from "@/lib/themes";
 import Image from "next/image";
-import { Check, CloudAlert, FileText, Loader2, Variable } from "lucide-react";
+import { Check, CloudAlert, Loader2, Variable } from "lucide-react";
 import { api, jsonOptions } from "@/lib/client-api";
 import { cn } from "@/lib/utils";
-import { notebookBlockNoteDictionary } from "@/lib/i18n/blocknote";
 import { t } from "@/lib/i18n/messages";
 import { PageKnowledge } from "./page-knowledge";
 import type { EditorSaveController, PageDocument } from "./types";
@@ -39,19 +38,15 @@ import {
 } from "@/lib/content-appearance";
 import {
   normalizeEditorBlocks,
-  notebookEditorSchema,
-  notebookSyntaxHighlighting,
-  slashMenuItems,
   insertLiveWidget,
 } from "./editor-schema";
 import { LiveWidgetPageContext } from "./live-widget-block";
-import { EditorActivityContext, EditorSuggestionOverlayBridge, NotebookSideMenu } from "./editor-block-menu";
+import { EditorActivityContext, EditorSuggestionOverlayBridge } from "./editor-block-menu";
 import { PageVariablesDialog } from "./page-variables-dialog";
 import { blockIdFromHash, pageIdFromPath } from "@/lib/workspace-navigation";
 import { EditorSaveQueue } from "@/lib/editor-save-queue";
 import { unsupportedEditorBlocks } from "@/lib/editor-compatibility";
-import { blockNoteContentSchema } from "@/lib/data-format";
-import { tsvToTableHtml } from "@/lib/table-paste";
+import { handleSharedEditorPaste } from "./editor-paste";
 import { extractPageVariables, type PageVariable } from "@/lib/page-variables";
 
 import { documentSearchExtension } from "./document-search-extension";
@@ -62,9 +57,11 @@ import type { DocumentSearchRequest } from "@/lib/document-search";
 import { PageLinksProvider, PAGE_METADATA_EVENT } from "./page-link-inline";
 import { PageLinkPicker } from "./page-link-picker";
 import { internalPageIdsInContent } from "@/lib/portable-content";
-import { linkTargetsSchema } from "@/lib/page-links";
+import { useEditorControls, handleCodeControlClick, handleEditorControlKeyDown } from "./editor-controls";
+import { TableActions } from "./table-actions";
+import { sharedEditorBaseOptions, sharedEditorOptions, SharedEditorMenus } from "./editor-shared";
 
-type LinkSuggestion = DefaultReactSuggestionItem;
+
 import { canonicalJson, localIdentity, cloneBlockWithIds } from "@/lib/document-state";
 import { acknowledgeDraft, discardDraft, documentFingerprint, listDrafts, writeDraft, type LocalDraft } from "@/lib/local-drafts";
 import { prepareBlockRecovery } from "@/lib/block-recovery";
@@ -188,12 +185,9 @@ export function RichTextEditor({
 
   const editor = useCreateBlockNote(
     {
-      schema: notebookEditorSchema,
-      initialContent: normalizeEditorBlocks(page.content),
+      ...sharedEditorOptions(page.content),
       uploadFile,
-      extensions: [notebookSyntaxHighlighting, documentSearchExtension],
-      tables: { headers: true, splitCells: true },
-      dictionary: notebookBlockNoteDictionary,
+      extensions: [...sharedEditorBaseOptions.extensions, documentSearchExtension],
     },
     [page.id],
   );
@@ -201,22 +195,7 @@ export function RichTextEditor({
   const documentSearch = useDocumentSearch(editor, title, searchMatch, onSearchMatchClose, editorRoot);
 
   const [picker, setPicker] = useState(false);
-  const mentionRequest = useRef<AbortController | null>(null);
-  useEffect(() => () => mentionRequest.current?.abort(), []);
-  const latestMentionItems = useRef<Promise<LinkSuggestion[]> | null>(null);
-  const mentionItems = useCallback((query: string): Promise<LinkSuggestion[]> => {
-    mentionRequest.current?.abort();const controller = new AbortController();mentionRequest.current = controller;
-    const result: Promise<LinkSuggestion[]> = (async () => {
-      await new Promise(resolve => setTimeout(resolve, 180));if (controller.signal.aborted) return mentionRequest.current === controller ? [] : latestMentionItems.current ?? [];
-      try {
-        const payload = linkTargetsSchema.parse(await api<unknown>(`/api/pages/mentions?q=${encodeURIComponent(query)}`, { signal: controller.signal }));
-        if (controller.signal.aborted) return mentionRequest.current === controller ? [] : latestMentionItems.current ?? [];
-        return payload.pages.map(item => ({ title: item.title, subtext: `${item.notebookTitle} / ${item.sectionTitle}`, icon: <FileText size={16}/>, onItemClick: () => editor.insertInlineContent([{ type: "pageLink", props: { pageId: item.id, text: item.title, alias: false } }, " "]) }));
-      } catch { return mentionRequest.current === controller ? [] : latestMentionItems.current ?? []; }
-    })();latestMentionItems.current = result;return result;
-  }, [editor]);
-  const slashItems = useCallback(async (query: string) => slashMenuItems(editor, () => setPicker(true), query), [editor]);
-  const sideMenu = useCallback(() => <NotebookSideMenu pageId={page.id}/>, [page.id]);
+  const openPagePicker = useCallback(() => setPicker(true), []);
   const [initialContentFingerprint] = useState(() => JSON.stringify(editor.document));
   const lastContentFingerprint = useRef(initialContentFingerprint);
 
@@ -407,45 +386,7 @@ export function RichTextEditor({
     return () => { window.removeEventListener("beforeunload", guard); document.removeEventListener("visibilitychange", background); };
   }, [flush, persistLocal, localError]);
 
-  useEffect(() => {
-    const root = editorRoot.current;
-    if (!root) return;
-    const enhance = () => {
-      root.querySelectorAll<HTMLElement>(".bn-toggle-wrapper").forEach(wrapper => {
-        const button = wrapper.querySelector(".bn-toggle-button");
-        const expanded = wrapper.dataset.showChildren === "true";
-        if (button?.getAttribute("aria-expanded") !== String(expanded)) button?.setAttribute("aria-expanded", String(expanded));
-        const label = expanded ? "Свернуть дочерние блоки" : "Развернуть дочерние блоки";
-        if (button?.getAttribute("aria-label") !== label) button?.setAttribute("aria-label", label);
-      });
-      root
-        .querySelectorAll<HTMLElement>('[data-content-type="codeBlock"]')
-        .forEach((block) => {
-          const language = block.querySelector("select");
-          if (language?.getAttribute("aria-label") !== "Язык кода") language?.setAttribute("aria-label", "Язык кода");
-          if (block.querySelector(".notebook-code-copy")) return;
-          const button = document.createElement("button");
-          button.type = "button";
-          button.className = "notebook-code-copy";
-          button.contentEditable = "false";
-          button.textContent = t("editor.copyCode");
-          button.setAttribute("aria-label", t("editor.copyCode"));
-          block.appendChild(button);
-          const wrap = document.createElement("button");
-          wrap.type = "button";
-          wrap.className = "notebook-code-wrap";
-          wrap.contentEditable = "false";
-          wrap.textContent = "Перенос";
-          wrap.setAttribute("aria-label", "Переносить длинные строки");
-          wrap.setAttribute("aria-pressed", "false");
-          block.appendChild(wrap);
-        });
-    };
-    enhance();
-    const observer = new MutationObserver(enhance);
-    observer.observe(root, { childList: true, subtree: true, attributes: true, attributeFilter: ["data-show-children"] });
-    return () => observer.disconnect();
-  }, [editor]);
+  useEditorControls(editor, editorRoot);
 
   return (
     <div
@@ -587,44 +528,10 @@ export function RichTextEditor({
           preferences.editorCompactMode && "notebook-editor-compact",
           preferences.editorCodeLineNumbers && "notebook-code-lines",
         )}
-        onKeyDownCapture={(event) => {
-          const target = event.target instanceof HTMLElement ? event.target : null;
-          if (event.key === "Tab" && target?.matches("select, button") && target.closest('[data-content-type="codeBlock"]')) {
-            // Native code Tab indentation must not trap focus in its form controls.
-            event.stopPropagation();return;
-          }
-          if (event.key !== "Enter" && event.key !== " ") return;
-          const button = event.target instanceof HTMLElement ? event.target.closest<HTMLButtonElement>("button.bn-toggle-button, .notebook-toggle > button") : null;
-          if (!button) return;
-          // ProseMirror otherwise handles Enter as editing even when a toggle has focus.
-          event.preventDefault();
-          event.stopPropagation();
-          button.click();
-        }}
+        onKeyDownCapture={handleEditorControlKeyDown}
         onClickCapture={(event) => {
           const target = event.target as HTMLElement;
-          const copy = target.closest(".notebook-code-copy");
-          if (copy) {
-            event.preventDefault();
-            const text =
-              copy.parentElement?.querySelector("code")?.textContent ?? "";
-            void (navigator.clipboard?.writeText(text) ?? Promise.reject(new Error("Clipboard API unavailable"))).then(() => {
-              copy.textContent = t("editor.copied");
-              window.setTimeout(() => {
-                copy.textContent = t("editor.copyCode");
-              }, 1200);
-            }).catch(() => { copy.textContent = "Не удалось скопировать"; });
-            return;
-          }
-          const wrap = target.closest<HTMLButtonElement>(".notebook-code-wrap");
-          if (wrap) {
-            event.preventDefault();
-            const codeBlock = wrap.closest<HTMLElement>('[data-content-type="codeBlock"]');
-            const enabled = !codeBlock?.classList.contains("notebook-code-wrap-enabled");
-            codeBlock?.classList.toggle("notebook-code-wrap-enabled", enabled);
-            wrap.setAttribute("aria-pressed", String(enabled));
-            return;
-          }
+          if (handleCodeControlClick(event)) return;
           const anchor = target.closest("a");
           if (!anchor) return;
           if (anchor.closest('[data-inline-content-type="pageLink"]')) return;
@@ -642,34 +549,8 @@ export function RichTextEditor({
           });
         }}
         onPasteCapture={(event) => {
+          if (handleSharedEditorPaste(event, editor)) return;
           if (event.target instanceof HTMLInputElement || event.target instanceof HTMLTextAreaElement || event.target instanceof HTMLSelectElement) return;
-          const html = event.clipboardData.getData("text/html");
-          const copied = html ? new DOMParser().parseFromString(html, "text/html").querySelector('[data-notebook-block-clipboard="1"]') : null;
-          if (copied) {
-            event.preventDefault();
-            event.stopPropagation();
-            try {
-              const content = blockNoteContentSchema.parse(JSON.parse(decodeURIComponent(copied.getAttribute("data-notebook-block-json") ?? "")));
-              if (!content.length || unsupportedEditorBlocks(content).length) throw new Error("Unsupported clipboard blocks");
-              // Paste a complete block after the cursor, with fresh identities for every descendant.
-              editor.insertBlocks(normalizeEditorBlocks(content, true), editor.getTextCursorPosition().block, "after");
-            } catch {
-              window.alert("Буфер содержит неподдерживаемые или повреждённые блоки. Вставка отменена, исходное содержимое буфера сохранено.");
-            }
-            return;
-          }
-          const currentBlock = editor.getTextCursorPosition().block;
-          if (!html && currentBlock.type === "table") {
-            const merged = currentBlock.content.rows.some(row => row.cells.some(cell => !Array.isArray(cell) && ((cell.props.colspan ?? 1) > 1 || (cell.props.rowspan ?? 1) > 1)));
-            const cell = window.getSelection()?.anchorNode?.parentElement?.closest("td, th") as HTMLTableCellElement | null;
-            const offset = cell ? Array.from((cell.parentElement as HTMLTableRowElement).cells).slice(0, cell.cellIndex).reduce((sum, item) => sum + item.colSpan, 0) : 0;
-            const table = merged ? null : tsvToTableHtml(event.clipboardData.getData("text/plain"), currentBlock.content.columnWidths.slice(offset));
-            if (table) {
-              event.preventDefault(); event.stopPropagation();
-              editor.pasteHTML(table);
-              return;
-            }
-          }
           const url = parseSmartPasteUrl(event.clipboardData.getData("text/plain"));
           if (!url) return;
           const current = editor.getTextCursorPosition().block;
@@ -695,7 +576,7 @@ export function RichTextEditor({
           setLinkPreview(null);
         }}
       >
-        <PageLinksProvider ids={[...internalPageIdsInContent(editor.document)]} adjacent={Boolean(onAdjacentNavigate)} navigate={(id, adjacent, permanent) => adjacent && onAdjacentNavigate ? onAdjacentNavigate(id) : onInternalNavigate(id, permanent)}><EditorActivityContext.Provider value={paneActive}><LiveWidgetPageContext.Provider value={page.id}><BlockNoteView
+        <PageLinksProvider ids={[...internalPageIdsInContent(editor.document)]} adjacent={Boolean(onAdjacentNavigate)} navigate={(id, adjacent, permanent) => adjacent && onAdjacentNavigate ? onAdjacentNavigate(id) : onInternalNavigate(id, permanent)}><EditorActivityContext.Provider value={paneActive}><LiveWidgetPageContext.Provider value={page.id}><TableActions editor={editor} disabled={navigationBusy || working}/><BlockNoteView
           editor={editor}
           editable={!navigationBusy && !working}
           formattingToolbar={false}
@@ -711,19 +592,7 @@ export function RichTextEditor({
             });
           }}
         >
-          <SuggestionMenuController
-            shouldOpen={transaction => !transaction.selection.$from.parent.type.spec.code && !transaction.selection.$from.marks().some(mark => mark.type.spec.code) && !editor._tiptapEditor.view.composing}
-            floatingUIOptions={{ elementProps: { className: "notebook-slash-popover" } }}
-            triggerCharacter="/"
-            getItems={slashItems}
-          />
-          <SideMenuController sideMenu={sideMenu}/>
-          <SuggestionMenuController
-            shouldOpen={transaction => !transaction.selection.$from.parent.type.spec.code && !transaction.selection.$from.marks().some(mark => mark.type.spec.code) && !editor._tiptapEditor.view.composing}
-            triggerCharacter="[["
-            getItems={mentionItems}
-          />
-          <FormattingToolbarController formattingToolbar={() => <FormattingToolbar>{getFormattingToolbarItems()}<button type="button" aria-label="Ссылка на страницу" className="bn-button" onMouseDown={event => event.preventDefault()} onClick={() => setPicker(true)}><FileText size={16}/></button></FormattingToolbar>}/>
+          <SharedEditorMenus editor={editor} pageId={page.id} onPagePicker={openPagePicker}/>
           <EditorSuggestionOverlayBridge/>
         </BlockNoteView></LiveWidgetPageContext.Provider></EditorActivityContext.Provider></PageLinksProvider>
         <PageKnowledge pageId={page.id} revision={page.revision} onNavigate={onInternalNavigate}/>

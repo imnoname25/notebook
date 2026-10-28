@@ -9,6 +9,7 @@ import { defaultLiveWidgetConfig, LIVE_WIDGET_LABELS, liveWidgetBlock } from "./
 import { liveWidgetTarget, type LiveWidgetType } from "@/lib/live-widgets";
 import { columnPanelBlock, columnsBlock, dividerBlock, pageVariablesBlock, tabPanelBlock, tabsBlock, tocBlock } from "./structural-blocks";
 
+import { validateTemplateContent } from "@/lib/page-templates";
 import { organizeSlashCommands } from "@/lib/editor-slash-catalog";
 import { pageLinkInline } from "./page-link-inline";
 
@@ -78,7 +79,7 @@ export function normalizeEditorBlocks(value: unknown[], freshIds = false): Noteb
   });
 }
 
-export function slashMenuItems(editor: NotebookEditor, openPagePicker: () => void, query: string) {
+export function slashMenuItems(editor: NotebookEditor, openPagePicker: () => void, query: string, mode: "page" | "template" = "page") {
   const defaults = getDefaultReactSlashMenuItems(editor);
   const custom = [
     ...CALLOUT_PRESETS.map(preset => ({ key: `callout-${preset.key}`, title: preset.title || CALLOUT_LABELS[preset.kind], aliases: [preset.key, "callout", ...(preset.key === "info" ? [t("editor.callout"), "information", "выделенный блок"] : [])], icon: preset.kind === "note" ? <Lightbulb size={16}/> : preset.kind === "success" ? <CheckCircle2 size={16}/> : preset.kind === "warning" || preset.kind === "error" ? <AlertCircle size={16}/> : <Info size={16}/>, onItemClick: () => insertOrUpdateBlockForSlashMenu(editor, { type: "callout", props: { kind: preset.kind, title: preset.title }, content: "" }) })),
@@ -94,5 +95,13 @@ export function slashMenuItems(editor: NotebookEditor, openPagePicker: () => voi
     { key: "toc", title: "Оглавление", subtext: "Автоматический список заголовков страницы", aliases: ["toc", "contents", "оглавление"], icon: <ListTree size={16}/>, onItemClick: () => insertOrUpdateBlockForSlashMenu(editor, { type: "tableOfContents", props: { title: "Оглавление", depth: 3 } }) },
     ...(["HTTP_STATUS", "TCP_CHECK", "TLS_CERTIFICATE", "JSON_VALUE", "DATETIME", "COUNTDOWN"] as LiveWidgetType[]).map((type) => ({ key: `widget-${type}`, title: LIVE_WIDGET_LABELS[type], subtext: "Живой информационный блок", aliases: type === "HTTP_STATUS" ? ["status", "http", "статус"] : type === "TCP_CHECK" ? ["tcp", "port", "порт"] : type === "TLS_CERTIFICATE" ? ["certificate", "tls", "сертификат"] : type === "JSON_VALUE" ? ["json", "value", "значение"] : type === "DATETIME" ? ["time", "date", "время"] : ["countdown", "timer", "таймер"], icon: <Info size={16}/>, onItemClick: () => insertLiveWidget(editor, type) })),
   ];
-  return filterSuggestionItems(organizeSlashCommands([...defaults, ...custom]), query);
+  if (mode === "template") {
+    const bookmark = custom.find(item => item.key === "bookmark");
+    if (bookmark) bookmark.onItemClick = () => {
+      const url = window.prompt("Адрес закладки (HTTP/HTTPS)");if (url === null) return;
+      try { validateTemplateContent([{ type: "bookmark", props: { url } }]);insertOrUpdateBlockForSlashMenu(editor, { type: "bookmark", props: { url, title: new URL(url).hostname, description: "" } }); }
+      catch (error) { window.alert(error instanceof Error ? error.message : "Некорректная закладка"); }
+    };
+  }
+  return filterSuggestionItems(organizeSlashCommands([...defaults, ...custom]).filter(item => mode === "page" || !["image", "video", "audio", "file"].includes(item.key) && !item.key.startsWith("widget-")), query);
 }

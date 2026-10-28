@@ -29,7 +29,7 @@ export function PageLinksProvider({ ids, navigate, adjacent, children }: { ids: 
 
 export const pageLinkInline = createReactInlineContentSpec({ type: "pageLink", propSchema: { pageId: { default: "" }, text: { default: "" }, alias: { default: false } }, content: "none" }, {
   runsBefore: ["link"],
-  render: function PageLink({ inlineContent }) {
+  render: function PageLink({ inlineContent, updateInlineContent, editor }) {
     const context = useContext(Context);const { pageId, text, alias } = inlineContent.props;const target = context.targets.get(pageId);
     const unavailable = pageId.startsWith("missing-") || context.loaded && !target;const [error, setError] = useState("");const [menu, setMenu] = useState(false);
     const open = (adjacent = false, permanent = false) => { if (unavailable) { setError("Страница недоступна: удалена или нет доступа");return; }void context.navigate(pageId, adjacent, permanent).catch(() => setError("Не удалось открыть страницу. Проверьте соединение.")); };
@@ -38,7 +38,7 @@ export const pageLinkInline = createReactInlineContentSpec({ type: "pageLink", p
       onContextMenu={event => { event.preventDefault();setMenu(true); }}>
       {unavailable ? (text || "Страница недоступна") : alias ? text : (target?.title ?? text) || "Страница"}
     </a></Menu.Trigger><Menu.Portal><Menu.Content className="document-tab-context z-[90] rounded-md border bg-popover p-1 text-popover-foreground" sideOffset={4}>
-      <Menu.Item onSelect={() => open()}>Открыть страницу</Menu.Item>{context.adjacent && <Menu.Item onSelect={() => open(true)}>Открыть в соседней панели</Menu.Item>}
+      <Menu.Item onSelect={() => open()}>Открыть страницу</Menu.Item>{editor.isEditable && <Menu.Item onSelect={() => { const value = window.prompt("Подпись внутренней ссылки (пусто — актуальное название)", alias ? text : "");if (value !== null) updateInlineContent({ type: "pageLink", props: { ...inlineContent.props, text: value || target?.title || text, alias: Boolean(value) } }); }}>Изменить подпись</Menu.Item>}{context.adjacent && <Menu.Item onSelect={() => open(true)}>Открыть в соседней панели</Menu.Item>}
     </Menu.Content></Menu.Portal>{error && <span role="status" className="notebook-link-error" onClick={() => setError("")}>{error}</span>}</Menu.Root>;
   },
   toExternalHTML: ({ inlineContent }) => <span data-notebook-page-id={inlineContent.props.pageId} data-notebook-alias={String(inlineContent.props.alias)}><a href={getPageHref(inlineContent.props.pageId)}>{inlineContent.props.text || "Страница"}</a></span>,

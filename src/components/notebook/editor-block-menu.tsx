@@ -22,7 +22,7 @@ const BACKGROUND_BLOCKS = new Set(["paragraph", "heading", "bulletListItem", "nu
 export const EditorActivityContext = createContext(true);
 const TRANSFORMABLE = new Set(["paragraph", "heading", "bulletListItem", "numberedListItem", "checkListItem", "quote", "toggleListItem"]);
 
-export function NotebookSideMenu({ pageId }: { pageId: string }) {
+export function NotebookSideMenu({ pageId }: { pageId?: string }) {
   return <SideMenu><AddBlockButton/><NotebookDragHandle pageId={pageId}/></SideMenu>;
 }
 
@@ -43,7 +43,7 @@ export function EditorSuggestionOverlayBridge() {
   return null;
 }
 
-function NotebookDragHandle({ pageId }: { pageId: string }) {
+function NotebookDragHandle({ pageId }: { pageId?: string }) {
   const active = useContext(EditorActivityContext);
   const Components = useComponentsContext();
   const sideMenu = useExtension(SideMenuExtension);
@@ -63,7 +63,7 @@ function NotebookDragHandle({ pageId }: { pageId: string }) {
   </Components.Generic.Menu.Root>;
 }
 
-function NotebookBlockMenu({ pageId }: { pageId: string }) {
+function NotebookBlockMenu({ pageId }: { pageId?: string }) {
   const Components = useComponentsContext();
   const editor = useBlockNoteEditor() as NotebookEditor;
   const block = useExtensionState(SideMenuExtension, { editor, selector: (state) => state?.block });
@@ -87,7 +87,7 @@ function NotebookBlockMenu({ pageId }: { pageId: string }) {
     <Components.Generic.Menu.Item icon={<Copy size={16}/>} onClick={() => editor.insertBlocks([freshBlock(typedBlock)], typedBlock, "after")}>Дублировать</Components.Generic.Menu.Item>
     <Components.Generic.Menu.Item icon={<Clipboard size={16}/>} onClick={() => void copy(false).catch(() => window.alert("Не удалось скопировать блок. Проверьте доступ к буферу обмена и HTTPS; можно использовать системное копирование."))}>Копировать</Components.Generic.Menu.Item>
     <Components.Generic.Menu.Item icon={<Clipboard size={16}/>} onClick={() => void copy(true).catch(() => window.alert("Не удалось скопировать текст. Проверьте доступ к буферу обмена и HTTPS."))}>Копировать как текст</Components.Generic.Menu.Item>
-    <Components.Generic.Menu.Item icon={<Link2 size={16}/>} onClick={() => void navigator.clipboard.writeText(`${window.location.origin}${getPageHref(pageId, block.id)}`)}>Копировать ссылку на блок</Components.Generic.Menu.Item>
+    {pageId && <Components.Generic.Menu.Item icon={<Link2 size={16}/>} onClick={() => void navigator.clipboard.writeText(`${window.location.origin}${getPageHref(pageId, block.id)}`)}>Копировать ссылку на блок</Components.Generic.Menu.Item>}
     {TRANSFORMABLE.has(block.type) && <Components.Generic.Menu.Root sub position="right">
       <Components.Generic.Menu.Trigger sub><Components.Generic.Menu.Item subTrigger icon={<Wand2 size={16}/>}>Преобразовать</Components.Generic.Menu.Item></Components.Generic.Menu.Trigger>
       <Components.Generic.Menu.Dropdown sub className="bn-menu-dropdown">

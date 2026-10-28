@@ -1878,6 +1878,7 @@ function NotebookWorkspace({ user, initialLocation }: NotebookAppProps) {
         onError={report}
       />
       <TemplateManager
+        onNavigate={id => { void openPageById(id); }}
         open={templateManagerOpen}
         onOpenChange={setTemplateManagerOpen}
         onError={report}

@@ -12,6 +12,7 @@
 @import "./split-workspace.css";
 @import "./internal-links.css";
 @import "./history-recovery.css";
+@import "./templates-tables.css";
 @source "../../node_modules/@blocknote/shadcn";
 
 @custom-variant dark (&:is(:is(.dark, .atmospheric, .studio-graphite) *));
@@ -1346,22 +1347,22 @@ button,
 .notebook-editor .bn-block:has(> .bn-block-content[data-content-type="tabs"]) > .bn-block-group { margin-left: 0; border: 1px solid color-mix(in srgb, var(--border) 82%, transparent); border-top: 0; border-radius: 0 0 0.7rem 0.7rem; padding: 0.75rem 0.8rem; }
 .notebook-editor .bn-block:has(> .bn-block-content[data-content-type="tabs"]) > .bn-block-group > .bn-block-outer::before { display: none !important; }
 .notebook-columns-marker, .notebook-column-panel-marker { display: none; }
-.notebook-editor .bn-block:has(> .bn-block-content [data-columns="2"]) > .bn-block-group,
-.notebook-editor .bn-block:has(> .bn-block-content [data-columns="3"]) > .bn-block-group {
+.notebook-editor .bn-block:has(> :is(.bn-block-content, .react-renderer) [data-columns="2"]) > .bn-block-group,
+.notebook-editor .bn-block:has(> :is(.bn-block-content, .react-renderer) [data-columns="3"]) > .bn-block-group {
   display: grid;
   margin-left: 0;
   grid-template-columns: repeat(2, minmax(0, 1fr));
   gap: 0.7rem;
 }
-.notebook-editor .bn-block:has(> .bn-block-content [data-columns="3"]) > .bn-block-group { grid-template-columns: repeat(3, minmax(0, 1fr)); }
-.notebook-editor .bn-block:has(> .bn-block-content [data-columns]) > .bn-block-group > .bn-block-outer {
+.notebook-editor .bn-block:has(> :is(.bn-block-content, .react-renderer) [data-columns="3"]) > .bn-block-group { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+.notebook-editor .bn-block:has(> :is(.bn-block-content, .react-renderer) [data-columns]) > .bn-block-group > .bn-block-outer {
   min-width: 0;
   border: 1px solid color-mix(in srgb, var(--border) 82%, transparent);
   border-radius: 0.65rem;
   background: color-mix(in srgb, var(--card) 72%, transparent);
   padding: 0.45rem;
 }
-.notebook-editor .bn-block:has(> .bn-block-content[data-content-type="columnPanel"]) > .bn-block-group { margin-left: 0; }
+.notebook-editor .bn-block:has(> :is(.bn-block-content[data-content-type="columnPanel"], .react-renderer.node-columnPanel)) > .bn-block-group { margin-left: 0; }
 .notebook-editor .bn-block-outer:has(.bn-block-content[data-content-type="pageVariables"]) { display: none !important; }
 .notebook-editor-header-action { display: inline-flex; min-height: 2rem; flex: none; align-items: center; gap: 0.35rem; border-radius: 0.45rem; padding-inline: 0.5rem; color: var(--muted-foreground); font-size: 0.75rem; font-weight: 600; }
 .notebook-editor-header-action:hover { background: var(--accent); color: var(--foreground); }
@@ -1388,7 +1389,7 @@ button,
   .notebook-divider > select { position: static; grid-column: 1 / -1; justify-self: end; min-height: 2.75rem; opacity: 1; }
   .notebook-editor .bn-block-column-list { flex-direction: column; }
   .notebook-editor .bn-block-column { width: 100% !important; padding: 0.5rem 0 !important; }
-  .notebook-editor .bn-block:has(> .bn-block-content [data-columns]) > .bn-block-group { grid-template-columns: minmax(0, 1fr); }
+  .notebook-editor .bn-block:has(> :is(.bn-block-content, .react-renderer) [data-columns]) > .bn-block-group { grid-template-columns: minmax(0, 1fr); }
 }
 
 /* Shared interaction and navigation surfaces. */

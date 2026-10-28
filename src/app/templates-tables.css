@@ -1,0 +1,27 @@
+.notebook-editor :is(.bn-block-outer, .bn-block, .bn-block-group) { min-width: 0; }
+.notebook-table-actions { position: sticky; top: 0; z-index: 30; width: fit-content; max-width: 100%; margin: 0 1rem 0.25rem; border: 1px solid var(--border); border-radius: 4px; background: var(--popover); color: var(--popover-foreground); font-size: 0.75rem; }
+.notebook-table-actions summary { padding: 0.4rem 0.65rem; cursor: pointer; }
+.notebook-table-actions > div { display: flex; flex-wrap: wrap; gap: 0.25rem; padding: 0.35rem; max-width: 40rem; }
+.notebook-table-actions button { min-height: 2rem; padding: 0.25rem 0.5rem; border-radius: 3px; }
+.notebook-table-actions button:is(:hover, [aria-pressed="true"]) { background: var(--accent); }
+.notebook-table-actions button:disabled { opacity: 0.45; cursor: not-allowed; }
+.notebook-table-actions :is(button, summary):focus-visible { outline: 2px solid var(--ring); outline-offset: -2px; }
+.notebook-template-editor { container-type: inline-size; }
+.notebook-template-editor .notebook-editor { --notebook-canvas-padding: 1rem; --notebook-reading-width: 100%; }
+.notebook-template-editor [data-content-type="table"] .tableWrapper { max-width: 100%; overflow-x: auto; }
+.notebook-template-editor .notebook-editor [data-content-type="table"] { min-width: 0; overflow: visible; }
+.notebook-template-editor .tableWrapper-inner { width: max-content; min-width: 100%; }
+.notebook-template-editor .tableWrapper :is(td, th) { min-width: 7.5rem; overflow-wrap: break-word; }
+@media (pointer: coarse) { .notebook-table-actions :is(button, summary) { min-height: 2.75rem; min-width: 2.75rem; } }
+
+.notebook-editor .tableWrapper { min-width: 0; max-width: 100%; overflow-x: auto; overscroll-behavior-inline: contain; }
+@container (max-width: 48rem) {
+  :is(.studio-graphite, .studio-atelier) .notebook-editor .bn-block:has(> :is(.bn-block-content, .react-renderer) [data-columns]) > .bn-block-group { grid-template-columns: minmax(0, 1fr); }
+}
+
+/* Native table width:auto must measure against a scrollable intrinsic wrapper, not a narrow column. */
+.notebook-editor .tableWrapper-inner { width: max-content; min-width: 100%; }
+:is(.studio-graphite, .studio-atelier) .notebook-editor .tableWrapper :is(td, th) { border-color: var(--border); }
+:is(.studio-graphite, .studio-atelier) .notebook-editor .tableWrapper a { color: var(--primary); }
+
+@media (pointer: coarse) { .notebook-table-shortcut { display: none; } }

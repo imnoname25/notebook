@@ -56,13 +56,18 @@ export async function createTemplate(userId: string, input: { name: string; desc
   return db.pageTemplate.create({ data: { userId, name: input.name, description: input.description ?? null, icon: input.icon, content: valid as Prisma.InputJsonValue, sortOrder: (last._max.sortOrder ?? -1) + 1 } });
 }
 
-export async function updateTemplate(userId: string, id: string, input: { name?: string; description?: string | null; icon?: TemplateIcon; content?: unknown }) {
+export async function updateTemplate(userId: string, id: string, input: { expectedUpdatedAt?: string; name?: string; description?: string | null; icon?: TemplateIcon; content?: unknown }) {
   const template = await db.pageTemplate.findFirst({ where: { id, userId } });
   if (!template) throw new ApiError(404, "Шаблон не найден");
   if (template.isBuiltIn) throw new ApiError(409, "Встроенный шаблон нельзя изменять; сначала создайте копию");
+  if (!input.expectedUpdatedAt || input.expectedUpdatedAt !== template.updatedAt.toISOString()) throw new ApiError(409, "Шаблон изменён в другом окне. Изменения в редакторе сохранены; откройте актуальный шаблон или сохраните свою копию.");
   if (input.content !== undefined) await assertTemplateLinkOwnership(userId, validateTemplateContent(input.content));
-  const data: Prisma.PageTemplateUpdateInput = { ...(input.name === undefined ? {} : { name: input.name }), ...(input.description === undefined ? {} : { description: input.description }), ...(input.icon === undefined ? {} : { icon: input.icon }), ...(input.content === undefined ? {} : { content: validateTemplateContent(input.content) as Prisma.InputJsonValue }) };
-  return db.pageTemplate.update({ where: { id }, data });
+  const data: Prisma.PageTemplateUpdateManyMutationInput = { updatedAt: new Date(Math.max(Date.now(), template.updatedAt.getTime() + 1)), ...(input.name === undefined ? {} : { name: input.name }), ...(input.description === undefined ? {} : { description: input.description }), ...(input.icon === undefined ? {} : { icon: input.icon }), ...(input.content === undefined ? {} : { content: validateTemplateContent(input.content) as Prisma.InputJsonValue }) };
+  return db.$transaction(async tx => {
+    const updated = await tx.pageTemplate.updateMany({ where: { id, userId, updatedAt: template.updatedAt }, data });
+    if (updated.count !== 1) throw new ApiError(409, "Шаблон изменён в другом окне. Несохранённые изменения оставлены в редакторе.");
+    return tx.pageTemplate.findUniqueOrThrow({ where: { id } });
+  });
 }
 
 export async function duplicateTemplate(userId: string, id: string) {

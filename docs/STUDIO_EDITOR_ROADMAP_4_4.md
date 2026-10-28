@@ -5,7 +5,9 @@
 Аудит описывает базу `33a2b08`. Этап **4.4-A согласован и реализован**:
 R0, R2 и R6; [контракт и результаты](STUDIO_DATA_INTEGRITY_4_4_A.md).
 **4.4-B реализует R1, R3 и presets R8**; [поведение, проверки и ограничения](STUDIO_DAILY_EDITING_4_4_B.md).
-Физический Fold/IME остаётся ручным этапом приёмки. Остальные пункты — предложение.
+**4.4-C реализует основной UX R4 и R5**; [контракт, проверки и ограничения](STUDIO_TEMPLATES_TABLES_4_4_C.md).
+Shared template editor, dirty-close/CAS и native touch table actions проверены в Chrome/PG.
+Физический Fold/IME и настоящий Excel остаются ручной приёмкой. Остальные пункты — предложение.
 
 ## Продуктовое решение
 
@@ -27,8 +29,8 @@ PKM-функций. Не создавать ещё один slash parser, callou
 | R1 · выполнен 4.4-B | **P1** | Исправить H1 selector, проверить размеры и focus | A02: нет default data-level, H1 45px на touch 360/840 | studio/studio-mobile/editor-advanced CSS; a11y tests | Runtime DOM contract 0.54 | Низкий–средний | 1–2 дня |
 | R2 · выполнен 4.4-A | **P1** | Контекстная security validation шаблонов | A03: обычный code literal `data:` получает 400 | page-templates validator + security tests | Сохранить URL/attachment security boundary | Средний–высокий | 1–3 дня |
 | R3 · выполнен 4.4-B | **P1** | Slash 2.0 как каталог поверх native controller | A05: 44 пункта, 14 повторяющихся group sections | slashMenuItems, labels/aliases/order, targeted UI tests | R1 для narrow QA, неизменные BlockNote callbacks | Низкий–средний | 2–3 дня |
-| R4 | **P1** | Согласовать UI шаблона с main editor и защитить dirty close | A04: schema уже общая, разные команды/словарь/сохранение | TemplateEditDialog + общий тонкий UI/config adapter | R0/R2, явное решение template save semantics | Средний | 3–5 дней |
-| R5 | **P1** | Табличный UX: доступные row/column actions на touch + regression | Native CRUD/resize есть; реальный Excel/touch/merged paste не проверены | Существующие TableHandles/default components, paste tests; только доказанные UI gaps | R1, установленный 0.54 table contract | Средний | 2–4 дня |
+| R4 · основной UX 4.4-C | **P1** | Согласовать UI шаблона с main editor и защитить dirty close | A04: schema уже общая, разные команды/словарь/сохранение | TemplateEditDialog + общий тонкий UI/config adapter | R0/R2, явное решение template save semantics | Средний | 3–5 дней |
+| R5 · native UX 4.4-C | **P1** | Табличный UX: доступные row/column actions на touch + regression | Native CRUD/resize есть; реальный Excel/touch/merged paste не проверены | Существующие TableHandles/default components, paste tests; только доказанные UI gaps | R1, установленный 0.54 table contract | Средний | 2–4 дня |
 | R6 · выполнен 4.4-A | **P2** | Единый контракт fresh blockId при создании из шаблона | A06: исходные IDs сохраняются; междокументный дубль сам по себе не corruption | Template→Page clone utility, create lifecycle | R0, запрет смешивать blockId и pageId | Средний | 1–2 дня |
 | R7 | **P2** | Профилировать длинные документы и доработать history fidelity | JSON сериализация, два editors, worker diff уже есть | Замеры save/outline/highlight, read-only tables preview | Контрольный fixture/бюджеты производительности | Средний; оптимизировать после измерений | 2–3 дня на аудит/малые правки |
 | R8 · выполнен 4.4-B | **P2** | Presets «Важно»/«Идея», если согласованы названия | info/warning/note и Lightbulb уже есть | Labels/aliases/default title существующих kinds | R3 · выполнен 4.4-B | Низкий, без нового JSON типа | 0,5–1 день |
@@ -164,7 +166,7 @@ R10: четыре flags уже есть в MPL core; включить два д�
 | --- | --- | --- | --- |
 | 4.4-A — Data integrity | R0 + R2 + реализация R6 — выполнены | Согласован portable/legacy контракт | Backup round-trip links, security tests, PG rollback проходят |
 | 4.4-B — Daily editing | R1 + R3 + R8 — реализованы | A01 не остаётся скрытым P0 | H1/focus/slash keyboard/Chrome touch проверены; физический Fold/IME остаётся |
-| 4.4-C — Existing tools consistency | R4 + R5; R6 уже выполнен | Общее UI без изменения save boundaries | Templates/table creation/edit/export/recovery совместимы |
+| 4.4-C — Existing tools consistency | R4 + R5 реализованы; R6 уже выполнен | Общее UI без изменения save boundaries | Templates/table creation/edit/export/recovery совместимы |
 | 4.4-D — Optional | Выбранные R7–R10 | Пользовательская потребность/профиль | Отдельные узкие acceptance criteria; можно не делать |
 
 Каждый этап — отдельно reviewable diff и commit только после успешных проверок.
@@ -200,3 +202,16 @@ R10: четыре flags уже есть в MPL core; включить два д�
 
 Этот документ — основание для решения о следующей задаче. Найденные проблемы
 не исправлены, commit/push и production deployment в рамках аудита не выполнялись.
+
+
+## Результат 4.4-C
+
+Тонкий общий adapter не переносит Page autosave/revision/recovery/uploads в шаблоны.
+Явное сохранение, canonical dirty state, 3-way close, ошибки без потери draft и CAS
+по updatedAt подтверждены HTTP и PostgreSQL тестами. Семь built-ins и backup v5 сохранены.
+Native table CRUD/headers/CellSelection/merge/split доступны без hover; mouse resize,
+clipboard, widths/reload, обе темы, structural columns и Split View проверены в Chrome.
+Каталог TemplatePicker сохраняет компактный текстовый preview; новый rich read-only
+preview не вводился. Native Excel clipboard, Android клавиатура и физический Fold
+не считаются проверенными. Template crash recovery и private attachment cloning
+остаются за рамками согласованного 4.4-C.
