@@ -9,7 +9,7 @@ export async function syncPageLinks(
   sourcePageId: string,
   content: unknown,
 ) {
-  const requested = [...internalPageIdsInContent(content)].filter((id) => id !== sourcePageId);
+  const requested = [...internalPageIdsInContent(content)].filter((id) => id !== sourcePageId && !id.startsWith("missing-"));
   const ownedTargets = requested.length
     ? await tx.page.findMany({
         where: {

@@ -1,0 +1,13 @@
+RUN  v4.1.10 C:/Project/Note
+
+
+
+
+
+ Test Files  7 passed (7)
+
+      Tests  47 passed (47)
+
+   Start at  12:31:07
+
+   Duration  3.30s (transform 635ms, setup 0ms, import 3.45s, tests 250ms, environment 1ms)

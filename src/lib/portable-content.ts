@@ -47,7 +47,7 @@ export function rewriteInternalPageReferences(value: unknown, mapping: ReadonlyM
   }
   if (value && typeof value === "object" && !Array.isArray(value) && "type" in value && value.type === "link" && "href" in value && typeof value.href === "string") {
     const href = value.href;
-    return { ...value, href: direction === "export" ? href.replace(/^\/pages\/([A-Za-z0-9_-]+)([?#].*)?$/, (_original, id: string, suffix: string = "") => `notebook-page://${mapping.get(id) ?? `missing-${id}`}${suffix}`) : href.replace(/^notebook-page:\/\/([A-Za-z0-9_-]+)([?#].*)?$/, (original, key: string, suffix: string = "") => mapping.has(key) ? `/pages/${mapping.get(key)}${suffix}` : original),
+    return { ...value, href: direction === "export" ? href.replace(/^\/pages\/([A-Za-z0-9_-]+)([?#].*)?$/, (_original, id: string, suffix: string = "") => `notebook-page://${mapping.get(id) ?? (id.startsWith("missing-") ? id : `missing-${id}`)}${suffix}`) : href.replace(/^notebook-page:\/\/([A-Za-z0-9_-]+)([?#].*)?$/, (original, key: string, suffix: string = "") => mapping.has(key) ? `/pages/${mapping.get(key)}${suffix}` : original),
       ...("content" in value ? { content: rewriteInternalPageReferences(value.content, mapping, direction) } : {}) };
   }
   if (Array.isArray(value)) return value.map((child) => rewriteInternalPageReferences(child, mapping, direction));

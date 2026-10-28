@@ -19,3 +19,11 @@ export function cloneBlockWithIds(block: Record<string, unknown>, used = new Set
   };
   visit(copy, rootId);return copy;
 }
+
+/** A new document is a new block identity tree; inline pageId/alias are untouched. */
+export function cloneBlocksWithFreshIds(content: Record<string, unknown>[]): Record<string, unknown>[] {
+  const used = new Set<string>();
+  const collect = (blocks: Record<string, unknown>[]) => { for (const block of blocks) { if (typeof block.id === "string") used.add(block.id);if (Array.isArray(block.children)) collect(block.children as Record<string, unknown>[]); } };
+  collect(content);
+  return content.map(block => cloneBlockWithIds(block, used));
+}

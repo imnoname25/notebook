@@ -31,12 +31,12 @@ export const pageLinkInline = createReactInlineContentSpec({ type: "pageLink", p
   runsBefore: ["link"],
   render: function PageLink({ inlineContent }) {
     const context = useContext(Context);const { pageId, text, alias } = inlineContent.props;const target = context.targets.get(pageId);
-    const unavailable = context.loaded && !target;const [error, setError] = useState("");const [menu, setMenu] = useState(false);
+    const unavailable = pageId.startsWith("missing-") || context.loaded && !target;const [error, setError] = useState("");const [menu, setMenu] = useState(false);
     const open = (adjacent = false, permanent = false) => { if (unavailable) { setError("Страница недоступна: удалена или нет доступа");return; }void context.navigate(pageId, adjacent, permanent).catch(() => setError("Не удалось открыть страницу. Проверьте соединение.")); };
     return <Menu.Root open={menu} onOpenChange={setMenu}><Menu.Trigger asChild><a href={getPageHref(pageId)} className="notebook-page-link" data-unavailable={unavailable} data-target-page={pageId} contentEditable={false} title={target ? `${target.notebookTitle} / ${target.sectionTitle}` : "Страница недоступна"} onPointerDown={event => event.preventDefault()}
       onClick={event => { event.preventDefault();event.stopPropagation();open(false, event.ctrlKey || event.metaKey); }} onKeyDown={event => { if (event.key === "Enter") { event.preventDefault();event.stopPropagation();open(false, event.ctrlKey || event.metaKey); } }}
       onContextMenu={event => { event.preventDefault();setMenu(true); }}>
-      {unavailable ? (alias ? text : "Страница недоступна") : alias ? text : (target?.title ?? text) || "Страница"}
+      {unavailable ? (text || "Страница недоступна") : alias ? text : (target?.title ?? text) || "Страница"}
     </a></Menu.Trigger><Menu.Portal><Menu.Content className="document-tab-context z-[90] rounded-md border bg-popover p-1 text-popover-foreground" sideOffset={4}>
       <Menu.Item onSelect={() => open()}>Открыть страницу</Menu.Item>{context.adjacent && <Menu.Item onSelect={() => open(true)}>Открыть в соседней панели</Menu.Item>}
     </Menu.Content></Menu.Portal>{error && <span role="status" className="notebook-link-error" onClick={() => setError("")}>{error}</span>}</Menu.Root>;

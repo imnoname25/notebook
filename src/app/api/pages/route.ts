@@ -2,13 +2,8 @@ import { NextRequest, NextResponse } from "next/server";
 import { ApiError, apiError, readJson, requireUser, validateRequestOrigin } from "@/lib/api";
 import { db } from "@/lib/db";
 import { pageCreateSchema } from "@/lib/validation";
-import { extractBlockNoteText } from "@/lib/blocknote-text";
-import { validateTemplateContent } from "@/lib/page-templates";
-import type { Prisma } from "@/generated/prisma/client";
-import { PAGE_APPEARANCE_PRESETS, pagePresetAppearance, valueFromAllowlist } from "@/lib/content-appearance";
-import { syncPageTags } from "@/lib/services/tag-service";
-import { syncPageLinks } from "@/lib/services/page-link-service";
-import { syncLiveWidgetIndex } from "@/lib/services/live-widget-service";
+
+import { createPage } from "@/lib/services/page-service";
 
 export async function GET(request: NextRequest) {
   try {
@@ -27,22 +22,7 @@ export async function POST(request: NextRequest) {
     validateRequestOrigin(request);
     const user = await requireUser();
     const input = pageCreateSchema.parse(await readJson(request));
-    const section = await db.section.findFirst({ where: { id: input.sectionId, deletedAt: null, notebook: { userId: user.id, deletedAt: null } }, select: { id: true } });
-    if (!section) throw new ApiError(404, "Раздел не найден");
-    const template = input.templateId ? await db.pageTemplate.findFirst({ where: { id: input.templateId, userId: user.id }, select: { name: true, content: true } }) : null;
-    if (input.templateId && !template) throw new ApiError(404, "Шаблон не найден");
-    const content = template ? validateTemplateContent(template.content) : [{ type: "paragraph", content: [] }];
-    const preferences = await db.userSettings.findUnique({ where: { userId: user.id }, select: { defaultPagePreset: true } });
-    const preset = valueFromAllowlist(preferences?.defaultPagePreset, PAGE_APPEARANCE_PRESETS, "default");
-    const appearance = pagePresetAppearance(preset);
-    const last = await db.page.aggregate({ where: { sectionId: input.sectionId, deletedAt: null }, _max: { sortOrder: true } });
-    const page = await db.$transaction(async (tx) => {
-      const created = await tx.page.create({ data: { sectionId: input.sectionId, title: input.title ?? template?.name ?? "Без названия", sortOrder: (last._max.sortOrder ?? -1) + 1, content: content as Prisma.InputJsonValue, searchText: extractBlockNoteText(content), ...appearance } });
-      await syncPageTags(tx, user.id, created.id, `${created.title} ${created.searchText}`);
-      await syncPageLinks(tx, user.id, created.id, created.content);
-      await syncLiveWidgetIndex(tx, created.id, created.content);
-      return created;
-    });
+    const page = await createPage(user.id, input);
     return NextResponse.json({ page }, { status: 201 });
   } catch (error) { return apiError(error); }
 }

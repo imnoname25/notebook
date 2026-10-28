@@ -1,0 +1,44 @@
+{
+  "groups": [
+    "Заголовки",
+    "Дополнительно",
+    "Списки",
+    "Текст",
+    "Дополнительно",
+    "Медиа",
+    "Заголовки",
+    "Дополнительно",
+    "Визуальные",
+    "Дополнительно",
+    "Медиа",
+    "Дополнительно",
+    "Структура",
+    "Live Widgets"
+  ],
+  "messages": [
+    {
+      "type": "error",
+      "text": "Encountered two children with the same key, `%s`. Keys should be unique so that components maintain their identity across updates. Non-unique keys may cause children to be duplicated and/or omitted — the behavior is unsupported and could change in a future version. Дополнительно"
+    },
+    {
+      "type": "error",
+      "text": "Encountered two children with the same key, `%s`. Keys should be unique so that components maintain their identity across updates. Non-unique keys may cause children to be duplicated and/or omitted — the behavior is unsupported and could change in a future version. Заголовки"
+    },
+    {
+      "type": "error",
+      "text": "Encountered two children with the same key, `%s`. Keys should be unique so that components maintain their identity across updates. Non-unique keys may cause children to be duplicated and/or omitted — the behavior is unsupported and could change in a future version. Дополнительно"
+    },
+    {
+      "type": "error",
+      "text": "Encountered two children with the same key, `%s`. Keys should be unique so that components maintain their identity across updates. Non-unique keys may cause children to be duplicated and/or omitted — the behavior is unsupported and could change in a future version. Дополнительно"
+    },
+    {
+      "type": "error",
+      "text": "Encountered two children with the same key, `%s`. Keys should be unique so that components maintain their identity across updates. Non-unique keys may cause children to be duplicated and/or omitted — the behavior is unsupported and could change in a future version. Медиа"
+    },
+    {
+      "type": "error",
+      "text": "Encountered two children with the same key, `%s`. Keys should be unique so that components maintain their identity across updates. Non-unique keys may cause children to be duplicated and/or omitted — the behavior is unsupported and could change in a future version. Дополнительно"
+    }
+  ]
+}

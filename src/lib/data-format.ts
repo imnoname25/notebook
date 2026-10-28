@@ -13,7 +13,8 @@ import {
   PAGE_PATTERNS,
 } from "@/lib/content-appearance";
 
-export const DATA_FORMAT_VERSION = 4 as const;
+export const DATA_FORMAT_VERSION = 5 as const;
+export const LINKS_DATA_FORMAT_VERSION = 4 as const;
 export const APPEARANCE_DATA_FORMAT_VERSION = 3 as const;
 export const PREVIOUS_DATA_FORMAT_VERSION = 2 as const;
 export const LEGACY_DATA_FORMAT_VERSION = 1 as const;
@@ -138,6 +139,7 @@ export const manifestSchema = z
       z.literal(LEGACY_DATA_FORMAT_VERSION),
       z.literal(PREVIOUS_DATA_FORMAT_VERSION),
       z.literal(APPEARANCE_DATA_FORMAT_VERSION),
+      z.literal(LINKS_DATA_FORMAT_VERSION),
       z.literal(DATA_FORMAT_VERSION),
     ]),
     createdAt: portableDate,
@@ -163,6 +165,7 @@ export const pageExportSchema = z
         version: z.union([
           z.literal(LEGACY_DATA_FORMAT_VERSION),
           z.literal(APPEARANCE_DATA_FORMAT_VERSION),
+          z.literal(LINKS_DATA_FORMAT_VERSION),
           z.literal(DATA_FORMAT_VERSION),
         ]),
         createdAt: portableDate,

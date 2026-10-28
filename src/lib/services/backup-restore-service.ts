@@ -22,8 +22,8 @@ async function downloadWithRetry(target: Awaited<ReturnType<typeof remoteTarget>
 async function restorePrepared(userId: string, prepared: PreparedImport, source: string) {
   const safetyDirectory = path.join(uploadRoot(), ".safety-backups"); await mkdir(safetyDirectory, { recursive: true }); const safetyName = `before-${source}-restore-${randomUUID()}.zip`; const safetyPath = path.join(safetyDirectory, safetyName); let safetyCreated = false;
   try {
-    await writePortableArchive(userId, safetyPath, { includeDeleted: true, includeHistory: true, backup: true }); safetyCreated = true; await restoreBackupData(userId, prepared); await rm(safetyPath, { force: true });
-    await createNotification({ type: "restore_succeeded", severity: "success", title: "Восстановление завершено", message: `Данные восстановлены из ${source}.` }); return { ok: true as const };
+    await writePortableArchive(userId, safetyPath, { includeDeleted: true, includeHistory: true, backup: true }); safetyCreated = true; const result = await restoreBackupData(userId, prepared); await rm(safetyPath, { force: true });
+    await createNotification({ type: "restore_succeeded", severity: "success", title: "Восстановление завершено", message: [`Данные восстановлены из ${source}.`, ...result.warnings].join(" ") }); return { ok: true as const, ...result };
   } catch {
     await createNotification({ type: "restore_failed", severity: "error", title: "Восстановление не завершено", message: safetyCreated ? "Safety backup сохранён. Текущие данные требуют проверки." : "Архив не был применён.", dedupKey: "restore:failure" });
     if (!safetyCreated) { await rm(safetyPath, { force: true }); throw new ApiError(500, "Restore не запускался: safety backup не создан"); }

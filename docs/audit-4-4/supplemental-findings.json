@@ -1,0 +1,86 @@
+{
+  "checks": {
+    "studio-graphite-groups": [
+      "Заголовки",
+      "Дополнительно",
+      "Списки",
+      "Текст",
+      "Дополнительно",
+      "Медиа",
+      "Заголовки",
+      "Дополнительно",
+      "Визуальные",
+      "Дополнительно",
+      "Медиа",
+      "Дополнительно",
+      "Структура",
+      "Live Widgets"
+    ],
+    "studio-graphite-keyboard": [
+      "Заголовок 2 уровняИспользуется для ключевых разделовCtrl-Alt-2"
+    ],
+    "studio-graphite-visibleMenus": 1,
+    "studio-atelier-groups": [
+      "Заголовки",
+      "Дополнительно",
+      "Списки",
+      "Текст",
+      "Дополнительно",
+      "Медиа",
+      "Заголовки",
+      "Дополнительно",
+      "Визуальные",
+      "Дополнительно",
+      "Медиа",
+      "Дополнительно",
+      "Структура",
+      "Live Widgets"
+    ],
+    "studio-atelier-keyboard": [
+      "Заголовок 2 уровняИспользуется для ключевых разделовCtrl-Alt-2"
+    ],
+    "studio-atelier-visibleMenus": 1
+  },
+  "measurements": [
+    {
+      "theme": "studio-graphite",
+      "width": 360,
+      "pointerCoarse": true,
+      "headingAttributes": "<div class=\"bn-block-content\" data-content-type=\"heading\"><h1 class=\"bn-inline-content\">Техническая заметка — аудит редактора</h1></div>",
+      "headingLevel": "3em",
+      "headingFont": "45px",
+      "selectHeight": 44,
+      "overflow": 0
+    },
+    {
+      "theme": "studio-graphite",
+      "width": 840,
+      "pointerCoarse": true,
+      "headingAttributes": "<div class=\"bn-block-content\" data-content-type=\"heading\"><h1 class=\"bn-inline-content\">Техническая заметка — аудит редактора</h1></div>",
+      "headingLevel": "3em",
+      "headingFont": "45px",
+      "selectHeight": 44,
+      "overflow": 0
+    },
+    {
+      "theme": "studio-atelier",
+      "width": 360,
+      "pointerCoarse": true,
+      "headingAttributes": "<div class=\"bn-block-content\" data-content-type=\"heading\"><h1 class=\"bn-inline-content\">Техническая заметка — аудит редактора</h1></div>",
+      "headingLevel": "3em",
+      "headingFont": "45px",
+      "selectHeight": 44,
+      "overflow": 0
+    },
+    {
+      "theme": "studio-atelier",
+      "width": 840,
+      "pointerCoarse": true,
+      "headingAttributes": "<div class=\"bn-block-content\" data-content-type=\"heading\"><h1 class=\"bn-inline-content\">Техническая заметка — аудит редактора</h1></div>",
+      "headingLevel": "3em",
+      "headingFont": "45px",
+      "selectHeight": 44,
+      "overflow": 0
+    }
+  ]
+}

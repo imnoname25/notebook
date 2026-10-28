@@ -30,6 +30,7 @@ import { blockNoteToMarkdown } from "@/lib/markdown-export";
 import { createDataTempDirectory, createZipArchive } from "@/lib/archive";
 import { blockNoteToSafeHtml, standalonePageHtml } from "@/lib/html-export";
 import { TEMPLATE_ICONS, type TemplateIcon } from "@/lib/template-icons";
+import { portableTemplateReferences } from "@/lib/template-portability";
 import { isSectionIcon } from "@/lib/section-icons";
 
 type ExportOptions = {
@@ -296,7 +297,7 @@ export async function buildPortableExport(
               name: template.name,
               description: template.description,
               icon: templateIcon(template.icon),
-              content: jsonBlocks(template.content),
+              content: blockNoteContentSchema.parse(portableTemplateReferences(jsonBlocks(template.content), pageKey)),
               sortOrder: template.sortOrder,
             })),
           }

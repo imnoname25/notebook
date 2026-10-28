@@ -47,6 +47,7 @@ import {
   sha256File,
 } from "@/lib/storage";
 import { pageContentHash } from "@/lib/page-version-policy";
+import { restoreTemplateReferences, templateReferenceWarnings } from "@/lib/template-portability";
 import { validateTemplateContent } from "@/lib/page-templates";
 
 export type ImportSummary = {
@@ -57,6 +58,7 @@ export type ImportSummary = {
   pages: number;
   attachments: number;
   totalBytes: number;
+  warnings?: string[];
 };
 export type PreparedImport = {
   directory: string;
@@ -85,6 +87,8 @@ function hashBytes(bytes: Uint8Array) {
   return createHash("sha256").update(bytes).digest("hex");
 }
 function assertPortableReferences(data: ArchiveData) {
+  const keys = [data.notebooks.map(n => n.key), data.notebooks.flatMap(n => n.sections.map(s => s.key)), data.notebooks.flatMap(n => n.sections.flatMap(s => s.pages.map(p => p.key))), data.attachments.map(a => a.key)];
+  if (keys.some(group => new Set(group).size !== group.length)) throw new ApiError(400, "Повторяющиеся portable keys в архиве");
   const available = new Set(
     data.attachments.map((attachment) => attachment.key),
   );
@@ -174,6 +178,7 @@ function summaryFromData(
     pages: pages.length,
     attachments: data.attachments.length,
     totalBytes: bytes,
+    warnings: templateReferenceWarnings((data.templates ?? []).map(t => t.content), new Map(pages.map(p => [p.key, p.key])), manifest.version),
   };
 }
 
@@ -721,7 +726,7 @@ export async function restoreBackupData(
         await tx.upload.deleteMany({ where: { userId } });
         if (prepared.manifest!.version >= 4)
           await tx.quickNote.deleteMany({ where: { userId } });
-        await createPortableData(
+        const restored = await createPortableData(
           tx,
           userId,
           prepared.data!,
@@ -741,7 +746,7 @@ export async function restoreBackupData(
                 description: template.description,
                 icon: template.icon,
                 content: validateTemplateContent(
-                  template.content,
+                  restoreTemplateReferences(template.content, restored.pageIds, prepared.manifest!.version).content,
                 ) as Prisma.InputJsonValue,
                 sortOrder: template.sortOrder,
               },
@@ -761,6 +766,7 @@ export async function restoreBackupData(
       rm(resolveStoragePath(upload.storageName), { force: true }),
     ),
   );
+  return { warnings: prepared.summary.warnings ?? [] };
 }
 
 export async function disposePreparedImport(prepared: PreparedImport) {

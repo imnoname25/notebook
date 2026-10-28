@@ -44,7 +44,7 @@ describe("portable data contracts", () => {
       }),
     ).toThrow();
   });
-  it("keeps v1, v2 and v3 readable and validates template data", () => {
+  it("keeps v1 through v5 readable and validates template data", () => {
     const base = {
       format: "notebook-backup",
       createdAt: new Date().toISOString(),
@@ -56,6 +56,8 @@ describe("portable data contracts", () => {
     expect(manifestSchema.parse({ ...base, version: 1 }).version).toBe(1);
     expect(manifestSchema.parse({ ...base, version: 2 }).version).toBe(2);
     expect(manifestSchema.parse({ ...base, version: 3 }).version).toBe(3);
+    expect(manifestSchema.parse({ ...base, version: 4 }).version).toBe(4);
+    expect(manifestSchema.parse({ ...base, version: 5 }).version).toBe(5);
     expect(() =>
       archiveDataSchema.parse({
         notebooks: [],

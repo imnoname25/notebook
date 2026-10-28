@@ -1,0 +1,10 @@
+{
+  "scope": "new synthetic owner in isolated localhost test database; real HTTP ZIP backup/restore",
+  "oldTargetId": "cmvrsr70a0017vw71wvei0qh8",
+  "newTargetId": "16176134-2f53-4145-9538-c299c5258e42",
+  "templateTargetId": "cmvrsr70a0017vw71wvei0qh8",
+  "alias": true,
+  "oldTargetStatus": 404,
+  "restoreStatus": 200,
+  "zipBytes": 906
+}

@@ -3,6 +3,24 @@ import { db } from "@/lib/db";
 import { ApiError } from "@/lib/errors";
 import { TEMPLATE_FORMAT, TEMPLATE_FORMAT_VERSION, type TemplateIcon, validateTemplateContent } from "@/lib/page-templates";
 
+import { internalPageIdsInContent } from "@/lib/portable-content";
+import { portableTemplateReferences, restoreTemplateReferences } from "@/lib/template-portability";
+
+export async function assertTemplateLinkOwnership(userId: string, content: unknown, client: Pick<Prisma.TransactionClient, "page"> = db) {
+  const ids = [...internalPageIdsInContent(content)].filter(id => !id.startsWith("missing-"));
+  if (!ids.length) return;
+  const owned = await client.page.count({ where: { id: { in: ids }, section: { notebook: { userId } } } });
+  if (owned !== ids.length) throw new ApiError(404, "Страница не найдена");
+}
+
+/** Existing templates may outlive a permanently deleted target. Preserve their text safely. */
+export async function materializeTemplateContent(userId: string, content: unknown, client: Pick<Prisma.TransactionClient, "page">) {
+  const ids = [...internalPageIdsInContent(content)].filter(id => !id.startsWith("missing-"));
+  const owned = ids.length ? await client.page.findMany({ where: { id: { in: ids }, section: { notebook: { userId } } }, select: { id: true } }) : [];
+  const mapping = new Map(owned.map(page => [page.id, page.id]));
+  return validateTemplateContent(restoreTemplateReferences(portableTemplateReferences(content, mapping), mapping, 5).content);
+}
+
 const builtIns: { key: string; name: string; description: string; icon: TemplateIcon; content: Record<string, unknown>[] }[] = [
   { key: "blank", name: "Пустая страница", description: "Чистый лист", icon: "file-text", content: [{ type: "paragraph", content: [] }] },
   { key: "note", name: "Заметка", description: "Тема и основные мысли", icon: "notebook", content: [{ type: "heading", props: { level: 2 }, content: [{ type: "text", text: "Основная мысль", styles: {} }] }, { type: "paragraph", content: [] }, { type: "heading", props: { level: 2 }, content: [{ type: "text", text: "Детали", styles: {} }] }, { type: "bulletListItem", content: [] }] },
@@ -33,6 +51,7 @@ export async function createTemplate(userId: string, input: { name: string; desc
     if (!page) throw new ApiError(404, "Страница не найдена"); content = page.content;
   }
   const valid = validateTemplateContent(content);
+  await assertTemplateLinkOwnership(userId, valid);
   const last = await db.pageTemplate.aggregate({ where: { userId }, _max: { sortOrder: true } });
   return db.pageTemplate.create({ data: { userId, name: input.name, description: input.description ?? null, icon: input.icon, content: valid as Prisma.InputJsonValue, sortOrder: (last._max.sortOrder ?? -1) + 1 } });
 }
@@ -41,6 +60,7 @@ export async function updateTemplate(userId: string, id: string, input: { name?:
   const template = await db.pageTemplate.findFirst({ where: { id, userId } });
   if (!template) throw new ApiError(404, "Шаблон не найден");
   if (template.isBuiltIn) throw new ApiError(409, "Встроенный шаблон нельзя изменять; сначала создайте копию");
+  if (input.content !== undefined) await assertTemplateLinkOwnership(userId, validateTemplateContent(input.content));
   const data: Prisma.PageTemplateUpdateInput = { ...(input.name === undefined ? {} : { name: input.name }), ...(input.description === undefined ? {} : { description: input.description }), ...(input.icon === undefined ? {} : { icon: input.icon }), ...(input.content === undefined ? {} : { content: validateTemplateContent(input.content) as Prisma.InputJsonValue }) };
   return db.pageTemplate.update({ where: { id }, data });
 }
@@ -67,5 +87,5 @@ export async function reorderTemplates(userId: string, ids: string[]) {
 export async function templateExport(userId: string, id: string) {
   const template = await db.pageTemplate.findFirst({ where: { id, userId } });
   if (!template) throw new ApiError(404, "Шаблон не найден");
-  return { format: TEMPLATE_FORMAT, version: TEMPLATE_FORMAT_VERSION, template: { name: template.name, description: template.description, icon: template.icon, content: template.content } };
+  return { format: TEMPLATE_FORMAT, version: TEMPLATE_FORMAT_VERSION, template: { name: template.name, description: template.description, icon: template.icon, content: portableTemplateReferences(template.content, new Map()) } };
 }

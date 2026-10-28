@@ -1,0 +1,692 @@
+{
+  "baseCommit": "33a2b08",
+  "mode": "real Chrome, Next dev HTTP, isolated task-local PostgreSQL",
+  "measurements": [
+    {
+      "theme": "studio-graphite",
+      "viewport": 1920,
+      "documentWidth": 1920,
+      "editor": {
+        "x": 560,
+        "y": 266.796875,
+        "width": 832,
+        "height": 1583.65625,
+        "font": "15px",
+        "lineHeight": "25.5px",
+        "color": "rgb(229, 231, 233)",
+        "background": "rgba(0, 0, 0, 0)",
+        "scrollWidth": 832,
+        "clientWidth": 832
+      },
+      "table": {
+        "x": 608,
+        "y": 696.171875,
+        "width": 736,
+        "height": 180.5,
+        "font": "15px",
+        "lineHeight": "22.5px",
+        "color": "rgb(229, 231, 233)",
+        "background": "rgba(0, 0, 0, 0)",
+        "scrollWidth": 736,
+        "clientWidth": 736
+      },
+      "calloutSelect": {
+        "x": 1033.859375,
+        "y": 450.796875,
+        "width": 117,
+        "height": 17,
+        "font": "12px",
+        "lineHeight": "normal",
+        "color": "rgb(161, 169, 177)",
+        "background": "rgba(0, 0, 0, 0)",
+        "scrollWidth": 117,
+        "clientWidth": 117
+      },
+      "calloutTitle": {
+        "x": 649,
+        "y": 450.796875,
+        "width": 376.859375,
+        "height": 21,
+        "font": "14px",
+        "lineHeight": "21px",
+        "color": "rgb(229, 231, 233)",
+        "background": "rgba(0, 0, 0, 0)",
+        "scrollWidth": 377,
+        "clientWidth": 377
+      }
+    },
+    {
+      "theme": "studio-graphite",
+      "viewport": 1440,
+      "documentWidth": 1440,
+      "editor": {
+        "x": 532,
+        "y": 264.875,
+        "width": 808,
+        "height": 1583.65625,
+        "font": "15px",
+        "lineHeight": "25.5px",
+        "color": "rgb(229, 231, 233)",
+        "background": "rgba(0, 0, 0, 0)",
+        "scrollWidth": 808,
+        "clientWidth": 808
+      },
+      "table": {
+        "x": 568,
+        "y": 694.25,
+        "width": 736,
+        "height": 180.5,
+        "font": "15px",
+        "lineHeight": "22.5px",
+        "color": "rgb(229, 231, 233)",
+        "background": "rgba(0, 0, 0, 0)",
+        "scrollWidth": 736,
+        "clientWidth": 736
+      },
+      "calloutSelect": {
+        "x": 993.859375,
+        "y": 448.875,
+        "width": 117,
+        "height": 17,
+        "font": "12px",
+        "lineHeight": "normal",
+        "color": "rgb(161, 169, 177)",
+        "background": "rgba(0, 0, 0, 0)",
+        "scrollWidth": 117,
+        "clientWidth": 117
+      },
+      "calloutTitle": {
+        "x": 609,
+        "y": 448.875,
+        "width": 376.859375,
+        "height": 21,
+        "font": "14px",
+        "lineHeight": "21px",
+        "color": "rgb(229, 231, 233)",
+        "background": "rgba(0, 0, 0, 0)",
+        "scrollWidth": 377,
+        "clientWidth": 377
+      }
+    },
+    {
+      "theme": "studio-graphite",
+      "viewport": 1024,
+      "documentWidth": 1024,
+      "editor": {
+        "x": 304,
+        "y": 247.390625,
+        "width": 720,
+        "height": 1577.65625,
+        "font": "15px",
+        "lineHeight": "25.5px",
+        "color": "rgb(229, 231, 233)",
+        "background": "rgba(0, 0, 0, 0)",
+        "scrollWidth": 720,
+        "clientWidth": 720
+      },
+      "table": {
+        "x": 328,
+        "y": 670.765625,
+        "width": 672,
+        "height": 180.5,
+        "font": "15px",
+        "lineHeight": "22.5px",
+        "color": "rgb(229, 231, 233)",
+        "background": "rgba(0, 0, 0, 0)",
+        "scrollWidth": 712,
+        "clientWidth": 672
+      },
+      "calloutSelect": {
+        "x": 753.859375,
+        "y": 425.390625,
+        "width": 117,
+        "height": 17,
+        "font": "12px",
+        "lineHeight": "normal",
+        "color": "rgb(161, 169, 177)",
+        "background": "rgba(0, 0, 0, 0)",
+        "scrollWidth": 117,
+        "clientWidth": 117
+      },
+      "calloutTitle": {
+        "x": 369,
+        "y": 425.390625,
+        "width": 376.859375,
+        "height": 21,
+        "font": "14px",
+        "lineHeight": "21px",
+        "color": "rgb(229, 231, 233)",
+        "background": "rgba(0, 0, 0, 0)",
+        "scrollWidth": 377,
+        "clientWidth": 377
+      }
+    },
+    {
+      "theme": "studio-graphite",
+      "viewport": 840,
+      "documentWidth": 840,
+      "editor": {
+        "x": 252,
+        "y": 243.75,
+        "width": 588,
+        "height": 1600.15625,
+        "font": "15px",
+        "lineHeight": "25.5px",
+        "color": "rgb(229, 231, 233)",
+        "background": "rgba(0, 0, 0, 0)",
+        "scrollWidth": 588,
+        "clientWidth": 588
+      },
+      "table": {
+        "x": 276,
+        "y": 689.625,
+        "width": 540,
+        "height": 180.5,
+        "font": "15px",
+        "lineHeight": "22.5px",
+        "color": "rgb(229, 231, 233)",
+        "background": "rgba(0, 0, 0, 0)",
+        "scrollWidth": 712,
+        "clientWidth": 540
+      },
+      "calloutSelect": {
+        "x": 687,
+        "y": 421.75,
+        "width": 117,
+        "height": 17,
+        "font": "12px",
+        "lineHeight": "normal",
+        "color": "rgb(161, 169, 177)",
+        "background": "rgba(0, 0, 0, 0)",
+        "scrollWidth": 117,
+        "clientWidth": 117
+      },
+      "calloutTitle": {
+        "x": 317,
+        "y": 421.75,
+        "width": 362,
+        "height": 21,
+        "font": "14px",
+        "lineHeight": "21px",
+        "color": "rgb(229, 231, 233)",
+        "background": "rgba(0, 0, 0, 0)",
+        "scrollWidth": 362,
+        "clientWidth": 362
+      }
+    },
+    {
+      "theme": "studio-graphite",
+      "viewport": 360,
+      "documentWidth": 360,
+      "editor": {
+        "x": 7.126636028289795,
+        "y": 245.59375,
+        "width": 360,
+        "height": 2444.15625,
+        "font": "15px",
+        "lineHeight": "25.5px",
+        "color": "rgb(229, 231, 233)",
+        "background": "rgba(0, 0, 0, 0)",
+        "scrollWidth": 360,
+        "clientWidth": 360
+      },
+      "table": {
+        "x": 23.126636505126953,
+        "y": 860.46875,
+        "width": 328,
+        "height": 180.5,
+        "font": "15px",
+        "lineHeight": "22.5px",
+        "color": "rgb(229, 231, 233)",
+        "background": "rgba(0, 0, 0, 0)",
+        "scrollWidth": 712,
+        "clientWidth": 328
+      },
+      "calloutSelect": {
+        "x": 66.12663269042969,
+        "y": 641.59375,
+        "width": 117,
+        "height": 17,
+        "font": "12px",
+        "lineHeight": "normal",
+        "color": "rgb(161, 169, 177)",
+        "background": "rgba(0, 0, 0, 0)",
+        "scrollWidth": 117,
+        "clientWidth": 117
+      },
+      "calloutTitle": {
+        "x": 64.12663269042969,
+        "y": 567.59375,
+        "width": 275,
+        "height": 21,
+        "font": "14px",
+        "lineHeight": "21px",
+        "color": "rgb(229, 231, 233)",
+        "background": "rgba(0, 0, 0, 0)",
+        "scrollWidth": 275,
+        "clientWidth": 275
+      }
+    },
+    {
+      "theme": "studio-atelier",
+      "viewport": 1920,
+      "documentWidth": 1920,
+      "editor": {
+        "x": 560,
+        "y": 372.1875,
+        "width": 832,
+        "height": 1583.65625,
+        "font": "15px",
+        "lineHeight": "25.5px",
+        "color": "rgb(41, 40, 32)",
+        "background": "rgba(0, 0, 0, 0)",
+        "scrollWidth": 832,
+        "clientWidth": 832
+      },
+      "table": {
+        "x": 608,
+        "y": 801.5625,
+        "width": 736,
+        "height": 180.5,
+        "font": "15px",
+        "lineHeight": "22.5px",
+        "color": "rgb(41, 40, 32)",
+        "background": "rgba(0, 0, 0, 0)",
+        "scrollWidth": 736,
+        "clientWidth": 736
+      },
+      "calloutSelect": {
+        "x": 1033.859375,
+        "y": 556.1875,
+        "width": 117,
+        "height": 17,
+        "font": "12px",
+        "lineHeight": "normal",
+        "color": "rgb(112, 108, 96)",
+        "background": "rgba(0, 0, 0, 0)",
+        "scrollWidth": 117,
+        "clientWidth": 117
+      },
+      "calloutTitle": {
+        "x": 649,
+        "y": 556.1875,
+        "width": 376.859375,
+        "height": 21,
+        "font": "14px",
+        "lineHeight": "21px",
+        "color": "rgb(41, 40, 32)",
+        "background": "rgba(0, 0, 0, 0)",
+        "scrollWidth": 377,
+        "clientWidth": 377
+      }
+    },
+    {
+      "theme": "studio-atelier",
+      "viewport": 1440,
+      "documentWidth": 1440,
+      "editor": {
+        "x": 532,
+        "y": 384.65625,
+        "width": 808,
+        "height": 1583.65625,
+        "font": "15px",
+        "lineHeight": "25.5px",
+        "color": "rgb(41, 40, 32)",
+        "background": "rgba(0, 0, 0, 0)",
+        "scrollWidth": 808,
+        "clientWidth": 808
+      },
+      "table": {
+        "x": 568,
+        "y": 814.03125,
+        "width": 736,
+        "height": 180.5,
+        "font": "15px",
+        "lineHeight": "22.5px",
+        "color": "rgb(41, 40, 32)",
+        "background": "rgba(0, 0, 0, 0)",
+        "scrollWidth": 736,
+        "clientWidth": 736
+      },
+      "calloutSelect": {
+        "x": 993.859375,
+        "y": 568.65625,
+        "width": 117,
+        "height": 17,
+        "font": "12px",
+        "lineHeight": "normal",
+        "color": "rgb(112, 108, 96)",
+        "background": "rgba(0, 0, 0, 0)",
+        "scrollWidth": 117,
+        "clientWidth": 117
+      },
+      "calloutTitle": {
+        "x": 609,
+        "y": 568.65625,
+        "width": 376.859375,
+        "height": 21,
+        "font": "14px",
+        "lineHeight": "21px",
+        "color": "rgb(41, 40, 32)",
+        "background": "rgba(0, 0, 0, 0)",
+        "scrollWidth": 377,
+        "clientWidth": 377
+      }
+    },
+    {
+      "theme": "studio-atelier",
+      "viewport": 1024,
+      "documentWidth": 1024,
+      "editor": {
+        "x": 304,
+        "y": 367.171875,
+        "width": 720,
+        "height": 1577.65625,
+        "font": "15px",
+        "lineHeight": "25.5px",
+        "color": "rgb(41, 40, 32)",
+        "background": "rgba(0, 0, 0, 0)",
+        "scrollWidth": 720,
+        "clientWidth": 720
+      },
+      "table": {
+        "x": 328,
+        "y": 790.546875,
+        "width": 672,
+        "height": 180.5,
+        "font": "15px",
+        "lineHeight": "22.5px",
+        "color": "rgb(41, 40, 32)",
+        "background": "rgba(0, 0, 0, 0)",
+        "scrollWidth": 712,
+        "clientWidth": 672
+      },
+      "calloutSelect": {
+        "x": 753.859375,
+        "y": 545.171875,
+        "width": 117,
+        "height": 17,
+        "font": "12px",
+        "lineHeight": "normal",
+        "color": "rgb(112, 108, 96)",
+        "background": "rgba(0, 0, 0, 0)",
+        "scrollWidth": 117,
+        "clientWidth": 117
+      },
+      "calloutTitle": {
+        "x": 369,
+        "y": 545.171875,
+        "width": 376.859375,
+        "height": 21,
+        "font": "14px",
+        "lineHeight": "21px",
+        "color": "rgb(41, 40, 32)",
+        "background": "rgba(0, 0, 0, 0)",
+        "scrollWidth": 377,
+        "clientWidth": 377
+      }
+    },
+    {
+      "theme": "studio-atelier",
+      "viewport": 840,
+      "documentWidth": 840,
+      "editor": {
+        "x": 252,
+        "y": 363.53125,
+        "width": 588,
+        "height": 1600.15625,
+        "font": "15px",
+        "lineHeight": "25.5px",
+        "color": "rgb(41, 40, 32)",
+        "background": "rgba(0, 0, 0, 0)",
+        "scrollWidth": 588,
+        "clientWidth": 588
+      },
+      "table": {
+        "x": 276,
+        "y": 809.40625,
+        "width": 540,
+        "height": 180.5,
+        "font": "15px",
+        "lineHeight": "22.5px",
+        "color": "rgb(41, 40, 32)",
+        "background": "rgba(0, 0, 0, 0)",
+        "scrollWidth": 712,
+        "clientWidth": 540
+      },
+      "calloutSelect": {
+        "x": 687,
+        "y": 541.53125,
+        "width": 117,
+        "height": 17,
+        "font": "12px",
+        "lineHeight": "normal",
+        "color": "rgb(112, 108, 96)",
+        "background": "rgba(0, 0, 0, 0)",
+        "scrollWidth": 117,
+        "clientWidth": 117
+      },
+      "calloutTitle": {
+        "x": 317,
+        "y": 541.53125,
+        "width": 362,
+        "height": 21,
+        "font": "14px",
+        "lineHeight": "21px",
+        "color": "rgb(41, 40, 32)",
+        "background": "rgba(0, 0, 0, 0)",
+        "scrollWidth": 362,
+        "clientWidth": 362
+      }
+    },
+    {
+      "theme": "studio-atelier",
+      "viewport": 360,
+      "documentWidth": 360,
+      "editor": {
+        "x": 5.842448711395264,
+        "y": 452.15625,
+        "width": 360,
+        "height": 2444.15625,
+        "font": "15px",
+        "lineHeight": "25.5px",
+        "color": "rgb(41, 40, 32)",
+        "background": "rgba(0, 0, 0, 0)",
+        "scrollWidth": 360,
+        "clientWidth": 360
+      },
+      "table": {
+        "x": 21.842449188232422,
+        "y": 1067.03125,
+        "width": 328,
+        "height": 180.5,
+        "font": "15px",
+        "lineHeight": "22.5px",
+        "color": "rgb(41, 40, 32)",
+        "background": "rgba(0, 0, 0, 0)",
+        "scrollWidth": 712,
+        "clientWidth": 328
+      },
+      "calloutSelect": {
+        "x": 64.84244537353516,
+        "y": 848.15625,
+        "width": 117.00000762939453,
+        "height": 17,
+        "font": "12px",
+        "lineHeight": "normal",
+        "color": "rgb(112, 108, 96)",
+        "background": "rgba(0, 0, 0, 0)",
+        "scrollWidth": 117,
+        "clientWidth": 117
+      },
+      "calloutTitle": {
+        "x": 62.84244918823242,
+        "y": 774.15625,
+        "width": 275,
+        "height": 21,
+        "font": "14px",
+        "lineHeight": "21px",
+        "color": "rgb(41, 40, 32)",
+        "background": "rgba(0, 0, 0, 0)",
+        "scrollWidth": 275,
+        "clientWidth": 275
+      }
+    }
+  ],
+  "errors": [],
+  "checks": {
+    "builtIns": [
+      "Пустая страница",
+      "Заметка",
+      "Встреча",
+      "Инструкция",
+      "Проект",
+      "Чек-лист",
+      "Журнал"
+    ],
+    "templateIds": {
+      "source": "a44-heading",
+      "copies": [
+        "a44-heading",
+        "a44-heading"
+      ],
+      "linkTargets": [
+        "cmvrsiufn000lvw71dboq06tv",
+        "cmvrsiufn000lvw71dboq06tv"
+      ]
+    },
+    "templateDataLiteral": {
+      "status": 400,
+      "body": {
+        "error": "Шаблон содержит небезопасную ссылку или HTML"
+      }
+    },
+    "studio-graphite-slash": [
+      "Заголовок 1 уровняИспользуется для заголовка верхнего уровняCtrl-Alt-1",
+      "Заголовок 2 уровняИспользуется для ключевых разделовCtrl-Alt-2",
+      "Заголовок 3 уровняИспользуется для подразделов и группCtrl-Alt-3",
+      "ЦитатаЦитата или отрывок",
+      "Сворачиваемый списокСписок со скрываемыми элементамиCtrl-Shift-6",
+      "Нумерованный списокИспользуется для отображения нумерованного спискаCtrl-Shift-7",
+      "Маркированный списокДля отображения неупорядоченного спискаCtrl-Shift-8",
+      "Контрольный списокДля отображения списка с флажкамиCtrl-Shift-9",
+      "ПараграфОсновной текстCtrl-Alt-0",
+      "Блок кодаБлок кода с подсветкой синтаксисаCtrl-Alt-c",
+      "РазделительРазделитель блоков",
+      "ТаблицаИспользуется для таблиц",
+      "КартинкаВставить изображение",
+      "ВидеоВставить видео",
+      "АудиоВставить аудио",
+      "ФайлВставить файл",
+      "Сворачиваемый заголовок 1 уровняЗаголовок верхнего уровня, который можно свернуть/развернуть",
+      "Сворачиваемый заголовок 2 уровняЗаголовок для ключевых разделов, который можно свернуть/развернуть",
+      "Сворачиваемый заголовок 3 уровняЗаголовок для подразделов и групп, который можно свернуть/развернуть",
+      "Заголовок 4 уровняИспользуется для более мелких подразделовCtrl-Alt-4",
+      "Заголовок 5 уровняИспользуется для заголовков небольших подразделовCtrl-Alt-5",
+      "Заголовок 6 уровняИспользуется для заголовков самого низкого уровняCtrl-Alt-6",
+      "ЭмодзиИспользуется для вставки эмодзи",
+      "Совет",
+      "Предупреждение",
+      "Успех",
+      "Ошибка",
+      "Выделенный блокИнформация, заметка или предупреждение",
+      "БаннерШирокая плашка для важной инструкции",
+      "Сворачиваемый блокРаздел, который можно свернуть",
+      "Карточка ссылкиАккуратная закладка с адресом сайта",
+      "Ссылка на страницуСсылка на другую страницу Notebook",
+      "Разделитель с подписьюЛиния, точки, fade или короткая подпись",
+      "Сворачиваемая группаЗаголовок с полноценными вложенными блоками",
+      "ВкладкиОт 2 до 8 панелей с обычными блоками",
+      "КолонкиДве равные колонки; на телефоне складываются вертикально",
+      "Три колонкиТри равные колонки; на телефоне складываются вертикально",
+      "ОглавлениеАвтоматический список заголовков страницы",
+      "HTTP statusЖивой информационный блок",
+      "TCP портЖивой информационный блок",
+      "TLS-сертификатЖивой информационный блок",
+      "JSON valueЖивой информационный блок",
+      "Дата и времяЖивой информационный блок",
+      "Обратный отсчётЖивой информационный блок"
+    ],
+    "studio-graphite-quoteSearch": [
+      "ЦитатаЦитата или отрывок"
+    ],
+    "studio-graphite-mentionsMenuCount": 1,
+    "studio-graphite-mobileMenu": [
+      {
+        "x": 0,
+        "y": 247.59375,
+        "w": 360,
+        "h": 456.640625
+      }
+    ],
+    "studio-atelier-slash": [
+      "Заголовок 1 уровняИспользуется для заголовка верхнего уровняCtrl-Alt-1",
+      "Заголовок 2 уровняИспользуется для ключевых разделовCtrl-Alt-2",
+      "Заголовок 3 уровняИспользуется для подразделов и группCtrl-Alt-3",
+      "ЦитатаЦитата или отрывок",
+      "Сворачиваемый списокСписок со скрываемыми элементамиCtrl-Shift-6",
+      "Нумерованный списокИспользуется для отображения нумерованного спискаCtrl-Shift-7",
+      "Маркированный списокДля отображения неупорядоченного спискаCtrl-Shift-8",
+      "Контрольный списокДля отображения списка с флажкамиCtrl-Shift-9",
+      "ПараграфОсновной текстCtrl-Alt-0",
+      "Блок кодаБлок кода с подсветкой синтаксисаCtrl-Alt-c",
+      "РазделительРазделитель блоков",
+      "ТаблицаИспользуется для таблиц",
+      "КартинкаВставить изображение",
+      "ВидеоВставить видео",
+      "АудиоВставить аудио",
+      "ФайлВставить файл",
+      "Сворачиваемый заголовок 1 уровняЗаголовок верхнего уровня, который можно свернуть/развернуть",
+      "Сворачиваемый заголовок 2 уровняЗаголовок для ключевых разделов, который можно свернуть/развернуть",
+      "Сворачиваемый заголовок 3 уровняЗаголовок для подразделов и групп, который можно свернуть/развернуть",
+      "Заголовок 4 уровняИспользуется для более мелких подразделовCtrl-Alt-4",
+      "Заголовок 5 уровняИспользуется для заголовков небольших подразделовCtrl-Alt-5",
+      "Заголовок 6 уровняИспользуется для заголовков самого низкого уровняCtrl-Alt-6",
+      "ЭмодзиИспользуется для вставки эмодзи",
+      "Совет",
+      "Предупреждение",
+      "Успех",
+      "Ошибка",
+      "Выделенный блокИнформация, заметка или предупреждение",
+      "БаннерШирокая плашка для важной инструкции",
+      "Сворачиваемый блокРаздел, который можно свернуть",
+      "Карточка ссылкиАккуратная закладка с адресом сайта",
+      "Ссылка на страницуСсылка на другую страницу Notebook",
+      "Разделитель с подписьюЛиния, точки, fade или короткая подпись",
+      "Сворачиваемая группаЗаголовок с полноценными вложенными блоками",
+      "ВкладкиОт 2 до 8 панелей с обычными блоками",
+      "КолонкиДве равные колонки; на телефоне складываются вертикально",
+      "Три колонкиТри равные колонки; на телефоне складываются вертикально",
+      "ОглавлениеАвтоматический список заголовков страницы",
+      "HTTP statusЖивой информационный блок",
+      "TCP портЖивой информационный блок",
+      "TLS-сертификатЖивой информационный блок",
+      "JSON valueЖивой информационный блок",
+      "Дата и времяЖивой информационный блок",
+      "Обратный отсчётЖивой информационный блок"
+    ],
+    "studio-atelier-quoteSearch": [
+      "ЦитатаЦитата или отрывок"
+    ],
+    "studio-atelier-mentionsMenuCount": 2,
+    "studio-atelier-mobileMenu": [
+      {
+        "x": 0,
+        "y": 454.15625,
+        "w": 360,
+        "h": 250.65625
+      }
+    ],
+    "tableKeyboard": {
+      "before": 0,
+      "after": 1,
+      "back": 0
+    },
+    "splitEditors": 2,
+    "export": {
+      "format": "notebook-page",
+      "hasCallout": true,
+      "hasTable": true
+    }
+  }
+}
