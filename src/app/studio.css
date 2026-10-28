@@ -246,7 +246,7 @@
 :is(.studio-graphite, .studio-atelier) .notebook-editor .bn-toolbar { box-shadow: none; }
 :is(.studio-graphite, .studio-atelier) .input:focus { box-shadow: none; outline: 2px solid var(--ring); outline-offset: 1px; }
 :is(.studio-graphite, .studio-atelier) .notebook-editor [data-content-type="heading"] { letter-spacing: -0.01em; }
-:is(.studio-graphite, .studio-atelier) .notebook-editor [data-content-type="heading"][data-level="1"] { --level: 1.75rem; }
+:is(.studio-graphite, .studio-atelier) .notebook-editor [data-content-type="heading"]:is(:not([data-level]), [data-level="1"]) { --level: 1.75rem; }
 :is(.studio-graphite, .studio-atelier) .notebook-editor [data-content-type="heading"][data-level="2"] { --level: 1.25rem; }
 :is(.studio-graphite, .studio-atelier) .notebook-editor [data-content-type="heading"][data-level="3"] { --level: 1.0625rem; }
 :is(.studio-graphite, .studio-atelier) .notebook-page-title-input:focus-visible { outline: 1px solid var(--studio-accent); outline-offset: 5px; border-radius: 2px; }

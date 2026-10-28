@@ -34,3 +34,27 @@
   .notebook-editor .bn-block:has(> .bn-block-content .notebook-toggle[data-open="false"]) > .bn-block-group,
   .notebook-editor .bn-block:has(> .react-renderer .notebook-toggle[data-open="false"]) > .bn-block-group { display: block; }
 }
+
+/* 4.4-B: the pane (or nested column), not the browser window, sets heading scale. */
+:is(.studio-graphite, .studio-atelier) .notebook-editor .bn-block:has(> .react-renderer > [data-content-type="columnPanel"]) { container-type: inline-size; }
+@container (max-width: 48rem) {
+  :is(.studio-graphite, .studio-atelier) .notebook-editor [data-content-type="heading"]:is(:not([data-level]), [data-level="1"]) { --level: 1.5rem; }
+}
+:is(.studio-graphite, .studio-atelier) .notebook-editor [data-content-type="heading"] { overflow-wrap: anywhere; }
+.notebook-editor :is(.notebook-callout-title, .notebook-callout-kind, .notebook-banner input, .notebook-banner select, .notebook-code-copy, .notebook-code-wrap, [data-content-type="codeBlock"] select, .bn-toolbar button, .bn-toolbar select):focus-visible {
+  outline: 2px solid var(--ring); outline-offset: 2px; border-radius: 2px;
+}
+/* Keep native FloatingUI availableHeight/placement and its single scrolling list. */
+.notebook-slash-popover { flex-direction: column; max-width: calc(100vw - 1.25rem); }
+.notebook-slash-popover .bn-suggestion-menu {
+  flex: 1 1 auto; min-height: 0; width: 20rem; max-width: calc(100vw - 1.25rem);
+  max-height: min(24rem, calc(100dvh - 1.25rem)); overflow-y: auto; overscroll-behavior: contain;
+  box-shadow: none; border: 1px solid var(--border);
+}
+.notebook-slash-popover [role="option"] { min-height: 2rem; border-inline-start: 2px solid transparent; }
+.notebook-slash-popover [role="option"][aria-selected="true"] { border-inline-start-color: var(--primary); background: var(--accent); color: var(--accent-foreground); }
+.notebook-slash-popover .bn-suggestion-menu-label { font-size: 0.6875rem; color: var(--muted-foreground); }
+@media (pointer: coarse) {
+  .notebook-slash-popover [role="option"], .notebook-editor :is(.notebook-callout-title, .notebook-banner input, .notebook-banner select) { min-height: 2.75rem; }
+  .notebook-editor :is(.notebook-callout-kind, .notebook-code-copy, .notebook-code-wrap, .bn-toolbar button, .bn-toolbar select) { min-width: 2.75rem; min-height: 2.75rem; }
+}

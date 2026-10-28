@@ -4,7 +4,8 @@
 [Основания, матрица и доказательства](STUDIO_EDITOR_AUDIT_4_4.md).
 Аудит описывает базу `33a2b08`. Этап **4.4-A согласован и реализован**:
 R0, R2 и R6; [контракт и результаты](STUDIO_DATA_INTEGRITY_4_4_A.md).
-Остальные пункты остаются предложением и в 4.4-A не реализованы.
+**4.4-B реализует R1, R3 и presets R8**; [поведение, проверки и ограничения](STUDIO_DAILY_EDITING_4_4_B.md).
+Физический Fold/IME остаётся ручным этапом приёмки. Остальные пункты — предложение.
 
 ## Продуктовое решение
 
@@ -23,14 +24,14 @@ PKM-функций. Не создавать ещё один slash parser, callou
 | ID | Приоритет | Что предлагается | Уже существует / почему нужно | Изменяемые области | Зависимости | Риск | Оценка |
 | --- | --- | --- | --- | --- | --- | --- | --- |
 | R0 · выполнен 4.4-A | **P0** | Восстановимый portable контракт PageLink пользовательского шаблона | A01: HTTP backup restore разрывает цель ссылки, хотя Page восстановлена | export/import/portable-content, versioned format validation и regression fixtures | Согласовать legacy behavior | Высокий, данные/backup | 3–5 дней |
-| R1 | **P1** | Исправить H1 selector, проверить размеры и focus | A02: нет default data-level, H1 45px на touch 360/840 | studio/studio-mobile/editor-advanced CSS; a11y tests | Runtime DOM contract 0.54 | Низкий–средний | 1–2 дня |
+| R1 · выполнен 4.4-B | **P1** | Исправить H1 selector, проверить размеры и focus | A02: нет default data-level, H1 45px на touch 360/840 | studio/studio-mobile/editor-advanced CSS; a11y tests | Runtime DOM contract 0.54 | Низкий–средний | 1–2 дня |
 | R2 · выполнен 4.4-A | **P1** | Контекстная security validation шаблонов | A03: обычный code literal `data:` получает 400 | page-templates validator + security tests | Сохранить URL/attachment security boundary | Средний–высокий | 1–3 дня |
-| R3 | **P1** | Slash 2.0 как каталог поверх native controller | A05: 44 пункта, 14 повторяющихся group sections | slashMenuItems, labels/aliases/order, targeted UI tests | R1 для narrow QA, неизменные BlockNote callbacks | Низкий–средний | 2–3 дня |
+| R3 · выполнен 4.4-B | **P1** | Slash 2.0 как каталог поверх native controller | A05: 44 пункта, 14 повторяющихся group sections | slashMenuItems, labels/aliases/order, targeted UI tests | R1 для narrow QA, неизменные BlockNote callbacks | Низкий–средний | 2–3 дня |
 | R4 | **P1** | Согласовать UI шаблона с main editor и защитить dirty close | A04: schema уже общая, разные команды/словарь/сохранение | TemplateEditDialog + общий тонкий UI/config adapter | R0/R2, явное решение template save semantics | Средний | 3–5 дней |
 | R5 | **P1** | Табличный UX: доступные row/column actions на touch + regression | Native CRUD/resize есть; реальный Excel/touch/merged paste не проверены | Существующие TableHandles/default components, paste tests; только доказанные UI gaps | R1, установленный 0.54 table contract | Средний | 2–4 дня |
 | R6 · выполнен 4.4-A | **P2** | Единый контракт fresh blockId при создании из шаблона | A06: исходные IDs сохраняются; междокументный дубль сам по себе не corruption | Template→Page clone utility, create lifecycle | R0, запрет смешивать blockId и pageId | Средний | 1–2 дня |
 | R7 | **P2** | Профилировать длинные документы и доработать history fidelity | JSON сериализация, два editors, worker diff уже есть | Замеры save/outline/highlight, read-only tables preview | Контрольный fixture/бюджеты производительности | Средний; оптимизировать после измерений | 2–3 дня на аудит/малые правки |
-| R8 | **P2** | Presets «Важно»/«Идея», если согласованы названия | info/warning/note и Lightbulb уже есть | Labels/aliases/default title существующих kinds | R3 | Низкий, без нового JSON типа | 0,5–1 день |
+| R8 · выполнен 4.4-B | **P2** | Presets «Важно»/«Идея», если согласованы названия | info/warning/note и Lightbulb уже есть | Labels/aliases/default title существующих kinds | R3 · выполнен 4.4-B | Низкий, без нового JSON типа | 0,5–1 день |
 | R9 | **P2, опционально** | Отдельный Find input текущего документа | Exact-match navigator уже есть, отдельного ввода нет | use-document-search и небольшой contextual UI | Подтверждённая потребность в длинной заметке; горячие клавиши | Средний | 2–4 дня |
 | R10 | **P2, отложить** | Cell colors через native flags | API есть, выключен; польза не доказана | tables flags + history/HTML визуальное покрытие | R5/R7 | Средний; код мал, QA существенно больше | 1–3 дня |
 
@@ -162,7 +163,7 @@ R10: четыре flags уже есть в MPL core; включить два д�
 | Этап | Состав | Условие входа | Условие выхода |
 | --- | --- | --- | --- |
 | 4.4-A — Data integrity | R0 + R2 + реализация R6 — выполнены | Согласован portable/legacy контракт | Backup round-trip links, security tests, PG rollback проходят |
-| 4.4-B — Daily editing | R1 + R3 | A01 не остаётся скрытым P0 | H1/focus/slash keyboard/touch/IME acceptance |
+| 4.4-B — Daily editing | R1 + R3 + R8 — реализованы | A01 не остаётся скрытым P0 | H1/focus/slash keyboard/Chrome touch проверены; физический Fold/IME остаётся |
 | 4.4-C — Existing tools consistency | R4 + R5; R6 уже выполнен | Общее UI без изменения save boundaries | Templates/table creation/edit/export/recovery совместимы |
 | 4.4-D — Optional | Выбранные R7–R10 | Пользовательская потребность/профиль | Отдельные узкие acceptance criteria; можно не делать |
 

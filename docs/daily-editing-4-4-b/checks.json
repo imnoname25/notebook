@@ -1,0 +1,57 @@
+{
+  "date": "2026-10-28",
+  "baseCommit": "d169164",
+  "blockNoteVersion": "0.54.0",
+  "check": "passed: version/lint/typecheck/unit/build",
+  "unit": {
+    "passed": 429,
+    "environmentSkipped": 67
+  },
+  "postgresql": {
+    "passed": 66,
+    "suites": 16,
+    "realDatabase": true
+  },
+  "httpE2E": {
+    "passed": 15,
+    "failed": 0,
+    "duration": "5.1m",
+    "realNextDevServer": true,
+    "realPostgreSQL": true,
+    "browser": "Chrome"
+  },
+  "assertedLayout": {
+    "desktopWidths": [
+      1920,
+      1440,
+      1024
+    ],
+    "desktopH1Px": [
+      28,
+      28,
+      24
+    ],
+    "touchViewports": [
+      [
+        360,
+        900
+      ],
+      [
+        840,
+        900
+      ]
+    ],
+    "touchH1Px": 24,
+    "nestedH1Px": 24,
+    "narrowSplitH1Px": 24,
+    "textScaleRootPercent": 125,
+    "scaledH1Px": 30,
+    "coarseSlashRowMinPx": 44,
+    "menuHeightMaxPx": 384,
+    "selectedMenuContrastMin": 4.5
+  },
+  "screenshots": 18,
+  "physicalFoldTested": false,
+  "physicalIMETested": false,
+  "productionDeployment": false
+}

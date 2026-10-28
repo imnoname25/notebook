@@ -588,6 +588,11 @@ export function RichTextEditor({
           preferences.editorCodeLineNumbers && "notebook-code-lines",
         )}
         onKeyDownCapture={(event) => {
+          const target = event.target instanceof HTMLElement ? event.target : null;
+          if (event.key === "Tab" && target?.matches("select, button") && target.closest('[data-content-type="codeBlock"]')) {
+            // Native code Tab indentation must not trap focus in its form controls.
+            event.stopPropagation();return;
+          }
           if (event.key !== "Enter" && event.key !== " ") return;
           const button = event.target instanceof HTMLElement ? event.target.closest<HTMLButtonElement>("button.bn-toggle-button, .notebook-toggle > button") : null;
           if (!button) return;
@@ -707,6 +712,8 @@ export function RichTextEditor({
           }}
         >
           <SuggestionMenuController
+            shouldOpen={transaction => !transaction.selection.$from.parent.type.spec.code && !transaction.selection.$from.marks().some(mark => mark.type.spec.code) && !editor._tiptapEditor.view.composing}
+            floatingUIOptions={{ elementProps: { className: "notebook-slash-popover" } }}
             triggerCharacter="/"
             getItems={slashItems}
           />

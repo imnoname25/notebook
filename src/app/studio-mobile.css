@@ -60,7 +60,7 @@
   :is(.studio-graphite, .studio-atelier) .notebook-app-shell .notebook-editor-header[data-page-icon]:not([data-page-icon=""]) > span { grid-column: 1 / 3; }
   :is(.studio-graphite, .studio-atelier) .notebook-app-shell .notebook-editor-header[data-page-icon]:not([data-page-icon=""]) .notebook-editor-header-action[aria-label] { grid-column: 3; }
   :is(.studio-graphite, .studio-atelier) .notebook-app-shell .notebook-editor { padding-top: 0.5rem; scroll-padding-block: 1rem max(4rem, 20dvh); }
-  :is(.studio-graphite, .studio-atelier) .notebook-app-shell .notebook-editor [data-content-type="heading"][data-level="1"] { --level: 1.5rem; }
+  :is(.studio-graphite, .studio-atelier) .notebook-app-shell .notebook-editor [data-content-type="heading"]:is(:not([data-level]), [data-level="1"]) { --level: 1.5rem; }
   :is(.studio-graphite, .studio-atelier) .notebook-app-shell .notebook-editor [data-content-type="heading"][data-level="2"] { --level: 1.25rem; }
   :is(.studio-graphite, .studio-atelier) .notebook-app-shell .notebook-editor [data-content-type="heading"] { padding-top: 0.75rem; }
   :is(.studio-graphite, .studio-atelier) .notebook-app-shell .notebook-page-cover { height: clamp(6rem, 16dvh, 9rem); margin-top: 0.5rem; }
