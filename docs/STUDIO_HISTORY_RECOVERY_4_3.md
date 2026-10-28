@@ -1,5 +1,8 @@
 # Studio 4.3 — Document History & Recovery
 
+Последующая стабилизация и повторная приёмка: [Studio 4.3.1](STUDIO_STABILIZATION_4_3_1.md).
+Результаты ниже сохраняют исторический отчёт прогона 4.3.
+
 ## Аудит существующей архитектуры
 
 Проверены Prisma `Page`/`PageVersion`, `page-service`, `page-version-service`,

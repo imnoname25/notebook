@@ -1,5 +1,6 @@
 import { expect, test, type Page } from "@playwright/test";
 import { z } from "zod";
+import { expectRestoredDocument } from "./workspace-ready";
 
 const credentials = { email: "admin@example.test", password: "correct horse battery staple" };
 async function setup(page: Page) {
@@ -16,11 +17,12 @@ async function setup(page: Page) {
 for (const theme of ["studio-graphite", "studio-atelier"]) {
   test(`${theme}: pending save, failed close, session and responsive tabs`, async ({ page }, info) => {
     test.setTimeout(120_000);
+    const errors: string[] = [];page.on("pageerror", error => errors.push(error.message));
     const notes = await setup(page);const [first,second,third] = notes;
     await page.addInitScript(theme=>localStorage.setItem("theme",theme),theme);
     await page.setViewportSize({ width: 1440, height: 900 });await page.goto(`/pages/${first!.id}`);
     const title = page.getByLabel("Название страницы", { exact: true });
-    await expect(title).toHaveValue(first!.title);
+    await expectRestoredDocument(page, first!);
     const rowByTitle = (name: string) => page.locator(`[data-page-title="${name}"] button[title]`);
     await rowByTitle(second!.title).click();await expect(title).toHaveValue(second!.title);
     await expect(page.getByRole("tab")).toHaveCount(1);
@@ -43,10 +45,11 @@ for (const theme of ["studio-graphite", "studio-atelier"]) {
     await page.locator(".document-tabs-strip").getByRole("button",{name:`Действия вкладки: ${first!.title}`,exact:true}).click();await page.getByRole("menuitem",{name:"Закрепить вкладку",exact:true}).click();
     await select(second!.title);await expect(title).toHaveValue(second!.title);await select(third!.title);await expect(title).toHaveValue(third!.title);
     await page.goBack();await expect(title).toHaveValue(second!.title);await page.goForward();await expect(title).toHaveValue(third!.title);
-    await page.goto("/app");await expect(title).toHaveValue(third!.title);await expect(page.getByRole("tab")).toHaveCount(3);await expect(page.locator('.document-tab[data-pinned="true"]')).toHaveCount(1);
-    await page.goto(`/pages/${first!.id}`);await expect(title).toHaveValue(first!.title);
+    await page.goto("/app");await expectRestoredDocument(page, third!);await expect(page.getByRole("tab")).toHaveCount(3);await expect(page.locator('.document-tab[data-pinned="true"]')).toHaveCount(1);
+    await page.goto(`/pages/${first!.id}`);await expectRestoredDocument(page, first!);
     for (const [width,height] of [[1440,900],[393,873],[840,960]]) { await page.setViewportSize({width,height});await expect(title).toHaveValue(first!.title);expect(await page.evaluate(()=>document.documentElement.scrollWidth)).toBeLessThanOrEqual(width);await page.screenshot({path:info.outputPath(`${theme}-${width}.png`)}); }
     await page.setViewportSize({width:1440,height:900});
-    expect((await page.request.delete(`/api/pages/${third!.id}`)).ok()).toBe(true);await page.goto("/app");await expect(title).toHaveValue(first!.title);await expect(page.getByRole("tab")).toHaveCount(2);
+    expect((await page.request.delete(`/api/pages/${third!.id}`)).ok()).toBe(true);await page.goto("/app");await expectRestoredDocument(page, first!);await expect(page.getByRole("tab")).toHaveCount(2);
+    expect(errors).toEqual([]);
   });
 }
