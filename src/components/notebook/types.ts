@@ -51,6 +51,9 @@ export type EditorSaveController = {
   isDirty(): boolean;
   scrollToBlock(blockId: string): void;
   insertLiveWidget(): void;
+  getDraft?(): import("@/lib/document-state").DocumentState & { baseRevision: number };
+  recoverBlock?(request: import("@/lib/block-recovery").BlockRecovery): Promise<void>;
+  exclusive?(operation: () => Promise<void>): Promise<void>;
 };
 import type {
   PageAppearancePreset,

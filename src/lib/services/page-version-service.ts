@@ -6,25 +6,28 @@ import { pageContentHash, retainedVersionIds, shouldCreateSnapshot, type PageVer
 import { syncPageTags } from "@/lib/services/tag-service";
 import { syncPageLinks } from "@/lib/services/page-link-service";
 import { syncLiveWidgetIndex } from "@/lib/services/live-widget-service";
+import { lockOwnedPage } from "./page-write-lock";
 
 type PageState = { id: string; title: string; content: Prisma.JsonValue; searchText: string; revision: number };
 
-export async function createPageSnapshot(tx: Prisma.TransactionClient, page: PageState, reason: SnapshotReason, now = new Date()) {
+export async function createPageSnapshot(tx: Prisma.TransactionClient, page: PageState, reason: SnapshotReason, now = new Date(), preserve: string[] = []) {
   const policy = await pageVersionPolicy(tx);
   const latest = await tx.pageVersion.findFirst({ where: { pageId: page.id }, orderBy: { createdAt: "desc" }, select: { contentHash: true, createdAt: true } });
   const contentHash = pageContentHash(page.title, page.content);
   if (!shouldCreateSnapshot({ currentHash: contentHash, latestHash: latest?.contentHash, latestCreatedAt: latest?.createdAt, reason, now }, policy)) return null;
   const version = await tx.pageVersion.create({ data: { pageId: page.id, title: page.title, content: page.content as Prisma.InputJsonValue, searchText: page.searchText, contentHash, reason, createdAt: now } });
-  await enforcePageVersionRetention(tx, page.id, now, policy);
+  await enforcePageVersionRetention(tx, page.id, now, policy, [...preserve, version.id]);
   return version;
 }
 
 async function pageVersionPolicy(tx: Prisma.TransactionClient): Promise<PageVersionPolicy> { const settings = await tx.applicationSettings.findUnique({ where: { id: "singleton" }, select: { pageVersionIntervalMinutes: true, pageVersionRetentionDays: true, pageVersionMaxCount: true } }); return { intervalMs: (settings?.pageVersionIntervalMinutes ?? 5) * 60_000, maxAgeMs: (settings?.pageVersionRetentionDays ?? 30) * 86_400_000, maxCount: settings?.pageVersionMaxCount ?? 100 }; }
 
-export async function enforcePageVersionRetention(tx: Prisma.TransactionClient, pageId: string, now = new Date(), policy?: PageVersionPolicy) {
+export async function enforcePageVersionRetention(tx: Prisma.TransactionClient, pageId: string, now = new Date(), policy?: PageVersionPolicy, preserve: string[] = []) {
   const effectivePolicy = policy ?? await pageVersionPolicy(tx);
   const versions = await tx.pageVersion.findMany({ where: { pageId }, orderBy: { createdAt: "desc" }, select: { id: true, createdAt: true } });
-  const retained = new Set(retainedVersionIds(versions, now, effectivePolicy));
+  const protectedIds = new Set(preserve.filter(id => versions.some(version => version.id === id)));
+  const retained = new Set(retainedVersionIds(versions.filter(version => !protectedIds.has(version.id)), now, { ...effectivePolicy, maxCount: Math.max(0, effectivePolicy.maxCount - protectedIds.size) }));
+  for (const id of protectedIds) retained.add(id);
   const remove = versions.filter((version) => !retained.has(version.id)).map((version) => version.id);
   if (remove.length) await tx.pageVersion.deleteMany({ where: { id: { in: remove }, pageId } });
 }
@@ -59,12 +62,14 @@ export async function deletePageVersion(userId: string, pageId: string, versionI
 
 export async function restorePageVersion(userId: string, pageId: string, versionId: string, expectedRevision: number) {
   return db.$transaction(async (tx) => {
+    await lockOwnedPage(tx, userId, pageId);
     const page = await tx.page.findFirst({ where: { id: pageId, deletedAt: null, section: { deletedAt: null, notebook: { userId, deletedAt: null } } }, select: { id: true, title: true, content: true, searchText: true, revision: true } });
     if (!page) throw new ApiError(404, "Страница не найдена");
     if (page.revision !== expectedRevision) throw new ApiError(409, "Страница была изменена. Обновите историю и повторите восстановление");
     const version = await tx.pageVersion.findFirst({ where: { id: versionId, pageId }, select: { title: true, content: true } });
     if (!version) throw new ApiError(404, "Версия не найдена");
-    await createPageSnapshot(tx, page, "before_restore");
+    const protective = await createPageSnapshot(tx, page, "before_restore");
+    if (!protective) throw new ApiError(409, "Не удалось создать защитный снимок; восстановление отменено");
     const content = version.content as Prisma.InputJsonValue;
     const blocks = Array.isArray(version.content) ? version.content as Record<string, unknown>[] : [];
     const searchText = extractBlockNoteText(blocks);
@@ -72,6 +77,7 @@ export async function restorePageVersion(userId: string, pageId: string, version
     await syncPageTags(tx, userId, pageId, `${version.title} ${searchText}`);
     await syncPageLinks(tx, userId, pageId, blocks);
     await syncLiveWidgetIndex(tx, pageId, blocks);
+    await createPageSnapshot(tx, restored, "restored", new Date(), [protective.id]);
     return restored;
   });
 }

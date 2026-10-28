@@ -30,6 +30,7 @@ const RichTextEditor = dynamic(
 );
 
 export function EditorPane({
+  userId,
   page,
   notebook,
   section,
@@ -57,6 +58,7 @@ export function EditorPane({
   paneActive,
   navigationBusy,
 }: {
+  userId: string;
   page: PageDocument | null;
   notebook: Notebook | null;
   section: Section | null;
@@ -146,6 +148,7 @@ export function EditorPane({
             <p className="mt-2 text-sm text-muted-foreground">Редактирование приостановлено, чтобы сохранить исходные данные. Используйте совместимую версию редактора или экспортируйте оригинал.</p>
             <a className="mt-4 inline-block underline" href={`/api/data/export/page/${page.id}?format=json`}>Экспорт исходного JSON</a>
           </section> : <RichTextEditor
+            userId={userId}
             key={`${page.id}:${editorEpoch}`}
             page={page}
             paneActive={paneActive}

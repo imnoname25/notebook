@@ -6,6 +6,7 @@ import { createPageSnapshot } from "@/lib/services/page-version-service";
 import { syncPageTags } from "@/lib/services/tag-service";
 import { syncPageLinks } from "@/lib/services/page-link-service";
 import { syncLiveWidgetIndex } from "@/lib/services/live-widget-service";
+import { lockOwnedPage } from "./page-write-lock";
 
 export type PageSaveInput = {
   title?: string;
@@ -28,11 +29,13 @@ export type PageSaveInput = {
 
 export async function savePage(userId: string, pageId: string, input: PageSaveInput) {
   return db.$transaction(async (tx) => {
+    await lockOwnedPage(tx, userId, pageId);
     const page = await tx.page.findFirst({
       where: { id: pageId, deletedAt: null, section: { deletedAt: null, notebook: { userId, deletedAt: null } } },
       select: { id: true, title: true, content: true, searchText: true, revision: true },
     });
     if (!page) throw new ApiError(404, "Страница не найдена");
+    if ((input.title !== undefined || input.content !== undefined) && input.expectedRevision === undefined) throw new ApiError(409, "Для изменения документа требуется актуальная revision. Обновите документ перед сохранением");
     if (input.expectedRevision !== undefined && input.expectedRevision !== page.revision) throw new ApiError(409, "Страница была изменена в другой операции");
 
     const nextTitle = input.title ?? page.title;

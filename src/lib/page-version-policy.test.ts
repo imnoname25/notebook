@@ -4,6 +4,9 @@ import { PAGE_SNAPSHOT_INTERVAL_MS, PAGE_VERSION_MAX_AGE_MS, PAGE_VERSION_MAX_CO
 describe("page snapshot policy", () => {
   const now = new Date("2026-08-14T10:00:00.000Z");
   it("suppresses identical snapshots", () => expect(shouldCreateSnapshot({ currentHash: "same", latestHash: "same", latestCreatedAt: new Date(0), reason: "manual", now })).toBe(false));
+  it("keeps explicit restoration boundaries even when content hashes match", () => {
+    for (const reason of ["before_restore", "restored"] as const) expect(shouldCreateSnapshot({ currentHash: "same", latestHash: "same", latestCreatedAt: now, reason, now })).toBe(true);
+  });
   it("throttles autosave snapshots for five minutes", () => {
     expect(shouldCreateSnapshot({ currentHash: "new", latestHash: "old", latestCreatedAt: new Date(now.getTime() - PAGE_SNAPSHOT_INTERVAL_MS + 1), reason: "interval", now })).toBe(false);
     expect(shouldCreateSnapshot({ currentHash: "new", latestHash: "old", latestCreatedAt: new Date(now.getTime() - PAGE_SNAPSHOT_INTERVAL_MS), reason: "interval", now })).toBe(true);

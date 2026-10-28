@@ -17,6 +17,7 @@ export default defineConfig({
   globalSetup: "./e2e/global-setup.ts",
   use: {
     baseURL,
+    channel: process.env.E2E_BROWSER_CHANNEL,
     trace: "retain-on-failure",
     screenshot: "only-on-failure",
   },

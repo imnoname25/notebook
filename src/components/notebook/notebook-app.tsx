@@ -45,6 +45,7 @@ import {
 } from "./content-appearance-dialog";
 import { MoveDialog, type MoveTarget } from "./move-dialog";
 import { VersionHistory } from "./version-history";
+import { activateDraftUser, clearDrafts, hasLocalDrafts, pruneDrafts } from "@/lib/local-drafts";
 import { DataSettings } from "./data-settings";
 import { SettingsDialog } from "./settings-dialog";
 import { DesktopAppHeader } from "./desktop-app-header";
@@ -154,6 +155,7 @@ type NotebookAppProps = {
 };
 export function NotebookApp(props: NotebookAppProps) { return <StickerSaveProvider key={props.user.id}><NotebookWorkspace {...props}/></StickerSaveProvider>; }
 function NotebookWorkspace({ user, initialLocation }: NotebookAppProps) {
+  useEffect(() => { activateDraftUser(user.id);void pruneDrafts(user.id).catch(() => undefined);const timer = setInterval(() => void pruneDrafts(user.id).catch(() => undefined), 60 * 60 * 1000);return () => clearInterval(timer); }, [user.id]);
   const router = useRouter();
   const stickerSaves = useStickerSaves();
   const { theme: browserTheme, resolvedTheme: browserResolvedTheme, setTheme } = useTheme();
@@ -186,6 +188,7 @@ function NotebookWorkspace({ user, initialLocation }: NotebookAppProps) {
   const openQuickSearch = useCallback(() => { setSearchOpen(false);setMobileMenuOpen(false);setQuickSearchOpen(true);setQuickSearchFocus(value => value + 1); }, []);
   const [workspaceRevision, setWorkspaceRevision] = useState(0);
   const [historyOpen, setHistoryOpen] = useState(false);
+  const [historyPageId, setHistoryPageId] = useState<string | null>(null);
   const [appearanceNotebook, setAppearanceNotebook] = useState<Notebook | null>(
     null,
   );
@@ -427,7 +430,7 @@ function NotebookWorkspace({ user, initialLocation }: NotebookAppProps) {
           { signal: controller.signal },
         );
       })
-      .then((result) => setPages(result.pages))
+      .then((result) => { if (!controller.signal.aborted) setPages(result.pages); })
       .catch((cause) => {
         if ((cause as Error).name !== "AbortError") report(cause);
       })
@@ -892,9 +895,8 @@ function NotebookWorkspace({ user, initialLocation }: NotebookAppProps) {
           return;
         }
         if (action === "history") {
-          if (activePageRef.current?.id !== target.item.id)
-            await openPage(target.item);
-          setHistoryOpen(true);
+          if (!await openPageById(target.item.id, "push", "permanent")) return;
+          setHistoryPageId(target.item.id);setHistoryOpen(true);
           return;
         }
         if (action === "duplicate") {
@@ -917,7 +919,7 @@ function NotebookWorkspace({ user, initialLocation }: NotebookAppProps) {
           if (title?.trim()) {
             const { page } = await api<{ page: PageDocument }>(
               `/api/pages/${target.item.id}`,
-              jsonOptions("PATCH", { title }),
+              jsonOptions("PATCH", { title, expectedRevision: workspace.editorFor(target.item.id)?.getDraft?.().baseRevision ?? target.item.revision }),
             );
             pageSaved(page);
           }
@@ -1081,7 +1083,9 @@ function NotebookWorkspace({ user, initialLocation }: NotebookAppProps) {
     setAuthLeaving(true);
     try {
       await stickerSaves.flushAll();await workspace.flushAll();
+      if (await hasLocalDrafts(user.id).catch(() => false) && !window.confirm("Выход удалит оставшиеся локальные черновики этого аккаунта в этом браузере, включая другие вкладки. Продолжить?")) { setAuthLeaving(false);return; }
       await api("/api/auth/logout", jsonOptions("POST"));
+      await clearDrafts(user.id).catch(() => window.alert("Не удалось очистить локальные черновики. Очистите данные сайта на общем устройстве."));
       await flushNativeAuthCookies();
       router.replace("/login");
       router.refresh();
@@ -1092,7 +1096,9 @@ function NotebookWorkspace({ user, initialLocation }: NotebookAppProps) {
     setAuthLeaving(true);
     try {
       await stickerSaves.flushAll();await workspace.flushAll();
+      if (await hasLocalDrafts(user.id).catch(() => false) && !window.confirm("Удалить оставшиеся локальные черновики этого аккаунта на этом устройстве?")) { setAuthLeaving(false);return; }
       await api("/api/auth/logout-all", jsonOptions("POST"));
+      await clearDrafts(user.id).catch(() => window.alert("Не удалось очистить локальные черновики. Очистите данные сайта на общем устройстве."));
       await flushNativeAuthCookies();
       router.replace("/login");
       router.refresh();
@@ -1184,24 +1190,17 @@ function NotebookWorkspace({ user, initialLocation }: NotebookAppProps) {
     }
   }
 
-  async function restoreVersion(versionId: string) {
-    try {
-      await editorController.current?.flush(false);
-      const current = activePageRef.current;
-      if (!current) return;
-      const { page } = await api<{ page: PageDocument }>(
-        `/api/pages/${current.id}/versions/${versionId}/restore`,
-        jsonOptions("POST", { expectedRevision: current.revision }),
-      );
-      if (activePageRef.current?.id !== current.id) { pageSaved(page);return; }
-      activePageRef.current = page;
-      setActivePage(page);
-      pageSaved(page);
-      workspace.refresh(page.id);
-    } catch (cause) {
-      report(cause);
-      throw cause;
-    }
+  async function restoreVersion(versionId: string, expectedRevision: number) {
+    const id = historyPageId;if (!id) throw new Error("Документ истории недоступен");
+    const controller = workspace.editorFor(id);
+    if (!controller?.exclusive || !controller.getDraft) throw new Error("Редактор документа недоступен");
+    const dirty = controller.isDirty();const baseRevision = controller.getDraft().baseRevision;
+    if (dirty && baseRevision !== expectedRevision) throw new Error("Локальное состояние изменилось. Обновите сравнение; черновик сохранён на устройстве.");
+    await controller.exclusive(async () => {
+      const revision = dirty ? controller.getDraft!().baseRevision : expectedRevision;
+      const { page } = await api<{ page: PageDocument }>(`/api/pages/${id}/versions/${versionId}/restore`, { ...jsonOptions("POST", { expectedRevision: revision }), signal: AbortSignal.timeout(20_000) });
+      pageSaved(page);workspace.refresh(id);
+    });
   }
 
   async function copyPageLink(page: PageSummary) {
@@ -1531,6 +1530,7 @@ function NotebookWorkspace({ user, initialLocation }: NotebookAppProps) {
         <div data-mobile-screen="editor" className={cn("min-h-0 min-w-0", mobileView !== "editor" && "hidden md:block")} style={screen === "workspace" ? undefined : { display: "none" }}>
           {activeNotebook && !activeSection && !activePage && mobileView !== "editor" && !workspace.split && <div className="flex h-full min-h-0 flex-col"><DocumentTabs controller={tabs}/><div className="min-h-0 flex-1"><NotebookOverview notebook={activeNotebook} revision={workspaceRevision} onSection={openSection} onPage={(id) => void openPageById(id).catch(report)} onAddSection={() => void addSection(activeNotebook.id)} onError={report} onBack={openNavigation}/></div></div>}
           <WorkspaceEditors workspace={workspace} notebooks={notebooks} blocked={authLeaving} onActiveOutline={setOutline} enabled={studioTheme} suspended={screen !== "workspace" || Boolean(activeNotebook && !activeSection && !activePage && mobileView !== "editor" && !workspace.split)} renderBase={overrides => <EditorPane
+                userId={user.id}
                 searchMatch={searchMatch?.pageId === overrides.page?.id ? searchMatch : null}
                 onSearchMatchClose={() => setSearchMatch(null)}
                 page={activePage}
@@ -1837,8 +1837,9 @@ function NotebookWorkspace({ user, initialLocation }: NotebookAppProps) {
       />
       {historyOpen && (
         <VersionHistory
-          key={activePage?.id}
-          page={activePage}
+          key={historyPageId}
+          page={workspace.documents.left?.id === historyPageId ? workspace.documents.left : workspace.documents.right?.id === historyPageId ? workspace.documents.right : null}
+          controller={historyPageId ? workspace.editorFor(historyPageId) : undefined}
           open
           onOpenChange={setHistoryOpen}
           onRestore={restoreVersion}

@@ -11,6 +11,7 @@
 @import "./sticker-board.css";
 @import "./split-workspace.css";
 @import "./internal-links.css";
+@import "./history-recovery.css";
 @source "../../node_modules/@blocknote/shadcn";
 
 @custom-variant dark (&:is(:is(.dark, .atmospheric, .studio-graphite) *));

@@ -9,6 +9,7 @@ import {
   type CSSProperties,
 } from "react";
 import "@blocknote/core/fonts/inter.css";
+import { blockToNode, nodeToBlock } from "@blocknote/core";
 import { FormattingToolbar, FormattingToolbarController, getFormattingToolbarItems, SideMenuController, SuggestionMenuController, useCreateBlockNote, type DefaultReactSuggestionItem } from "@blocknote/react";
 import { BlockNoteView } from "@blocknote/shadcn";
 import "@blocknote/shadcn/style.css";
@@ -64,6 +65,12 @@ import { internalPageIdsInContent } from "@/lib/portable-content";
 import { linkTargetsSchema } from "@/lib/page-links";
 
 type LinkSuggestion = DefaultReactSuggestionItem;
+import { canonicalJson, localIdentity, cloneBlockWithIds } from "@/lib/document-state";
+import { acknowledgeDraft, discardDraft, documentFingerprint, listDrafts, writeDraft, type LocalDraft } from "@/lib/local-drafts";
+import { prepareBlockRecovery } from "@/lib/block-recovery";
+import { RecoveryNotice } from "./recovery-notice";
+import { SaveConflictPreview } from "./save-conflict-preview";
+
 type SavePayload = { title: string; content: unknown[] };
 
 
@@ -83,6 +90,7 @@ const defaultPreferences: EditorPreferences = {
 };
 export function RichTextEditor({
   page,
+  userId,
   resolvedAccent,
   onSaved,
   onController,
@@ -95,6 +103,7 @@ export function RichTextEditor({
   navigationBusy = false,
 }: {
   page: PageDocument;
+  userId: string;
   resolvedAccent: AccentColor;
   onSaved(page: PageDocument): void;
   onController(controller: EditorSaveController | null): void;
@@ -110,6 +119,7 @@ export function RichTextEditor({
   const highlightPrefix = "notebook-" + Array.from(page.id, char => char.codePointAt(0)!.toString(16)).join("-");
   const [title, setTitle] = useState(page.title);
   const [status, setStatus] = useState<"saved" | "saving" | "error">("saved");
+  const [saveFailure, setSaveFailure] = useState("");const [compareFailure, setCompareFailure] = useState(false);
   const [preferences, setPreferences] = useState(defaultPreferences);
   const editorRoot = useRef<HTMLDivElement | null>(null);
   const timer = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -126,6 +136,29 @@ export function RichTextEditor({
     title: page.title,
     content: page.content,
   });
+  const [writerId] = useState(localIdentity);
+  const [localWarning, setLocalWarning] = useState("");
+  const [drafts, setDrafts] = useState<LocalDraft[]>([]);
+  const [working, setWorking] = useState(false);
+  const barrier = useRef(false);const localTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const draftSequence = useRef(0);const confirmed = useRef(canonicalJson({ title: page.title, content: page.content }));
+  const recovered = useRef<LocalDraft | null>(null);const recoveryGeneration = useRef(0);const protectedGeneration = useRef(0);const payloadGenerations = useRef(new WeakMap<SavePayload, number>());
+  const localError = useCallback((error: unknown) => setLocalWarning(error instanceof Error ? error.message : "Локальный черновик недоступен"), []);
+  const persistLocal = useCallback(async () => {
+    const payload = latest.current;if (canonicalJson(payload) === confirmed.current) return;
+    await writeDraft({ ...payload, userId, pageId: page.id, writerId, sequence: ++draftSequence.current, baseRevision: serverRevision.current });
+  }, [userId, page.id, writerId]);
+  useEffect(() => {
+    let cancelled = false;
+    void (async () => {
+      const [candidates, fingerprint] = await Promise.all([listDrafts(userId, page.id), documentFingerprint({ title: page.title, content: page.content })]);
+      const pending: LocalDraft[] = [];
+      for (const draft of candidates) { if (draft.writerId === writerId) continue;if (draft.fingerprint === fingerprint) await discardDraft(draft);else pending.push(draft); }
+      if (!cancelled) setDrafts(pending);
+    })().catch(error => { if (!cancelled) localError(error); });
+    return () => { cancelled = true; };
+  }, [userId, page.id, page.revision, page.title, page.content, writerId, localError]);
+  useEffect(() => () => { if (localTimer.current) clearTimeout(localTimer.current);void persistLocal().catch(() => undefined); }, [persistLocal]);
   const onSavedRef = useRef(onSaved);
   useEffect(() => {
     onSavedRef.current = onSaved;
@@ -188,29 +221,41 @@ export function RichTextEditor({
   const lastContentFingerprint = useRef(initialContentFingerprint);
 
   const send = useCallback(async (payload: SavePayload, manual: boolean) => {
+        const generation = payloadGenerations.current.get(payload) ?? 0;
+        await persistLocal().catch(localError);
         const result = await api<{ page: PageDocument }>(
           `/api/pages/${page.id}`,
           jsonOptions("PATCH", {
             ...payload,
             expectedRevision: serverRevision.current,
-            snapshotReason: manual ? "manual" : "interval",
+            snapshotReason: manual || generation > protectedGeneration.current ? "manual" : "interval",
           }),
-        );
-        serverRevision.current = result.page.revision;
+        ).catch(error => { setSaveFailure(error instanceof Error ? error.message : "Ошибка сохранения");throw error; });
+        setSaveFailure("");serverRevision.current = result.page.revision;confirmed.current = canonicalJson(payload);protectedGeneration.current = Math.max(protectedGeneration.current, generation);
+        await acknowledgeDraft(userId, page.id, writerId, payload).catch(localError);
+        if (recovered.current) {
+          const adopted = recovered.current;
+          if (await discardDraft(adopted, false).catch(() => false)) setDrafts(items => items.filter(item => item.key !== adopted.key));
+          recovered.current = null;
+        }
+        if (canonicalJson(latest.current) !== confirmed.current) await persistLocal().catch(localError);
         onSavedRef.current(result.page);
         window.dispatchEvent(new Event(PAGE_METADATA_EVENT));
-  }, [page.id]);
+  }, [page.id, userId, writerId, persistLocal, localError]);
   const writer = useRef<EditorSaveQueue<SavePayload> | null>(null);
   useLayoutEffect(() => {
     if (writer.current === null) writer.current = new EditorSaveQueue<SavePayload>(latest.current, send, setStatus);
   }, [send]);
 
   function schedule(payload: SavePayload) {
+    if (barrier.current) return;
     const fingerprint = JSON.stringify(payload.content);
     if (payload.title === latest.current.title && fingerprint === lastContentFingerprint.current) return;
     lastContentFingerprint.current = fingerprint;
-    latest.current = payload;
+    latest.current = payload;payloadGenerations.current.set(payload, recoveryGeneration.current);
     writer.current!.update(payload);
+    if (localTimer.current) clearTimeout(localTimer.current);
+    localTimer.current = setTimeout(() => void persistLocal().catch(localError), 300);
     window.dispatchEvent(new CustomEvent("notebook:document-dirty", { detail: page.id }));
     if (timer.current) clearTimeout(timer.current);
     timer.current = setTimeout(() => {
@@ -316,9 +361,28 @@ export function RichTextEditor({
         revealAndScrollBlock(editorRoot.current, blockId);
       },
       insertLiveWidget() { insertLiveWidget(editor); },
+      getDraft: () => ({ title: latest.current.title, content: structuredClone(editor.document), baseRevision: serverRevision.current }),
+      async exclusive(operation) {
+        if (barrier.current) throw new Error("Операция восстановления уже выполняется");
+        barrier.current = true;setWorking(true);editor.isEditable = false;
+        try { await persistLocal().catch(localError);await flush(false);await operation(); }
+        finally { barrier.current = false;setWorking(false);if (!editor._tiptapEditor.isDestroyed) editor.isEditable = !navigationBusy; }
+      },
+      async recoverBlock(request) {
+        if (barrier.current) throw new Error("Дождитесь завершения восстановления");
+        const unsupported = unsupportedEditorBlocks([request.historical]);if (unsupported.length) throw new Error("Тип блока не поддерживается этим редактором. Используйте восстановление всей версии; JSON сохранён.");
+        const normalize = (block: Record<string, unknown>) => nodeToBlock(blockToNode(normalizeEditorBlocks([block])[0]!, editor.pmSchema, editor.schema.styleSchema), editor._tiptapEditor.state.doc) as unknown as Record<string, unknown>;
+        const normalizedRequest = { ...request, ...(request.expected ? { expected: normalize(request.expected) } : {}), ...(request.mode === "fragment" ? { historical: normalize(request.historical) } : {}) };
+        const plan = prepareBlockRecovery(editor.document, normalizedRequest);recoveryGeneration.current++;
+        editor.transact(() => {
+          const normalized = normalizeEditorBlocks([plan.block]);
+          if (plan.targetId) editor.replaceBlocks([plan.targetId], normalized);
+          else editor.insertBlocks(normalized, editor.document[editor.document.length - 1]!, "after");
+        });
+      },
     });
     return () => onController(null);
-  }, [editor, flush, onController, page.id]);
+  }, [editor, flush, onController, page.id, persistLocal, localError, navigationBusy]);
 
   useEffect(() => {
     const scroll = (event: Event) => { if (paneActive) revealAndScrollBlock(editorRoot.current, (event as CustomEvent<string>).detail); };
@@ -337,11 +401,11 @@ export function RichTextEditor({
 
   useEffect(() => {
     const guard = (event: BeforeUnloadEvent) => { if (writer.current?.isDirty()) { event.preventDefault(); event.returnValue = ""; } };
-    const background = () => { if (document.visibilityState === "hidden") void flush(false).catch(() => undefined); };
+    const background = () => { if (document.visibilityState === "hidden") { void persistLocal().catch(localError);void flush(false).catch(() => undefined); } };
     window.addEventListener("beforeunload", guard);
     document.addEventListener("visibilitychange", background);
     return () => { window.removeEventListener("beforeunload", guard); document.removeEventListener("visibilitychange", background); };
-  }, [flush]);
+  }, [flush, persistLocal, localError]);
 
   useEffect(() => {
     const root = editorRoot.current;
@@ -428,6 +492,17 @@ export function RichTextEditor({
           : undefined
       }
     >
+      <RecoveryNotice drafts={drafts} page={page} discard={async draft => { if (!await discardDraft(draft)) throw new Error("Черновик изменился в другой вкладке; откройте его заново");setDrafts(items => items.filter(item => item.key !== draft.key)); }} restore={async draft => {
+        if (writer.current?.isDirty() || barrier.current) throw new Error("Сначала сохраните изменения текущего редактора или сравните их отдельно");
+        if (unsupportedEditorBlocks(draft.content).length) throw new Error("Черновик содержит неизвестные блоки. Он остаётся в локальном хранилище; обновите клиент перед восстановлением.");
+        const used = new Set<string>();const content = draft.content.map(raw => cloneBlockWithIds(raw as Record<string, unknown>, used));
+        recovered.current = draft;recoveryGeneration.current++;latest.current = { ...latest.current, title: draft.title };setTitle(draft.title);
+        editor.transact(() => editor.replaceBlocks(editor.document, normalizeEditorBlocks(content)));
+        schedule({ title: draft.title, content: editor.document });
+      }}/>
+      {localWarning && <p role="status" className="recovery-local-warning">Локальная страховка: {localWarning}. Серверный autosave работает независимо.</p>}
+      {status === "error" && <div className="recovery-local-warning" role="status">{saveFailure || "Сохранение не подтверждено"}. Текущий текст остаётся в редакторе. <button type="button" onClick={() => setCompareFailure(true)}>Сравнить с сервером</button></div>}
+      {status === "error" && compareFailure && <SaveConflictPreview pageId={page.id} draft={() => ({ title: latest.current.title, content: structuredClone(editor.document) })} persist={persistLocal} onClose={() => setCompareFailure(false)}/>}
       <style>{`::highlight(${highlightPrefix}-hashtag){color:var(--page-accent);background-color:color-mix(in srgb,var(--page-accent) 14%,transparent);}`}</style>
       <style>{`::highlight(${highlightPrefix}-variable){color:var(--page-accent);background-color:color-mix(in srgb,var(--page-accent) 14%,transparent);}::highlight(${highlightPrefix}-variable-unknown){color:var(--destructive);text-decoration:underline wavy color-mix(in srgb,var(--destructive) 65%,transparent);}`}</style>
       {page.coverUploadId && (
@@ -453,7 +528,9 @@ export function RichTextEditor({
           aria-label="Название страницы"
           title={title}
           readOnly={navigationBusy}
+          disabled={navigationBusy || working}
           onChange={(event) => {
+            if (barrier.current) return;
             const nextTitle = event.target.value;
             setTitle(nextTitle);
             schedule({
@@ -615,7 +692,7 @@ export function RichTextEditor({
       >
         <PageLinksProvider ids={[...internalPageIdsInContent(editor.document)]} adjacent={Boolean(onAdjacentNavigate)} navigate={(id, adjacent, permanent) => adjacent && onAdjacentNavigate ? onAdjacentNavigate(id) : onInternalNavigate(id, permanent)}><EditorActivityContext.Provider value={paneActive}><LiveWidgetPageContext.Provider value={page.id}><BlockNoteView
           editor={editor}
-          editable={!navigationBusy}
+          editable={!navigationBusy && !working}
           formattingToolbar={false}
           slashMenu={false}
           sideMenu={false}

@@ -6,7 +6,7 @@ export const PAGE_VERSION_MAX_AGE_MS = 30 * 24 * 60 * 60 * 1000;
 export type PageVersionPolicy = { intervalMs: number; maxCount: number; maxAgeMs: number };
 export const DEFAULT_PAGE_VERSION_POLICY: PageVersionPolicy = { intervalMs: PAGE_SNAPSHOT_INTERVAL_MS, maxCount: PAGE_VERSION_MAX_COUNT, maxAgeMs: PAGE_VERSION_MAX_AGE_MS };
 
-export type SnapshotReason = "interval" | "manual" | "before_restore";
+export type SnapshotReason = "interval" | "manual" | "before_restore" | "restored";
 
 function stableValue(value: unknown): unknown {
   if (Array.isArray(value)) return value.map(stableValue);
@@ -27,6 +27,7 @@ export function shouldCreateSnapshot(input: {
   reason: SnapshotReason;
   now: Date;
 }, policy: PageVersionPolicy = DEFAULT_PAGE_VERSION_POLICY) {
+  if (input.reason === "before_restore" || input.reason === "restored") return true;
   if (input.latestHash === input.currentHash) return false;
   if (input.reason !== "interval") return true;
   return !input.latestCreatedAt || input.now.getTime() - input.latestCreatedAt.getTime() >= policy.intervalMs;
