@@ -194,6 +194,7 @@ export function RichTextEditor({
 
   const documentSearch = useDocumentSearch(editor, title, searchMatch, onSearchMatchClose, editorRoot);
 
+  const [blockActionsHost, setBlockActionsHost] = useState<HTMLDivElement | null>(null);
   const [picker, setPicker] = useState(false);
   const openPagePicker = useCallback(() => setPicker(true), []);
   const [initialContentFingerprint] = useState(() => JSON.stringify(editor.document));
@@ -576,7 +577,7 @@ export function RichTextEditor({
           setLinkPreview(null);
         }}
       >
-        <PageLinksProvider ids={[...internalPageIdsInContent(editor.document)]} adjacent={Boolean(onAdjacentNavigate)} navigate={(id, adjacent, permanent) => adjacent && onAdjacentNavigate ? onAdjacentNavigate(id) : onInternalNavigate(id, permanent)}><EditorActivityContext.Provider value={paneActive}><LiveWidgetPageContext.Provider value={page.id}><TableActions editor={editor} disabled={navigationBusy || working}/><BlockNoteView
+        <PageLinksProvider ids={[...internalPageIdsInContent(editor.document)]} adjacent={Boolean(onAdjacentNavigate)} navigate={(id, adjacent, permanent) => adjacent && onAdjacentNavigate ? onAdjacentNavigate(id) : onInternalNavigate(id, permanent)}><EditorActivityContext.Provider value={paneActive}><LiveWidgetPageContext.Provider value={page.id}><div ref={setBlockActionsHost} className="notebook-block-actions-host"/><TableActions editor={editor} disabled={navigationBusy || working}/><BlockNoteView
           editor={editor}
           editable={!navigationBusy && !working}
           formattingToolbar={false}
@@ -592,7 +593,7 @@ export function RichTextEditor({
             });
           }}
         >
-          <SharedEditorMenus editor={editor} pageId={page.id} onPagePicker={openPagePicker}/>
+          <SharedEditorMenus disabled={navigationBusy || working} blockActionsHost={blockActionsHost} editor={editor} pageId={page.id} onPagePicker={openPagePicker}/>
           <EditorSuggestionOverlayBridge/>
         </BlockNoteView></LiveWidgetPageContext.Provider></EditorActivityContext.Provider></PageLinksProvider>
         <PageKnowledge pageId={page.id} revision={page.revision} onNavigate={onInternalNavigate}/>

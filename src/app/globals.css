@@ -13,6 +13,7 @@
 @import "./internal-links.css";
 @import "./history-recovery.css";
 @import "./templates-tables.css";
+@import "./drag-handles.css";
 @source "../../node_modules/@blocknote/shadcn";
 
 @custom-variant dark (&:is(:is(.dark, .atmospheric, .studio-graphite) *));
@@ -1119,8 +1120,7 @@ button,
   [data-density]
     .notebook-sidebar
     [data-nav-row="section"]
-    > [data-drag-handle],
-  [data-density] .notebook-page-list [data-page-title] > button:first-child {
+    > [data-drag-handle] {
     display: none;
   }
   .notebook-sidebar [data-nav-row="notebook"] > [data-nav-toggle],

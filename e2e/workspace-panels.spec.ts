@@ -70,7 +70,7 @@ for (const theme of ["studio-graphite", "studio-atelier"]) {
     await expect.poll(async () => JSON.stringify(await page.request.get(`/api/pages/${second!.id}`).then(r => r.json()))).toContain("Saved while closing");
     await page.locator(".document-tabs-strip").getByRole("button", { name: `Закрыть вкладку: ${first!.title}`, exact: true }).click();
     await expect(page.locator(".bn-editor")).toHaveCount(0);
-    await expect(page.locator(".notebook-editor-pane")).toBeVisible();
+    await expect(page.locator(".notebook-editor-pane:visible")).toBeVisible();
     expect(errors).toEqual([]);
   });
 }

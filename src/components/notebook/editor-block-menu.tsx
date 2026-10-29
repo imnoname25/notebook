@@ -1,9 +1,11 @@
 "use client";
 
-import { createContext, useContext, useEffect, useState } from "react";
+import type { ReactNode, SyntheticEvent } from "react";
+import { createContext, useContext, useEffect, useRef, useState } from "react";
+import { Menu as NativeMenu } from "@base-ui/react/menu";
 import { SideMenuExtension, SuggestionMenu as SuggestionMenuExtension } from "@blocknote/core/extensions";
-import { AddBlockButton, DragHandleMenu, SideMenu, useBlockNoteEditor, useComponentsContext, useExtension, useExtensionState } from "@blocknote/react";
-import { ArrowDown, ArrowUp, Check, Clipboard, Copy, GripVertical, Link2, Palette, Trash2, Wand2 } from "lucide-react";
+import { DragHandleMenu, SideMenu, useBlockNoteEditor, useComponentsContext, useExtension, useExtensionState } from "@blocknote/react";
+import { ArrowDown, ArrowUp, Check, Clipboard, Copy, GripVertical, Plus, Link2, Palette, Trash2, Wand2 } from "lucide-react";
 import { BLOCK_BACKGROUND_TOKENS } from "@/lib/editor-block-appearance";
 import { getPageHref } from "@/lib/workspace-navigation";
 import type { NotebookBlock, NotebookEditor, NotebookFullBlock } from "./editor-schema";
@@ -22,8 +24,8 @@ const BACKGROUND_BLOCKS = new Set(["paragraph", "heading", "bulletListItem", "nu
 export const EditorActivityContext = createContext(true);
 const TRANSFORMABLE = new Set(["paragraph", "heading", "bulletListItem", "numberedListItem", "checkListItem", "quote", "toggleListItem"]);
 
-export function NotebookSideMenu({ pageId }: { pageId?: string }) {
-  return <SideMenu><AddBlockButton/><NotebookDragHandle pageId={pageId}/></SideMenu>;
+export function NotebookSideMenu({ pageId, onDragChange }: { pageId?: string; onDragChange?(dragging: boolean): void }) {
+  return <SideMenu><NotebookDragHandle pageId={pageId} onDragChange={onDragChange}/></SideMenu>;
 }
 
 export function EditorSuggestionOverlayBridge() {
@@ -43,12 +45,14 @@ export function EditorSuggestionOverlayBridge() {
   return null;
 }
 
-function NotebookDragHandle({ pageId }: { pageId?: string }) {
+function NotebookDragHandle({ pageId, onDragChange }: { pageId?: string; onDragChange?(dragging: boolean): void }) {
   const active = useContext(EditorActivityContext);
   const Components = useComponentsContext();
   const sideMenu = useExtension(SideMenuExtension);
   const block = useExtensionState(SideMenuExtension, { selector: (state) => state?.block });
   const [open, setOpen] = useState(false);
+  const dragging = useRef(false);
+  const changeOpen = (next: boolean) => { setOpen(next);if (next) sideMenu.freezeMenu();else sideMenu.unfreezeMenu(); };
   useEffect(() => {
     if (!active) return;
     window.dispatchEvent(new CustomEvent("notebook:editor-overlay", { detail: open }));
@@ -57,16 +61,23 @@ function NotebookDragHandle({ pageId }: { pageId?: string }) {
     return () => window.removeEventListener("notebook:close-editor-overlay", close);
   }, [open, active]);
   if (!Components || !block) return null;
-  return <Components.Generic.Menu.Root position="left" onOpenChange={(next) => { setOpen(next); if (next) sideMenu.freezeMenu(); else sideMenu.unfreezeMenu(); }}>
-    <Components.Generic.Menu.Trigger><Components.SideMenu.Button label="Действия с блоком" className="bn-button notebook-block-handle" draggable onDragStart={(event) => sideMenu.blockDragStart(event, block)} onDragEnd={sideMenu.blockDragEnd} icon={<GripVertical size={19}/>}/></Components.Generic.Menu.Trigger>
+  // Base UI normally opens on mousedown, covering the drag target before HTML5 drag can start.
+  // Cancel only that menu transition (not the DOM event); ordinary click/keyboard still open it.
+  return <NotebookBlockMenuRoot open={open} onOpenChange={changeOpen} deferMouseOpen>
+    <Components.Generic.Menu.Trigger><button type="button" aria-label="Действия с блоком" data-block-id={block.id} className="bn-button notebook-block-handle" draggable
+      onMouseDown={skipMenuMouseHandler}
+      onClick={event => { if (event.detail > 0) { skipMenuMouseHandler(event);if (!dragging.current) changeOpen(!open); } }}
+      onDragStart={event => { dragging.current = true;onDragChange?.(true);sideMenu.blockDragStart(event, block); }}
+      onDragEnd={() => { onDragChange?.(false);sideMenu.blockDragEnd();requestAnimationFrame(() => { dragging.current = false; }); }}><GripVertical size={16}/></button></Components.Generic.Menu.Trigger>
     <NotebookBlockMenu pageId={pageId}/>
-  </Components.Generic.Menu.Root>;
+  </NotebookBlockMenuRoot>;
 }
 
-function NotebookBlockMenu({ pageId }: { pageId?: string }) {
+export function NotebookBlockMenu({ pageId, target }: { pageId?: string; target?: NotebookFullBlock }) {
   const Components = useComponentsContext();
   const editor = useBlockNoteEditor() as NotebookEditor;
-  const block = useExtensionState(SideMenuExtension, { editor, selector: (state) => state?.block });
+  const hovered = useExtensionState(SideMenuExtension, { editor, selector: (state) => state?.block });
+  const block = target ? editor.getBlock(target.id) : hovered;
   if (!Components || !block) return null;
   const typedBlock = block as NotebookFullBlock;
   const copy = async (plainOnly: boolean) => {
@@ -79,7 +90,15 @@ function NotebookBlockMenu({ pageId }: { pageId?: string }) {
     else throw new Error("Clipboard API unavailable");
   };
   const canColor = BACKGROUND_BLOCKS.has(block.type) && "backgroundColor" in block.props;
+  const insert = (position: "before" | "after") => {
+    const [created] = editor.insertBlocks([{ type: "paragraph" }], typedBlock, position);
+    editor.setTextCursorPosition(created);
+
+  };
   return <DragHandleMenu>
+    <Components.Generic.Menu.Item icon={<Plus size={16}/>} onClick={() => insert("before")}>Добавить блок выше</Components.Generic.Menu.Item>
+    <Components.Generic.Menu.Item icon={<Plus size={16}/>} onClick={() => insert("after")}>Добавить блок ниже</Components.Generic.Menu.Item>
+    <Components.Generic.Menu.Divider/>
     <Components.Generic.Menu.Item icon={<ArrowUp size={16}/>} onClick={() => editor.moveBlocksUp(block)}>Переместить вверх</Components.Generic.Menu.Item>
     <Components.Generic.Menu.Item icon={<ArrowDown size={16}/>} onClick={() => editor.moveBlocksDown(block)}>Переместить вниз</Components.Generic.Menu.Item>
     <Components.Generic.Menu.Divider/>
@@ -114,4 +133,25 @@ function freshBlock(block: NotebookFullBlock): NotebookBlock {
   const { id: _id, children, ...rest } = block;
   void _id;
   return { ...structuredClone(rest), children: children.map((child) => freshBlock(child as NotebookFullBlock)) } as NotebookBlock;
+}
+
+/** Base UI's supported handler guard keeps native mousedown/default drag intact. */
+function skipMenuMouseHandler(event: SyntheticEvent) {
+  if ("preventBaseUIHandler" in event && typeof event.preventBaseUIHandler === "function") event.preventBaseUIHandler();
+}
+
+/** Keep menu close autofocus from losing the editor's native selection or stealing an outside click. */
+export function NotebookBlockMenuRoot({ open, onOpenChange, deferMouseOpen = false, children }: { open: boolean; onOpenChange(open: boolean): void; deferMouseOpen?: boolean; children: ReactNode }) {
+  const editor = useBlockNoteEditor() as NotebookEditor;const restore = useRef(false);const node = editor.domElement;
+  const focus = () => {
+    if (!node?.isConnected || !node.getClientRects().length) return;
+    const active = node.ownerDocument.activeElement;
+    if (!active || active === node.ownerDocument.body || active instanceof HTMLElement && editor.isWithinEditor(active)) editor.focus();
+  };
+  return <NativeMenu.Root open={open} modal={false} onOpenChange={(next, details) => {
+    if (next && deferMouseOpen && details.event.type === "mousedown") { details.cancel();return; }
+    restore.current = !next && (details.reason === "escape-key" || details.reason === "item-press");
+    onOpenChange(next);
+    if (restore.current) requestAnimationFrame(focus);
+  }} onOpenChangeComplete={next => { if (!next && restore.current) { restore.current = false;focus(); } }}>{children}</NativeMenu.Root>;
 }

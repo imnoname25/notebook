@@ -1,15 +1,18 @@
 import { expect, test } from "@playwright/test";
 import { z } from "zod";
+import { readFile, writeFile } from "node:fs/promises";
+import path from "node:path";
+import { extractZipSafely } from "../src/lib/archive";
 
 for (const theme of ["studio-graphite", "studio-atelier"]) {
-  test(`${theme}: native toggle keyboard, nested outline, export and unknown block protection`, async ({ page }) => {
+  test(`${theme}: native toggle keyboard, nested outline, export and unknown block protection`, async ({ page }, info) => {
     const credentials = { email: "admin@example.test", password: "correct horse battery staple" };
     const { needsSetup } = z.object({ needsSetup: z.boolean() }).parse(await page.request.get("/api/auth/status").then(r => r.json()));
     expect((await page.request.post(needsSetup ? "/api/auth/setup" : "/api/auth/login", { data: needsSetup ? { ...credentials, name: "Editor test" } : credentials })).ok()).toBe(true);
     const id = z.object({ id: z.string() });
     const { notebook } = z.object({ notebook: id }).parse(await page.request.post("/api/notebooks", { data: { title: "Editor synthetic notebook" } }).then(r => r.json()));
     const { section } = z.object({ section: id }).parse(await page.request.post("/api/sections", { data: { notebookId: notebook.id, title: "Editor synthetic section" } }).then(r => r.json()));
-    const { page: note } = z.object({ page: id }).parse(await page.request.post("/api/pages", { data: { sectionId: section.id, title: "Editor synthetic document" } }).then(r => r.json()));
+    const { page: note } = z.object({ page: id.extend({ revision: z.number() }) }).parse(await page.request.post("/api/pages", { data: { sectionId: section.id, title: "Editor synthetic document" } }).then(r => r.json()));
     const content = [
       { type: "tableOfContents", props: { title: "Оглавление", depth: 3 } },
       { id: "legacy", type: "toggle", props: { open: false }, content: "Legacy group", children: [
@@ -22,7 +25,7 @@ for (const theme of ["studio-graphite", "studio-atelier"]) {
       { type: "codeBlock", props: { language: "bash" }, content: "  echo synthetic\n\tprintf indented" },
       { type: "table", content: { type: "tableContent", columnWidths: [220, 220, 220], rows: [{ cells: ["A", "B", "C"] }, { cells: ["D", "E", "F"] }] } },
     ];
-    expect((await page.request.patch(`/api/pages/${note.id}`, { data: { content } })).ok()).toBe(true);
+    expect((await page.request.patch(`/api/pages/${note.id}`, { data: { expectedRevision: note.revision, content } })).ok()).toBe(true);
     await page.addInitScript(theme => localStorage.setItem("theme", theme), theme);
     await page.goto(`/pages/${note.id}`);
     const hidden = page.locator('[data-id="retained-text"]').first();
@@ -71,8 +74,11 @@ for (const theme of ["studio-graphite", "studio-atelier"]) {
     await expect.poll(async () => JSON.stringify(await page.request.get(`/api/pages/${note.id}`).then(r => r.json()))).toContain("TSV_D");
     const html = await page.request.get(`/api/data/export/page/${note.id}?format=html`);
     expect(html.ok()).toBe(true);
-    expect(await html.text()).toContain("Retained hidden text");
-    expect((await page.request.patch(`/api/pages/${note.id}`, { data: { content: [{ type: "future-block", props: { original: true } }] } })).ok()).toBe(true);
+    const archive = info.outputPath("html-export.zip"), extracted = info.outputPath("html-export");
+    await writeFile(archive, await html.body());await extractZipSafely(archive, extracted);
+    expect(await readFile(path.join(extracted, "index.html"), "utf8")).toContain("Retained hidden text");
+    const latest = z.object({ page: z.object({ revision: z.number() }) }).parse(await page.request.get(`/api/pages/${note.id}`).then(r => r.json())).page;
+    expect((await page.request.patch(`/api/pages/${note.id}`, { data: { expectedRevision: latest.revision, content: [{ type: "future-block", props: { original: true } }] } })).ok()).toBe(true);
     await page.reload();
     await expect(page.getByText("Документ содержит неподдерживаемые блоки", { exact: true })).toBeVisible();
     await expect(page.locator(".bn-editor")).toHaveCount(0);

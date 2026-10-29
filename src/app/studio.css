@@ -278,7 +278,6 @@
   :is(.studio-graphite, .studio-atelier) .notebook-workspace-grid { grid-template-columns: var(--studio-navigation-width) var(--studio-list-width) minmax(0, 1fr); }
   :is(.studio-graphite, .studio-atelier) .notebook-app-shell[data-focus-mode="true"] > .notebook-workspace-grid { grid-template-columns: minmax(0, 1fr); }
   :is(.studio-graphite, .studio-atelier) .notebook-app-shell[data-focus-mode="true"] > .notebook-desktop-header { display: none; }
-  :is(.studio-graphite, .studio-atelier) .notebook-page-row > button:first-child { width: 1.5rem; margin: 0; }
   :is(.studio-graphite, .studio-atelier) .notebook-page-row > button:nth-last-child(-n + 2) { position: absolute; right: 0.25rem; bottom: 0.25rem; width: 1.5rem; height: 1.5rem; }
   :is(.studio-graphite, .studio-atelier) .notebook-page-row > button:nth-last-child(2) { right: 1.875rem; }
   :is(.studio-graphite, .studio-atelier) .notebook-page-list-header > button { width: 1.75rem; height: 1.75rem; }

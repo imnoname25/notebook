@@ -68,7 +68,7 @@ test("first user can write, search, restore and reorder notes", async ({ page })
   await expect(page.getByText("Сохранено")).toBeVisible({ timeout: 10_000 });
 
   const reorderResponse = page.waitForResponse((response) => response.url().endsWith("/api/reorder/pages") && response.request().method() === "POST");
-  const handle = page.getByRole("button", { name: "Перетащить страницу Вторая страница" });
+  const handle = page.locator('[data-page-title="Вторая страница"] [data-page-select]');
   await handle.focus();
   await page.keyboard.press("Space");
   await page.keyboard.press("ArrowUp");

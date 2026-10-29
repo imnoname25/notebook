@@ -11,6 +11,11 @@ for (const theme of ["studio-graphite", "studio-atelier"]) test(`${theme}: real 
   const credentials = { email: "admin@example.test", password: "correct horse battery staple" };
   const { needsSetup } = z.object({ needsSetup: z.boolean() }).parse(await page.request.get("/api/auth/status").then(r => r.json()));
   expect((await page.request.post(needsSetup ? "/api/auth/setup" : "/api/auth/login", { data: needsSetup ? { ...credentials, name: "Template source" } : credentials })).ok()).toBe(true);
+  // A portable archive fixture must not inherit uploads/documents from earlier feature tests.
+  const sourceEmail = `template-source-${theme}-${Date.now()}@example.test`;
+  expect((await page.request.post("/api/admin/users", { data: { name: "Isolated template source", email: sourceEmail, password: credentials.password, role: "ADMIN", mustChangePassword: false } })).ok()).toBe(true);
+  expect((await page.request.post("/api/auth/logout")).ok()).toBe(true);
+  expect((await page.request.post("/api/auth/login", { data: { email: sourceEmail, password: credentials.password } })).ok()).toBe(true);
   const { notebook } = z.object({ notebook: id }).parse(await page.request.post("/api/notebooks", { data: { title: "Portable source" } }).then(r => r.json()));
   const { section } = z.object({ section: id }).parse(await page.request.post("/api/sections", { data: { notebookId: notebook.id, title: "Portable section" } }).then(r => r.json()));
   const { page: target } = z.object({ page: note }).parse(await page.request.post("/api/pages", { data: { sectionId: section.id, title: "Одинаковое название" } }).then(r => r.json()));

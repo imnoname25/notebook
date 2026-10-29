@@ -1529,7 +1529,7 @@ function NotebookWorkspace({ user, initialLocation }: NotebookAppProps) {
         )}
         <div data-mobile-screen="editor" className={cn("min-h-0 min-w-0", mobileView !== "editor" && "hidden md:block")} style={screen === "workspace" ? undefined : { display: "none" }}>
           {activeNotebook && !activeSection && !activePage && mobileView !== "editor" && !workspace.split && <div className="flex h-full min-h-0 flex-col"><DocumentTabs controller={tabs}/><div className="min-h-0 flex-1"><NotebookOverview notebook={activeNotebook} revision={workspaceRevision} onSection={openSection} onPage={(id) => void openPageById(id).catch(report)} onAddSection={() => void addSection(activeNotebook.id)} onError={report} onBack={openNavigation}/></div></div>}
-          <WorkspaceEditors workspace={workspace} notebooks={notebooks} blocked={authLeaving} onActiveOutline={setOutline} enabled={studioTheme} suspended={screen !== "workspace" || Boolean(activeNotebook && !activeSection && !activePage && mobileView !== "editor" && !workspace.split)} renderBase={overrides => <EditorPane
+          <WorkspaceEditors workspace={workspace} notebooks={notebooks} blocked={authLeaving} onActiveOutline={setOutline} enabled={studioTheme} suspended={templateManagerOpen || screen !== "workspace" || Boolean(activeNotebook && !activeSection && !activePage && mobileView !== "editor" && !workspace.split)} renderBase={overrides => <EditorPane
                 userId={user.id}
                 searchMatch={searchMatch?.pageId === overrides.page?.id ? searchMatch : null}
                 onSearchMatchClose={() => setSearchMatch(null)}

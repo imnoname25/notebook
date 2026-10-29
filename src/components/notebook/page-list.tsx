@@ -4,7 +4,6 @@ import {
   ArrowLeft,
   Ellipsis,
   FileText,
-  GripVertical,
   LayoutTemplate,
   List,
   Rows3,
@@ -129,6 +128,7 @@ export function PageList(props: Props) {
         )}
         {!props.loading && (
           <SortableList
+            rowDrag
             ids={ordered.map((page) => page.id)}
             onReorder={props.onReorder}
           >
@@ -146,6 +146,7 @@ export function PageList(props: Props) {
                     ref={setNodeRef}
                     style={style}
                     data-page-title={page.title}
+                    data-drop-target={isOver && !isDragging}
                     data-page-icon={page.icon ?? ""}
                     data-page-color={resolveAppearanceAccent(
                       page.color,
@@ -167,14 +168,9 @@ export function PageList(props: Props) {
                     )}
                   >
                     <button
-                      className="my-auto ml-0.5 w-5 shrink-0 touch-none rounded py-1 text-muted-foreground/60 opacity-0 group-hover:opacity-100 focus-visible:opacity-100"
-                      aria-label={`Перетащить страницу ${page.title}`}
                       {...attributes}
                       {...listeners}
-                    >
-                      <GripVertical size={13} />
-                    </button>
-                    <button
+                      data-page-select
                       title={page.title}
                       className={cn(
                         "flex min-w-0 flex-1 items-center gap-2 px-1.5 text-left",
@@ -184,6 +180,7 @@ export function PageList(props: Props) {
                             ? "py-2.5"
                             : "py-1.5",
                       )}
+                      onKeyDown={event => { if (event.key !== "Enter" || isDragging) listeners?.onKeyDown?.(event); }}
                       onClick={(event) => { if (event.detail > 1) return;props.onSelect(page, event.ctrlKey || event.metaKey ? "permanent" : "preview"); }}
                       onDoubleClick={() => props.onSelect(page, "permanent")}
                     >
