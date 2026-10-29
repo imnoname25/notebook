@@ -44,10 +44,6 @@ export function useEditorControls(editor: NotebookEditor, editorRoot: RefObject<
   }, [editor, editorRoot]);
 }
 export function handleEditorControlKeyDown(event: KeyboardEvent<HTMLDivElement>) {
-  if (event.altKey && event.shiftKey && event.key.toLowerCase() === "t") {
-    const summary = event.currentTarget.querySelector<HTMLElement>(".notebook-table-actions summary");
-    if (summary) { event.preventDefault();event.stopPropagation();summary.focus();return; }
-  }
           const target = event.target instanceof HTMLElement ? event.target : null;
           if (event.key === "Tab" && target?.matches("select, button") && target.closest('[data-content-type="codeBlock"]')) {
             // Native code Tab indentation must not trap focus in its form controls.

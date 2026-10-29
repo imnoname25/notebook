@@ -18,7 +18,6 @@
   .notebook-touch-block-controls { display: block; }
   /* Native mouse side menu is redundant on touch; the in-flow control never covers text/table handles. */
   .notebook-block-handle { display: none !important; }
-  .notebook-editor:has(.notebook-touch-block-controls) .notebook-table-actions { top: 2.75rem; }
   .notebook-touch-block-controls { touch-action: manipulation; }
 }
 @media print { .notebook-block-actions-host { display: none; } }

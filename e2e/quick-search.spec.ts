@@ -3,34 +3,38 @@ import { z } from "zod";
 
 for (const theme of ["studio-graphite", "studio-atelier"]) {
   test(`${theme}: quick search uses real content results without leaving the editor`, async ({ page }) => {
+    const suffix = theme === "studio-graphite" ? "Графит" : "Ателье";
+    const title = `ЗаголовокИскра7310${suffix}`, needle = `ТелоКварц8291${suffix}`;
     const credentials = { email: "admin@example.test", password: "correct horse battery staple" };
     const { needsSetup } = z.object({ needsSetup: z.boolean() }).parse(await page.request.get("/api/auth/status").then(r => r.json()));
     expect((await page.request.post(needsSetup ? "/api/auth/setup" : "/api/auth/login", { data: needsSetup ? { ...credentials, name: "Search test" } : credentials })).ok()).toBe(true);
     const id = z.object({ id: z.string() });
     const { notebook } = z.object({ notebook: id }).parse(await page.request.post("/api/notebooks", { data: { title: "Поиск32" } }).then(r => r.json()));
     const { section } = z.object({ section: id }).parse(await page.request.post("/api/sections", { data: { notebookId: notebook.id, title: "Контроль" } }).then(r => r.json()));
-    const { page: note } = z.object({ page: id.extend({ revision: z.number() }) }).parse(await page.request.post("/api/pages", { data: { sectionId: section.id, title: "ЗаголовокИскра7310" } }).then(r => r.json()));
-    expect((await page.request.patch(`/api/pages/${note.id}`, { data: { expectedRevision: note.revision, content: [{ type: "paragraph", content: [{ type: "text", text: "ТелоКварц8291 резервирование", styles: {} }] }] } })).ok()).toBe(true);
+    const { page: note } = z.object({ page: id.extend({ revision: z.number() }) }).parse(await page.request.post("/api/pages", { data: { sectionId: section.id, title } }).then(r => r.json()));
+    expect((await page.request.patch(`/api/pages/${note.id}`, { data: { expectedRevision: note.revision, content: [{ type: "paragraph", content: [{ type: "text", text: `${needle} резервирование`, styles: {} }] }] } })).ok()).toBe(true);
     await page.addInitScript(t => localStorage.setItem("theme", t), theme);
     await page.setViewportSize({ width: 1440, height: 900 });
     await page.goto(`/pages/${note.id}`);
-    await expect(page.locator(".bn-editor")).toContainText("ТелоКварц8291");
+    await expect(page.locator(".bn-editor")).toContainText(needle);
     const originalUrl = page.url();
     // Advanced favorites must never leak into global quick search.
     await page.locator(".notebook-sidebar").getByRole("button", { name: "Избранное", exact: true }).click();
     await page.getByTestId("desktop-app-header").getByRole("button", { name: "Notebook", exact: true }).click();
+    await expect(page).toHaveURL(/\/app$/);
+    const searchContextUrl = page.url();
     await page.locator(".bn-editor").evaluate(e => e.setAttribute("data-search-test", "retained"));
     await page.keyboard.press("Control+k");
     const field = page.getByRole("combobox", { name: "Быстрый поиск", exact: true });
     const panel = page.getByRole("region", { name: "Быстрый поиск документов" });
     await expect(field).toBeFocused();
-    for (const q of ["ЗаголовокИскра7310", "ТелоКварц8291", "телокварц", "резерв"]) {
+    for (const q of [title, needle, "телокварц", "резерв"]) {
       const response = page.waitForResponse(r => new URL(r.url()).pathname === "/api/search" && new URL(r.url()).searchParams.get("q") === q);
       await field.fill(q);
       expect((await response).ok()).toBe(true);
-      await expect(panel.getByRole("option").filter({ hasText: "ЗаголовокИскра7310" })).toBeVisible();
+      await expect(panel.getByRole("option").filter({ hasText: title })).toBeVisible();
     }
-    expect(page.url()).toBe(originalUrl);
+    expect(page.url()).toBe(searchContextUrl);
     await expect(page.locator(".bn-editor")).toHaveAttribute("data-search-test", "retained");
     await expect(page.getByRole("dialog")).toHaveCount(0);
     await page.keyboard.press("Escape");
@@ -42,11 +46,12 @@ for (const theme of ["studio-graphite", "studio-atelier"]) {
     await expect(panel).toContainText("Synthetic search failure");
     await expect(panel).not.toContainText("Ничего не найдено");
     await page.unroute("**/api/search?**", fail);
-    await field.fill("ТелоКварц8291");
-    await expect(panel.getByRole("option").first()).toContainText("ЗаголовокИскра7310");
+    await field.fill(needle);
+    await expect(panel.getByRole("option").first()).toContainText(title);
     await field.press("ArrowDown"); await field.press("Enter");
     await expect(panel).toHaveCount(0);
-    await expect(page.getByLabel("Название страницы", { exact: true })).toHaveValue("ЗаголовокИскра7310");
+    await expect(page.getByLabel("Название страницы", { exact: true })).toHaveValue(title);
+    await expect(page).toHaveURL(originalUrl);
     for (const width of [360, 393, 840, 1280, 1920]) {
       await page.setViewportSize({ width, height: 900 });
       await page.keyboard.press("Control+k");

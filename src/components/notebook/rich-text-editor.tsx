@@ -25,7 +25,7 @@ import { PageKnowledge } from "./page-knowledge";
 import type { EditorSaveController, PageDocument } from "./types";
 import { extractPageOutline, type PageOutlineItem } from "@/lib/page-outline";
 import { extractBlockNoteText } from "@/lib/blocknote-text";
-import { extractHashtags, HASHTAG_PATTERN } from "@/lib/hashtags";
+import { HASHTAG_PATTERN } from "@/lib/hashtags";
 import { parseSmartPasteUrl } from "@/lib/smart-paste";
 import {
   ACCENT_COLORS,
@@ -59,7 +59,6 @@ import { PageLinksProvider, PAGE_METADATA_EVENT } from "./page-link-inline";
 import { PageLinkPicker } from "./page-link-picker";
 import { internalPageIdsInContent } from "@/lib/portable-content";
 import { useEditorControls, handleCodeControlClick, handleEditorControlKeyDown } from "./editor-controls";
-import { TableActions } from "./table-actions";
 import { sharedEditorBaseOptions, sharedEditorOptions, SharedEditorMenus } from "./editor-shared";
 import { EditorPreferencesContext } from "./editor-preferences";
 
@@ -111,7 +110,6 @@ export function RichTextEditor({
   const outlineTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const hashtagTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const linkPreviewTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const [tags, setTags] = useState(() => extractHashtags(`${page.title} ${extractBlockNoteText(page.content)}`));
   const [smartPaste, setSmartPaste] = useState<{ url: string; blockId: string } | null>(null);
   const [linkPreview, setLinkPreview] = useState<{ title: string; icon: string | null; excerpt: string; sectionTitle: string; notebookTitle: string; x: number; y: number } | null>(null);
   const [variablesOpen, setVariablesOpen] = useState(false);
@@ -242,8 +240,6 @@ export function RichTextEditor({
   const scheduleHashtags = useCallback(() => {
     if (hashtagTimer.current) clearTimeout(hashtagTimer.current);
     hashtagTimer.current = setTimeout(() => {
-      const text = `${latest.current.title} ${extractBlockNoteText(editor.document)}`;
-      setTags(extractHashtags(text));
       const root = editorRoot.current;
       const registry = (CSS as typeof CSS & { highlights?: { set(name: string, value: unknown): void; delete(name: string): void } }).highlights;
       const HighlightConstructor = (window as typeof window & { Highlight?: new (...ranges: Range[]) => unknown }).Highlight;
@@ -276,7 +272,7 @@ export function RichTextEditor({
       registry.set(`${highlightPrefix}-variable`, new HighlightConstructor(...variableRanges));
       registry.set(`${highlightPrefix}-variable-unknown`, new HighlightConstructor(...unknownVariableRanges));
     }, 180);
-  }, [editor, variables, highlightPrefix]);
+  }, [variables, highlightPrefix]);
 
   useEffect(() => {
     onOutlineChange(extractPageOutline(editor.document));
@@ -494,11 +490,6 @@ export function RichTextEditor({
         <button type="button" className="notebook-editor-header-action notebook-no-print" aria-label="Переменные страницы" title="Переменные страницы" onClick={() => setVariablesOpen(true)}><Variable size={16}/><span>Переменные</span></button>
       </div>
       {documentSearch.toolbar}
-      {tags.length > 0 && (
-        <div className="notebook-editor-tags flex w-full flex-wrap gap-1.5 pt-2" aria-label={t("tags.title")}>
-          {tags.map((tag) => <button key={tag.normalized} type="button" className="notebook-tag-chip" onClick={() => window.dispatchEvent(new CustomEvent("notebook:search-tag", { detail: tag.normalized }))}>#{tag.name}</button>)}
-        </div>
-      )}
       <div
         ref={editorRoot}
         data-testid="notebook-editor-canvas"
@@ -557,12 +548,13 @@ export function RichTextEditor({
           setLinkPreview(null);
         }}
       >
-        <PageLinksProvider ids={[...internalPageIdsInContent(editor.document)]} adjacent={Boolean(onAdjacentNavigate)} navigate={(id, adjacent, permanent) => adjacent && onAdjacentNavigate ? onAdjacentNavigate(id) : onInternalNavigate(id, permanent)}><EditorActivityContext.Provider value={paneActive}><LiveWidgetPageContext.Provider value={page.id}><div ref={setBlockActionsHost} className="notebook-block-actions-host"/><TableActions editor={editor} disabled={navigationBusy || working}/><BlockNoteView
+        <PageLinksProvider ids={[...internalPageIdsInContent(editor.document)]} adjacent={Boolean(onAdjacentNavigate)} navigate={(id, adjacent, permanent) => adjacent && onAdjacentNavigate ? onAdjacentNavigate(id) : onInternalNavigate(id, permanent)}><EditorActivityContext.Provider value={paneActive}><LiveWidgetPageContext.Provider value={page.id}><div ref={setBlockActionsHost} className="notebook-block-actions-host"/><BlockNoteView
           editor={editor}
           editable={!navigationBusy && !working}
           formattingToolbar={false}
           slashMenu={false}
           sideMenu={false}
+          tableHandles={false}
           theme={isDarkTheme(resolvedTheme) ? "dark" : "light"}
           onChange={() => {
             scheduleOutline();

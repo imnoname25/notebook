@@ -1,3 +1,4 @@
+import { tableAction } from "./table-controls";
 import { expect, test, type Page } from "@playwright/test";
 import { z } from "zod";
 const entity = z.object({ id: z.string() });
@@ -84,7 +85,7 @@ for (const theme of ["studio-graphite", "studio-atelier"]) {
       try {
         await touch.goto(`/pages/${a.id}`);await touch.locator('[data-id="drag-one"] .bn-inline-content').tap();const actions = touch.getByRole("button", { name: "Действия выбранного блока", exact: true });await expect(actions).toBeVisible();await expect(touch.locator(".notebook-block-handle")).not.toBeVisible();await actions.tap();await touch.getByRole("menuitem", { name: "Добавить блок ниже", exact: true }).tap();await expect(touch.getByText("Сохранено", { exact: true })).toBeVisible();
         const touchInline = touch.locator('[data-id="drag-one"] .bn-inline-content');await touchInline.tap();await touchInline.dispatchEvent("compositionstart", { data: "" });await touchInline.dispatchEvent("keydown", { key: "B", code: "KeyB", altKey: true, shiftKey: true, isComposing: true, keyCode: 229 });await expect(touch.getByRole("menuitem", { name: "Добавить блок ниже", exact: true })).toHaveCount(0);await touchInline.dispatchEvent("compositionend", { data: "" });
-        await touch.locator('[data-id="drag-table"] td').first().tap();const tableActions = touch.getByLabel("Действия таблицы", { exact: true });await expect(tableActions).toBeVisible();const ab = (await actions.boundingBox())!, tb = (await tableActions.boundingBox())!;expect(ab.y + ab.height).toBeLessThanOrEqual(tb.y + 1);await tableActions.tap();await touch.getByRole("button", { name: "Добавить строку", exact: true }).tap();await expect(touch.locator('[data-id="drag-table"] tr')).toHaveCount(width === 360 ? 3 : 4);expect(await touch.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(width);await touch.screenshot({ path: info.outputPath(`${theme}-touch-block-${width}.png`), animations: "disabled" });await expect(touch.getByText("Сохранено", { exact: true })).toBeVisible();
+        await touch.locator('[data-id="drag-table"] td').first().tap();await expect(touch.locator(".notebook-table-actions")).toHaveCount(0);await tableAction(touch, "Добавить строку", true);await expect(touch.locator('[data-id="drag-table"] tr')).toHaveCount(width === 360 ? 3 : 4);expect(await touch.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(width);await touch.screenshot({ path: info.outputPath(`${theme}-touch-block-${width}.png`), animations: "disabled" });await expect(touch.getByText("Сохранено", { exact: true })).toBeVisible();
       } finally { await context.close(); }
     }
     expect(errors).toEqual([]);

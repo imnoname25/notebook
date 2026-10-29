@@ -1,6 +1,6 @@
 "use client";
 
-import type { ReactNode, SyntheticEvent } from "react";
+import type { ReactNode, RefObject, SyntheticEvent } from "react";
 import { createContext, useContext, useEffect, useRef, useState } from "react";
 import { Menu as NativeMenu } from "@base-ui/react/menu";
 import { SideMenuExtension, SuggestionMenu as SuggestionMenuExtension } from "@blocknote/core/extensions";
@@ -9,6 +9,7 @@ import { ArrowDown, ArrowUp, Check, Clipboard, Copy, GripVertical, Plus, Link2, 
 import { BLOCK_BACKGROUND_TOKENS } from "@/lib/editor-block-appearance";
 import { getPageHref } from "@/lib/workspace-navigation";
 import type { NotebookBlock, NotebookEditor, NotebookFullBlock } from "./editor-schema";
+import { TableBlockSubmenu } from "./table-actions";
 
 const BACKGROUND_LABELS = {
   default: "По умолчанию",
@@ -96,6 +97,7 @@ export function NotebookBlockMenu({ pageId, target }: { pageId?: string; target?
 
   };
   return <DragHandleMenu>
+    {block.type === "table" && <><TableBlockSubmenu editor={editor} block={typedBlock}/><Components.Generic.Menu.Divider/></>}
     <Components.Generic.Menu.Item icon={<Plus size={16}/>} onClick={() => insert("before")}>Добавить блок выше</Components.Generic.Menu.Item>
     <Components.Generic.Menu.Item icon={<Plus size={16}/>} onClick={() => insert("after")}>Добавить блок ниже</Components.Generic.Menu.Item>
     <Components.Generic.Menu.Divider/>
@@ -141,12 +143,12 @@ function skipMenuMouseHandler(event: SyntheticEvent) {
 }
 
 /** Keep menu close autofocus from losing the editor's native selection or stealing an outside click. */
-export function NotebookBlockMenuRoot({ open, onOpenChange, deferMouseOpen = false, children }: { open: boolean; onOpenChange(open: boolean): void; deferMouseOpen?: boolean; children: ReactNode }) {
+export function NotebookBlockMenuRoot({ open, onOpenChange, deferMouseOpen = false, triggerRef, children }: { open: boolean; onOpenChange(open: boolean): void; deferMouseOpen?: boolean; triggerRef?: RefObject<HTMLElement | null>; children: ReactNode }) {
   const editor = useBlockNoteEditor() as NotebookEditor;const restore = useRef(false);const node = editor.domElement;
   const focus = () => {
     if (!node?.isConnected || !node.getClientRects().length) return;
     const active = node.ownerDocument.activeElement;
-    if (!active || active === node.ownerDocument.body || active instanceof HTMLElement && editor.isWithinEditor(active)) editor.focus();
+    if (!active || active === node.ownerDocument.body || active === triggerRef?.current || active instanceof HTMLElement && editor.isWithinEditor(active)) editor.focus();
   };
   return <NativeMenu.Root open={open} modal={false} onOpenChange={(next, details) => {
     if (next && deferMouseOpen && details.event.type === "mousedown") { details.cancel();return; }

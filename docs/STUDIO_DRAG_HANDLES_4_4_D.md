@@ -1,175 +1,184 @@
-# Studio 4.4-D — Minimal Drag & Drop UX
+# Studio 4.4-D — Unified Block Controls & Table UI Cleanup
 
-Проверка: 29.10.2026. База: `18ac143` (4.4-C), main/origin/main синхронизированы перед изменениями.
-Согласованное основное ТЗ и дополнение охватывают PageList, общий page/template
-редактор, touch, Split View и сохранение native tables/structural columns.
+Дата: 29.10.2026. База: актуальный `origin/main`, `9b164fd`.
+Сохранены performance hotfix `9dbaa1c` и добровольный diagnostic probe `9b164fd`.
+Предыдущий этап Minimal Drag & Drop реализован в `fbefc42`; его Page DnD и native
+block drag используются повторно, без параллельной реализации.
 
-## Строки страниц
+## Подтверждённые причины визуального дублирования
 
-Отдельный GripVertical и его button удалены из JSX, а не скрыты. Название и свободная
-область основного button строки получают существующие useSortable attributes/listeners.
-Избранное и меню — отдельные sibling buttons без drag listeners. Сохранены single
-click preview, double click permanent и Ctrl/Cmd+Click.
+Аудит `AGENTS.md`, отчётов 4.4-C/C.1, BlockNote 0.54.0 и фактического DOM:
 
-Используется тот же `SortableList rowDrag`, что дерево блокнотов: MouseSensor с порогом
-6px, TouchSensor с delay 300ms/tolerance 6px, KeyboardSensor с соседними строками.
-Enter открывает страницу (не активирует drag), Space начинает/заканчивает перенос, стрелки выбирают соседнее место, Escape отменяет.
-DnD Kit подавляет завершающий click активного drag. Индикатор цели — собственный
-`data-drop-target`, без новой сортировки/API. Доступный scope по-прежнему текущий раздел.
+| Элемент | Компонент / причина | Решение |
+| --- | --- | --- |
+| «Таблица · действия · Alt⇧T» | Notebook `TableActions`, sticky details над BlockNote | Удалён из JSX страниц и шаблонов; команды перенесены в popup меню |
+| Стрелка в ячейке | Native `TableCellButton`, `.bn-table-cell-handle`, `MdArrowDropDown` | UI отключён через `tableHandles={false}`, не CSS hiding |
+| Пустое меню стрелки | `splitCells=true` показывает кнопку, но `SplitButton` возвращает null для обычной ячейки; `cellBackgroundColor`/`cellTextColor` по умолчанию false | В едином меню Split явно disabled, когда операция неприменима; пустого меню нет |
+| Полоса справа/снизу | Native `ExtendButton`, показ у края; core CSS резервирует 22px справа/снизу `.tableWrapper`, 9px сверху/слева | Extend UI не монтируется; резерв заменён 2px для сохранения resize-границы |
+| Лишняя ширина inner wrapper | `.tableWrapper-inner min-width:100%` растягивал поверхность шире фактической таблицы | Intrinsic `max-content`, без min-width:100%; внешний wrapper ограничен рабочей областью и прокручивается |
+| Resize-маркер | `.column-resize-handle` из отдельного ProseMirror `columnResizing` в `TableExtension` | Плагин и node view сохранены; маркер использует Studio `--ring` |
+| Теги под заголовком | `RichTextEditor` `.notebook-editor-tags` | JSX и локальный derived state удалены; содержимое/индекс не менялись |
 
-Удалены два старых CSS-правила для первого button: mobile `display:none` и desktop
-width 1.5rem. После удаления старой ручки они иначе применялись бы к названию страницы.
-Названия на 360px проверяются как видимые элементы, не только отсутствием overflow.
+В браузере обеих тем получено **0 menuitem** после открытия старой стрелки обычной
+ячейки. Baseline DOM: tableWrapper 736px, inner 705px, table 641px, стрелка 22×12px.
+[Исходные снимки и геометрия](unified-block-controls-4-4-d/before/).
+Native ExtendButton не является изменением ширины существующего столбца: он добавляет/
+удаляет строки или столбцы, а также меняет их количество при движении мыши. Именно
+поэтому его удаление не отключает настоящий column resize.
 
-## Одна ручка BlockNote
+Снимок пользователя в новом запросе не приложен; проверены реально воспроизведённые
+элементы установленной версии, а не предположено назначение любого произвольного значка.
 
-Общий `NotebookSideMenu` в `SharedEditorMenus` содержит только NotebookDragHandle.
-AddBlockButton удалён из импорта и DOM. Ручка с шестью точками имеет нейтральные
-семантические цвета, 24×28px на fine pointer, без постоянной рамки; подсветку при hover
-и focus-visible. Hover visibility/позиционирование остаются у native SideMenuController.
-Текст не стал draggable, ширина документа и постоянное поле редактора не меняются.
+## Единая точка управления
 
-Нажатие открывает существующий DragHandleMenu. Добавлены только отсутствовавшие
-«Добавить блок выше/ниже»: `insertBlocks`, затем `setTextCursorPosition`, фокус после
-закрытия меню. Новые ID, Undo/Redo и история — штатные. Прежние move up/down,
-duplicate, copy/rich copy, delete, transform и color остались. Enter и `/` сохранены.
-Page-specific ссылка на блок по-прежнему отсутствует в шаблонах.
+Desktop: одна штатная SideMenu ручка `⠿`, 24×28px, появляется при hover. Сохраняются
+нативные `blockDragStart/blockDragEnd`, drag preview/drop cursor, вложенность, columns,
+выделение текста, Undo/Redo, autosave и история. AddBlockButton и page drag handle
+по-прежнему отсутствуют в DOM. Ширина документа и постоянная левая колонка не добавлены.
 
-### Различение click и drag
+Обычное нажатие открывает прежнее меню: выше/ниже, move up/down, duplicate, rich/plain
+copy, delete, применимые transform/color. Для таблицы добавлен пункт **«Таблица»**.
 
-В установленном shadcn UI BlockNote используется Base UI **1.7.0**, MIT. Он уже был
-зависимостью; новых пакетов/обновлений нет. Его Menu.Trigger по умолчанию обрабатывает
-mousedown и мешает последующему native drag. Небольшой controlled Menu.Root adapter
-и публичный `preventBaseUIHandler` отменяют только обработчик меню, не DOM mousedown.
-Меню открывается по click или штатной клавиатурной активации. Drag вызывает прежние
-`SideMenuExtension.blockDragStart/blockDragEnd`; synthetic click после drag игнорируется.
+Общая `TableActionItems` использует текущий editor и native selection:
 
-Native block selection при drag мог показывать floating formatting toolbar над
-местом drop. Общая конфигурация временно не рендерит этот toolbar только на время
-block drag. Preview, cursor, drop и изменения документа остаются у BlockNote.
-Нет собственной модели блоков, drag engine или history stack.
-Общий Menu.Root возвращает editor focus после Escape/item press и завершения native
-close autofocus; outside click не перехватывается. При смене активной панели touch
-controller размонтируется, поэтому открытое меню не переносится в другую панель.
+- Row/column add before/after и delete — ProseMirror table commands через `editor.exec`.
+- Строка/столбец заголовков — BlockNote `updateBlock`, с восстановлением selection bookmark.
+- Выделение строки/столбца — native `CellSelection`.
+- Merge/split — native commands; неприменимые действия disabled.
+- Перестановка строк/столбцов доступна командами меню вместо дополнительных table grips.
+  Используются native `moveTableRow/moveTableColumn`; header bands остаются на своём месте.
 
-## Touch и клавиатура
+При открытии меню таблицы, отличной от текущей, курсор устанавливается в её первую
+ячейку через `setTextCursorPosition`. Если выделение уже в нужной таблице, оно сохраняется,
+включая диапазон ячеек. Нет собственной модели таблиц, DOM-патчей содержимого или формата
+выделения. Вложенное меню ограничено высотой viewport и прокручивается внутри popup.
 
-На coarse pointer mouse SideMenu скрыт. После выбора блока доступна компактная
-строка «Блок · действия» высотой минимум 44px, в потоке над редактором. Она открывает
-тот же NotebookBlockMenu для текущего native block, а не копию списка команд.
-Контейнер собственный; UI переносится React Portal из общего editor context.
-На coarse pointer эта строка резервируется до focus, а действие неактивно до выбора блока: это исключает сдвиг цели touch/compatibility click. На fine pointer постоянного места нет. Он не перекрывает текст. Native TableActions остаётся отдельным context control
-ниже этой строки, с согласованным sticky offset. Только активная панель имеет control.
+У BlockNote Generic.Menu.Item нет типизированного disabled. Используются публичные
+ShadCN component context и его стандартные DropdownMenuItem/CheckboxItem, на том же
+Base UI Root. Не передаются неизвестные props через Generic wrappers с `assertEmpty`.
+Меню остаётся native ARIA menu с keyboard focus и disabled semantics.
 
-**Alt+Shift+B** открывает действия текущего блока с клавиатуры. Обработчик ограничен
-фокусом этого редактора, editable/active state, игнорирует composing и IME key events.
-**Alt+Shift+T** из 4.4-C остаётся доступом к table actions. Touch text/long-press handlers
-не перехватываются: только passive pointerup/focus/selection observation.
-Touch block DnD не обещается: безопасная альтернатива — «Переместить вверх/вниз».
+## Keyboard и touch
 
-## Шаблоны и несколько редакторов
+- **Alt+Shift+B**: меню текущего блока.
+- **Alt+Shift+T** из таблицы: непосредственно табличные команды того же меню, без панели
+  в потоке документа. Enter/Space/стрелки/Escape обрабатываются Base UI.
+- На touch используется прежнее минимальное «Блок · действия» для выбранного блока,
+  затем «Таблица». Отдельной постоянной table toolbar больше нет.
+- Coarse targets в меню не меньше 44px. Существующий резерв единственной общей 44px
+  строки сохраняет геометрию первого tap: устранённая в 4.4-D проблема сдвига цели
+  touch/compatibility click не возвращается.
+- Нет новых long-press/selection/IME gesture handlers. Native table selection и текстовое
+  выделение остаются у BlockNote/браузера. Для сенсорного перемещения блока остаются
+  действия «Переместить вверх/вниз».
 
-В Pages и Templates подключён один SharedEditorMenus и один набор операций.
-Page autosave/revision/IndexedDB и explicit template save/CAS не смешиваются.
-Изменение блоков шаблона включает обычный canonical dirty state и 3-way close guard.
+Закрытие popup возвращает фокус только в собственный editor, включая собственный trigger
+в sibling host. Табличный popup не заменяется другим popup посреди close animation;
+это важно для надёжного Undo после клавиатурного действия. Outside click не крадёт фокус.
 
-BlockNote 0.54 SideMenu выбирает ближайший editor по bounding boxes всех `.bn-editor`,
-без учёта наложения модального окна. При шаблоне над Split View это давало геометрическую
-ничью с фоновой Page. На время менеджера шаблонов используется уже существующий
-`WorkspaceEditors.suspended`: фоновый UI скрыт, но instances, save queues и recovery
-остаются смонтированными. После закрытия возвращаются те же панели/документы.
-Нет vendor patch, переписывания SideMenu или изменения DOM содержимого документов.
+## Страницы, шаблоны и Split View
 
-Native tables, spans/columnWidths, structural columns, container queries и wrapper
-scroll из 4.4-C не переписывались. Меню каждого блока привязано к editor и blockId;
-операции в левой/правой панели проверяются по отдельным сохранённым документам.
+Страницы и шаблоны используют общие `SharedEditorMenus` и `TableActionItems`.
+Каждый контроллер привязан к editor/target block, а не глобальной активной таблице.
+Соседний Split-документ не пересоздаётся и не сохраняется из-за действий другого меню.
+Dirty-close, explicit save/CAS шаблонов и запрет private uploads не менялись.
+Page autosave/revision, IndexedDB recovery, history и backlinks не переписывались.
+
+PageList уже имеет row DnD через прежние MouseSensor 6px, TouchSensor 300ms и KeyboardSensor.
+Кнопки избранного/меню — отдельные элементы без drag listeners. Click/Enter открывает,
+Space и стрелки перемещают, Escape отменяет. Сохраняются preview/permanent и Ctrl/Cmd+Click.
+
+## Теги
+
+Удалён только список chips из шапки. Hashtags в title/content не изменяются или вырезаются.
+Подсветка текста hashtags/variables остаётся; server-side индекс, footer «Теги», Tag View,
+поиск, добавление/удаление через текст, backup/restore не менялись. Если пользователь
+сам написал hashtag в названии документа, этот текст названия остаётся на месте.
 
 ## Проверки
 
-Результаты финального прогона:
-
-| Проверка | Результат |
+| Проверка | Фактический результат |
 | --- | --- |
-| `npm run version:check` | Успешно, только проверка контракта, без сборки APK |
-| `npm run lint` | Успешно |
-| `npm run typecheck` | Успешно |
-| `npm run build` | Успешно, webpack production build; полный `npm run check` exit 0 |
-| `npm test` | 433 passed, 69 skipped: отдельные opt-in integration suites |
-| `npm run test:integration` | 17 файлов, 68/68 passed на отдельной PostgreSQL 18 |
-| HTTP E2E, Chrome + Next dev + PostgreSQL | 27/27 passed, 10.1 минуты, без retries |
+| `npm run version:check` | passed |
+| `npm run lint` | passed, без warnings после удаления ненужной callback dependency; изменённые search fixtures дополнительно linted |
+| `npm run typecheck` | passed |
+| `npm test` | 435 passed, 69 skipped; PostgreSQL проверен отдельным запуском |
+| Native PostgreSQL integration | 68/68 passed, 17 файлов; 17 существующих migrations применены на новых test DB |
+| HTTP Chrome, 15 выбранных suites / 37 scenarios | 34 passed / 3 failed в первом полном прогоне; после исправления fixtures/ожиданий оба поисковых suites повторно 4/4 passed; непрошедших сценариев не осталось |
+| Production build | passed (`next build --webpack`, Next 16.3.1) |
+| Физический Android/Fold | недоступен, не заявляется проверенным |
 
-HTTP-прогон охватывает
-`daily-editing`, `document-tabs`, `drag-handles`, `editor-advanced`, `history-recovery`,
-`internal-links`, `security`, `split-workspace`, `template-integrity`, `templates-tables`
-и `workspace-panels`. Это целевой регрессионный набор из 11 файлов; полный каталог
-из 69 Playwright-тестов не запускался целиком. Изменение селектора в старом
-`notebook.spec.ts` проверено статически, сам legacy serial-сценарий отдельно не запускался.
-Физический Fold, Android IME и системное выделение требуют ручной проверки.
+HTTP scope: daily-editing, document-tabs, drag-handles, editor-advanced, exact-search,
+history-recovery, internal-links, quick-search, security, split-workspace,
+template-integrity, templates-tables, unified-block-controls, workspace-panels,
+workspace-responsiveness. Это настоящий Next HTTP server и PostgreSQL. Отдельные
+сценарии явно вводят ошибки/задержки запросов для проверки autosave, поиска и stale
+responses; это fault injection, а не замена приложения тестовым API.
+Проверены history/crash recovery, stale writers, foreign ownership, ZIP/backup v5,
+Split, dirty-close, DnD, undo/redo и отсутствие console/page errors в редакторских suites.
+Остальные исторические E2E-файлы вне перечисленного набора в этой задаче не запускались.
 
-Гейты запускаются с локальным Next dev на 127.0.0.1:3100 и отдельной PostgreSQL 18,
-с подтверждёнными TEST_RESET_DATABASE/E2E_RESET_DATABASE. Production build выполняется
-после остановки dev. Ранний параллельный unit/HTTP прогон дал timeout 5s при импорте
-модуля авторизации и незавершённый GET сравнения в trace; значения timeout не повышены.
-HTTP сравнение теперь сначала ожидает успешный ответ своего GET, затем DOM diff.
-В последовательном финальном прогоне unit timeout не повторился; пропуски не считаются успешными тестами.
+Новые browser scenarios: отсутствие всех дублирующих контролов и header chips в DOM,
+обычный и keyboard путь меню, disabled split, CRUD, headers, native CellSelection,
+merge/split без потери текста, перемещение/Undo, resize с autosave/reload, footer tag,
+отсутствие лишнего GET Workspace/PATCH при просмотре меню, touch 360/840 и обе темы.
+Прежние templates/tables и drag-handles E2E переведены с удалённого details/control на
+реальное новое меню; проверки CRUD, dirty-close, widths, spans и Split сохранены.
+Performance regressions 4.4-C.1 проверяются отдельным прежним suite.
 
-Расширенный прогон выявил четыре устаревших допущения E2E, исправленных без изменения
-серверных проверок: HTML export читается как настоящий ZIP/index.html; editor-advanced PATCH обязан передавать expectedRevision;
-workspace-panels должен выбирать видимый pane, поскольку Split View монтирует два;
-portable ZIP fixture использует отдельный аккаунт, чтобы legacy repack не унаследовал
-uploads из DnD fixture, отсутствующие в его синтетическом архиве. Защита от неполного
-ZIP и stale save не отключалась.
+PostgreSQL проверяется на новых отдельных test databases, без пользовательских данных.
+Первый native integration run на базе с унаследованным libc locale `C` дал 4 ошибки
+русского case-insensitive search при 64 passed. Сравнение pg_database подтвердило отличие
+от прежней рабочей test DB: provider builtin, locale `C.UTF-8`. На новой UTF8 базе с этим
+provider/locale повторный native run прошёл **68/68**, 17 файлов. Поисковый код/схема
+для обхода ошибки не менялись. Та же Unicode конфигурация используется для финального HTTP.
 
-`e2e/drag-handles.spec.ts` использует настоящий HTTP Next dev + PostgreSQL + Chrome:
-клик/drag/keyboard строк, исключение кнопок действий, отсутствие ручек в DOM,
-реальный HTML5 block drag/preview/drop cursor, сохранённый порядок, insert/duplicate/
-delete/copy, Undo/Redo, выделение текста, клавиатурное меню, страницы/шаблоны,
-обе панели Split View, image/file, callout/toggle/nested list, tables, touch 360/840.
-Touch сортировка вызывается настоящими CDP touch events, 350ms — длительность
-long-press, готовность приложения и drop target ожидаются по состоянию.
-
-Изменённый старый notebook E2E использует строку вместо удалённого page handle.
-Существующие 4.3–4.4 regressions проверяют autosave, IndexedDB, backlinks,
-backup v5, template dirty close, table controls, column layout и обе темы.
+В расширенном HTTP-прогоне старый exact-search сценарий Atelier первоначально упал:
+две темы создавали одинаковое название и контрольное слово в общей test DB, локатор
+получал два корректных результата. Fixture разделён по теме (не `.first()` и не увеличение
+таймаута). Поисковый API/приложение не менялись; повторный результат указан в итогах.
+Quick-search имел ту же коллизию fixtures и сравнивал URL с адресом до явного Home,
+хотя существующий `openHome()` выполняет replaceState на `/app`. Теперь проверяется
+URL после завершения Home и сохранность того же editor во время поиска, а после
+открытия результата — исходный URL документа. Поведение приложения не менялось.
 
 ## Скриншоты
 
-[Каталог 18 снимков Chrome](drag-handles-4-4-d/), синтетические данные без секретов.
+Содержимое контрольного документа одинаковое до/после: таблица 2×3, длинное русское
+значение, техническое значение, URL и абзац после таблицы. Рабочие данные синтетические.
+Sidebar в общем прогоне содержит дополнительные тестовые блокноты; это не изменение UI.
 
-| Тема | Страницы 1440 | Меню 1920 / 1440 | Шаблон | Split View | Touch 360 / 840 |
-| --- | --- | --- | --- | --- | --- |
-| Graphite | [Строки](drag-handles-4-4-d/studio-graphite-page-rows.png) | [1920](drag-handles-4-4-d/studio-graphite-block-menu-1920.png) / [1440](drag-handles-4-4-d/studio-graphite-block-menu-1440.png) | [Шаблон](drag-handles-4-4-d/studio-graphite-template-block-menu.png) | [Split](drag-handles-4-4-d/studio-graphite-split-blocks.png) | [360](drag-handles-4-4-d/studio-graphite-touch-block-360.png) / [840](drag-handles-4-4-d/studio-graphite-touch-block-840.png) |
-| Atelier | [Строки](drag-handles-4-4-d/studio-atelier-page-rows.png) | [1920](drag-handles-4-4-d/studio-atelier-block-menu-1920.png) / [1440](drag-handles-4-4-d/studio-atelier-block-menu-1440.png) | [Шаблон](drag-handles-4-4-d/studio-atelier-template-block-menu.png) | [Split](drag-handles-4-4-d/studio-atelier-split-blocks.png) | [360](drag-handles-4-4-d/studio-atelier-touch-block-360.png) / [840](drag-handles-4-4-d/studio-atelier-touch-block-840.png) |
+| Вид | Graphite | Atelier |
+| --- | --- | --- |
+| До | [снимок](unified-block-controls-4-4-d/before/studio-graphite-before.png) | [снимок](unified-block-controls-4-4-d/before/studio-atelier-before.png) |
+| Чистый документ | [снимок](unified-block-controls-4-4-d/after/studio-graphite-clean.png) | [снимок](unified-block-controls-4-4-d/after/studio-atelier-clean.png) |
+| Единое меню | [снимок](unified-block-controls-4-4-d/after/studio-graphite-after.png) | [снимок](unified-block-controls-4-4-d/after/studio-atelier-after.png) |
+| Touch 360 | [снимок](unified-block-controls-4-4-d/after/studio-graphite-touch-360.png) | [снимок](unified-block-controls-4-4-d/after/studio-atelier-touch-360.png) |
+| Touch 840 | [снимок](unified-block-controls-4-4-d/after/studio-graphite-touch-840.png) | [снимок](unified-block-controls-4-4-d/after/studio-atelier-touch-840.png) |
+| Шаблон | [снимок](unified-block-controls-4-4-d/after/studio-graphite-template-table-menu.png) | [снимок](unified-block-controls-4-4-d/after/studio-atelier-template-table-menu.png) |
+| Split / columns | [снимок](unified-block-controls-4-4-d/after/studio-graphite-tables-split.png) | [снимок](unified-block-controls-4-4-d/after/studio-atelier-tables-split.png) |
 
-Дополнительно сохранены списки страниц на touch 360/840 в обеих темах. Это текущий
-реальный интерфейс, не макеты и не физический Fold.
+DOM JSON сохранены рядом. После: wrapper **645px**, table **641px**, padding справа/
+снизу **2px**, nested controls **0**. Измерения до приведены выше. Визуально просмотрены
+Graphite menu, чистый Atelier и Atelier touch 360. Chrome touch — не физический Fold.
 
 ## Ограничения и ручная проверка
 
-- Chrome с hasTouch/isMobile не является физическим Android/Fold. Реальная клавиатура,
-  IME, системные selection handles и складывание требуют проверки пользователя.
-- Синтетические composition events проверяют отсутствие перехвата сочетания во время
-  composition, но не подтверждают работу всех Android IME.
-- Touch block drag оставлен штатной платформе; собственный long-press движок не введён.
-- Вставка таблиц/Excel не менялась; ограничения 4.4-C остаются в силе.
-- При upgrade BlockNote/Base UI повторить mouse-down/click/drag и overlay regressions.
-
-На физическом Fold: прокрутить список страниц, удержать строку и изменить порядок;
-проверить отсутствие случайного открытия. В заметке выделить текст, открыть меню
-«Блок · действия», вставить/переместить блок, продолжить ввод с IME. В таблице проверить
-раздельный доступ к блоку и row/column controls. Повторить в шаблоне, обеих темах,
-после поворота и на внутреннем экране. Production/Android APK этой задачей не обновлялись.
+- Физические Fold/WebView, Android IME, OS selection handles и клавиатура здесь недоступны.
+  На устройстве проверить tap/long-press/набор, затем block menu → таблица, merge/split,
+  scroll длинной таблицы и возврат к тексту. Не считать viewport эмуляцию приёмкой Fold.
+- Header bands фиксированы для menu reorder; операции со spans ограничены возможностями
+  штатных ProseMirror commands. Excel paste ограничения из 4.4-C остаются в силе.
+- Native cell colors ранее выключены в общей конфигурации; новый UI их не включает.
+  Сохранённые cell props/цвета не удаляются из документов.
+- Исходное краткое исчезновение содержимого из C.1 всё ещё не воспроизведено; здесь не
+  объявляется исправленным. Browser probe сохранён, новые диагностики автоматически не включены.
+- Production, Docker/CI, Unraid, APK, Prisma schema, зависимости и `.vscode/` не изменялись.
 
 ## Изменённые файлы
 
-- `page-list.tsx`, `globals.css`, `studio.css`, `drag-handles.css`: row drag и стили.
-- `editor-block-menu.tsx`, `editor-block-actions.tsx`, `editor-shared.tsx`: общий menu adapter.
-- `rich-text-editor.tsx`, `template-edit-dialog.tsx`: собственные mounts UI, без save изменений.
-- `notebook-app.tsx`: существующий suspended mode для фоновых редакторов.
-- `drag-handles.spec.ts`, `notebook.spec.ts`, `daily-editing.spec.ts`: регрессии нового контракта и первого touch focus.
-- `editor-advanced.spec.ts`, `template-integrity.spec.ts`: актуальная revision и изоляция backup fixture от чужих тестовых uploads.
-- `history-recovery.spec.ts`: явное ожидание ответа GET перед assert diff.
-- `workspace-panels.spec.ts`: проверка видимой панели вместо неоднозначного селектора двух смонтированных panes.
-- Этот документ и каталог реальных browser screenshots.
-
-Пользовательская `.vscode/` не изменялась. Production deployment не выполнялся.
+`table-actions.tsx`, `editor-block-menu.tsx`, `editor-block-actions.tsx`, `editor-controls.ts`,
+`rich-text-editor.tsx`, `template-edit-dialog.tsx`, `templates-tables.css`, `drag-handles.css`;
+`e2e/table-controls.ts`, `e2e/unified-block-controls.spec.ts`, адаптированные
+`e2e/templates-tables.spec.ts`, `e2e/drag-handles.spec.ts`, изолированные fixtures
+`e2e/exact-search.spec.ts`, `e2e/quick-search.spec.ts`; этот отчёт и browser evidence.
