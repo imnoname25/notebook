@@ -2,6 +2,7 @@
 
 import {
   useCallback,
+  useContext,
   useEffect,
   useLayoutEffect,
   useRef,
@@ -60,6 +61,7 @@ import { internalPageIdsInContent } from "@/lib/portable-content";
 import { useEditorControls, handleCodeControlClick, handleEditorControlKeyDown } from "./editor-controls";
 import { TableActions } from "./table-actions";
 import { sharedEditorBaseOptions, sharedEditorOptions, SharedEditorMenus } from "./editor-shared";
+import { EditorPreferencesContext } from "./editor-preferences";
 
 
 import { canonicalJson, localIdentity, cloneBlockWithIds } from "@/lib/document-state";
@@ -71,20 +73,6 @@ import { SaveConflictPreview } from "./save-conflict-preview";
 type SavePayload = { title: string; content: unknown[] };
 
 
-type EditorPreferences = {
-  autosaveDelayMs: number;
-  editorSpellcheck: boolean;
-  editorCodeLineNumbers: boolean;
-  editorCompactMode: boolean;
-  editorContentWidth: "narrow" | "normal" | "wide";
-};
-const defaultPreferences: EditorPreferences = {
-  autosaveDelayMs: 750,
-  editorSpellcheck: true,
-  editorCodeLineNumbers: false,
-  editorCompactMode: false,
-  editorContentWidth: "normal",
-};
 export function RichTextEditor({
   page,
   userId,
@@ -117,7 +105,7 @@ export function RichTextEditor({
   const [title, setTitle] = useState(page.title);
   const [status, setStatus] = useState<"saved" | "saving" | "error">("saved");
   const [saveFailure, setSaveFailure] = useState("");const [compareFailure, setCompareFailure] = useState(false);
-  const [preferences, setPreferences] = useState(defaultPreferences);
+  const preferences = useContext(EditorPreferencesContext);
   const editorRoot = useRef<HTMLDivElement | null>(null);
   const timer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const outlineTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -138,7 +126,8 @@ export function RichTextEditor({
   const [drafts, setDrafts] = useState<LocalDraft[]>([]);
   const [working, setWorking] = useState(false);
   const barrier = useRef(false);const localTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const draftSequence = useRef(0);const confirmed = useRef(canonicalJson({ title: page.title, content: page.content }));
+  const [initialCanonical] = useState(() => canonicalJson({ title: page.title, content: page.content }));
+  const draftSequence = useRef(0);const confirmed = useRef(initialCanonical);
   const recovered = useRef<LocalDraft | null>(null);const recoveryGeneration = useRef(0);const protectedGeneration = useRef(0);const payloadGenerations = useRef(new WeakMap<SavePayload, number>());
   const localError = useCallback((error: unknown) => setLocalWarning(error instanceof Error ? error.message : "Локальный черновик недоступен"), []);
   const persistLocal = useCallback(async () => {
@@ -160,18 +149,6 @@ export function RichTextEditor({
   useEffect(() => {
     onSavedRef.current = onSaved;
   }, [onSaved]);
-  useEffect(() => {
-    let cancelled = false;
-    void api<{ settings: EditorPreferences }>("/api/account/preferences")
-      .then(({ settings }) => {
-        if (!cancelled) setPreferences(settings);
-      })
-      .catch(() => undefined);
-    return () => {
-      cancelled = true;
-    };
-  }, []);
-
   async function uploadFile(file: File) {
     const form = new FormData();
     form.append("file", file);
@@ -183,9 +160,12 @@ export function RichTextEditor({
     return result.url;
   }
 
+  // This instance is keyed by page ID/epoch. Normalize its initial JSON once, not on
+  // every busy/focus/outline render (useCreateBlockNote otherwise ignores new options).
+  const [initialEditorOptions] = useState(() => sharedEditorOptions(page.content));
   const editor = useCreateBlockNote(
     {
-      ...sharedEditorOptions(page.content),
+      ...initialEditorOptions,
       uploadFile,
       extensions: [...sharedEditorBaseOptions.extensions, documentSearchExtension],
     },

@@ -34,12 +34,16 @@ export class EditorSaveQueue<T> {
 export class DocumentTransitionQueue {
   private version = 0;
   private tail: Promise<unknown> = Promise.resolve();
-  cancel() { this.version++; }
+  private read = new AbortController();
+  cancel() { this.version++; this.read.abort(); }
   async idle() { await this.tail; }
-  run<T>(operation: (current: () => boolean) => Promise<T>): Promise<T | undefined> {
+  run<T>(operation: (current: () => boolean, signal: AbortSignal) => Promise<T>): Promise<T | undefined> {
+    this.read.abort();
+    const controller = new AbortController();this.read = controller;
     const version = ++this.version;
     const current = () => version === this.version;
-    const result = this.tail.then(() => current() ? operation(current) : undefined);
+    // Only reads receive this signal. Ordered writes/flushes must always finish.
+    const result = this.tail.then(() => current() ? operation(current, controller.signal) : undefined);
     this.tail = result.catch(() => undefined);
     return result;
   }

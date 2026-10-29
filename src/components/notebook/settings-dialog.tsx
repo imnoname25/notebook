@@ -318,6 +318,7 @@ export function SettingsDialog({
           }),
         ),
       ]);
+      window.dispatchEvent(new CustomEvent("notebook:editor-preferences", { detail: { ...draft, autosaveDelayMs: Number(draft.autosaveDelayMs) } }));
       setSettings(response.settings);
       setDraft(response.settings);
       setPassword("");

@@ -22,6 +22,16 @@ describe("editor writer", () => {
   });
 });
 describe("document transition queue", () => {
+  it("aborts an obsolete read so the next selection does not await its response", async () => {
+    const queue = new DocumentTransitionQueue();let started!: () => void;const reading = new Promise<void>(resolve => { started = resolve; });
+    const first = queue.run(async (current, signal) => { started();await new Promise<void>(resolve => signal.addEventListener("abort", () => resolve(), { once: true }));return current(); });
+    await reading;const second = queue.run(async current => current());expect(await first).toBe(false);expect(await second).toBe(true);
+  });
+  it("cancels reads on leave/unmount but still waits for an in-flight write", async () => {
+    const queue = new DocumentTransitionQueue();let finish!: () => void;const write = new Promise<void>(resolve => { finish = resolve; });let signal!: AbortSignal;const commits: string[] = [];
+    const first = queue.run(async (current, read) => { signal = read;await write;if (current()) commits.push("old"); });await Promise.resolve();queue.cancel();expect(signal.aborted).toBe(true);
+    const next = queue.run(async () => { commits.push("new"); });await Promise.resolve();expect(commits).toEqual([]);finish();await Promise.all([first, next]);expect(commits).toEqual(["new"]);
+  });
   it("discards stale loads and commits the latest rapid intention", async () => {
     const q=new DocumentTransitionQueue();let finish!:()=>void;const gate=new Promise<void>(resolve=>{finish=resolve;});const commits:string[]=[];
     const first=q.run(async current=>{await gate;if(current())commits.push("a");});await Promise.resolve();

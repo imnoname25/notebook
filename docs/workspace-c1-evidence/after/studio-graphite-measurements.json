@@ -1,0 +1,1187 @@
+{
+  "theme": "studio-graphite",
+  "serial": {
+    "start": {
+      "metrics": {
+        "commits": 207,
+        "duration": 574,
+        "renders": {
+          "NotebookWorkspace": 20,
+          "NotebookSidebar": 39,
+          "NotebookSidebarTree": 5,
+          "WorkspacePane": 53,
+          "RichTextEditor": 16
+        },
+        "mounts": {
+          "NotebookWorkspace": 1,
+          "NotebookSidebar": 1,
+          "NotebookSidebarTree": 1,
+          "WorkspacePane": 4,
+          "RichTextEditor": 2
+        },
+        "longTasks": [
+          96,
+          62,
+          62,
+          172,
+          232,
+          93
+        ],
+        "treeEmpty": 0,
+        "treeRemoved": 0,
+        "editorMounts": 2
+      },
+      "heap": 50708291
+    },
+    "end": {
+      "metrics": {
+        "commits": 1128,
+        "duration": 6414,
+        "renders": {
+          "NotebookWorkspace": 273,
+          "NotebookSidebar": 680,
+          "NotebookSidebarTree": 35,
+          "WorkspacePane": 594,
+          "RichTextEditor": 346
+        },
+        "mounts": {
+          "NotebookWorkspace": 1,
+          "NotebookSidebar": 1,
+          "NotebookSidebarTree": 1,
+          "WorkspacePane": 34,
+          "RichTextEditor": 32
+        },
+        "longTasks": [
+          96,
+          62,
+          62,
+          172,
+          232,
+          93,
+          192,
+          87,
+          90,
+          54,
+          61,
+          148,
+          65,
+          99,
+          116,
+          61,
+          186,
+          86,
+          90,
+          51,
+          67,
+          142,
+          76,
+          116,
+          61,
+          168,
+          82,
+          83,
+          61,
+          131,
+          66,
+          125,
+          77,
+          165,
+          51,
+          58,
+          83,
+          82,
+          111,
+          72,
+          187,
+          74,
+          97,
+          62,
+          143,
+          84,
+          101,
+          65,
+          177,
+          77,
+          80,
+          62,
+          127,
+          61,
+          92,
+          79,
+          162,
+          58,
+          87,
+          80,
+          76,
+          169,
+          55,
+          66,
+          85,
+          82,
+          132,
+          65,
+          135,
+          80,
+          157,
+          51,
+          80,
+          85,
+          93,
+          62,
+          170,
+          74,
+          77,
+          57,
+          126,
+          56,
+          117,
+          75,
+          78,
+          57,
+          124,
+          83,
+          87,
+          139,
+          77
+        ],
+        "treeEmpty": 0,
+        "treeRemoved": 0,
+        "editorMounts": 32
+      },
+      "heap": 53359295
+    },
+    "actions": [
+      {
+        "kind": "section",
+        "ms": 364.94919999991544,
+        "requests": 2
+      },
+      {
+        "kind": "page",
+        "ms": 339.7251999999862,
+        "requests": 1
+      },
+      {
+        "kind": "section",
+        "ms": 245.15040000004228,
+        "requests": 1
+      },
+      {
+        "kind": "page",
+        "ms": 412.50820000004023,
+        "requests": 2
+      },
+      {
+        "kind": "section",
+        "ms": 266.99139999994077,
+        "requests": 1
+      },
+      {
+        "kind": "page",
+        "ms": 427.89650000003166,
+        "requests": 3
+      },
+      {
+        "kind": "section",
+        "ms": 332.88099999993574,
+        "requests": 1
+      },
+      {
+        "kind": "page",
+        "ms": 350.468200000003,
+        "requests": 3
+      },
+      {
+        "kind": "section",
+        "ms": 289.2425000000512,
+        "requests": 1
+      },
+      {
+        "kind": "page",
+        "ms": 474.8024999999907,
+        "requests": 3
+      },
+      {
+        "kind": "section",
+        "ms": 178.2898999999743,
+        "requests": 1
+      },
+      {
+        "kind": "page",
+        "ms": 386.1445999999996,
+        "requests": 2
+      },
+      {
+        "kind": "section",
+        "ms": 267.80180000001565,
+        "requests": 1
+      },
+      {
+        "kind": "page",
+        "ms": 306.69630000006873,
+        "requests": 2
+      },
+      {
+        "kind": "section",
+        "ms": 240.59530000004452,
+        "requests": 1
+      },
+      {
+        "kind": "page",
+        "ms": 404.9860000000335,
+        "requests": 2
+      },
+      {
+        "kind": "section",
+        "ms": 239.91330000001471,
+        "requests": 1
+      },
+      {
+        "kind": "page",
+        "ms": 407.13280000002123,
+        "requests": 2
+      },
+      {
+        "kind": "section",
+        "ms": 322.32479999994393,
+        "requests": 2
+      },
+      {
+        "kind": "page",
+        "ms": 316.6881000000285,
+        "requests": 1
+      },
+      {
+        "kind": "section",
+        "ms": 210.42009999998845,
+        "requests": 1
+      },
+      {
+        "kind": "page",
+        "ms": 383.79469999996945,
+        "requests": 2
+      },
+      {
+        "kind": "section",
+        "ms": 317.9071000000695,
+        "requests": 2
+      },
+      {
+        "kind": "page",
+        "ms": 341.51439999998547,
+        "requests": 1
+      },
+      {
+        "kind": "section",
+        "ms": 320.5045000000391,
+        "requests": 2
+      },
+      {
+        "kind": "page",
+        "ms": 448.5246000000043,
+        "requests": 1
+      },
+      {
+        "kind": "section",
+        "ms": 187.9187999999849,
+        "requests": 1
+      },
+      {
+        "kind": "page",
+        "ms": 369.34840000001714,
+        "requests": 2
+      },
+      {
+        "kind": "section",
+        "ms": 283.54999999993015,
+        "requests": 1
+      },
+      {
+        "kind": "page",
+        "ms": 313.6825999999419,
+        "requests": 2
+      },
+      {
+        "kind": "section",
+        "ms": 207.8582999999635,
+        "requests": 1
+      },
+      {
+        "kind": "page",
+        "ms": 472.8261000000639,
+        "requests": 2
+      },
+      {
+        "kind": "section",
+        "ms": 252.37670000002254,
+        "requests": 1
+      },
+      {
+        "kind": "page",
+        "ms": 365.99769999994896,
+        "requests": 2
+      },
+      {
+        "kind": "section",
+        "ms": 266.1854000000749,
+        "requests": 1
+      },
+      {
+        "kind": "page",
+        "ms": 323.29429999995045,
+        "requests": 2
+      },
+      {
+        "kind": "section",
+        "ms": 240.32400000002235,
+        "requests": 1
+      },
+      {
+        "kind": "page",
+        "ms": 269.1276000000071,
+        "requests": 2
+      },
+      {
+        "kind": "section",
+        "ms": 338.5792000000365,
+        "requests": 1
+      },
+      {
+        "kind": "page",
+        "ms": 321.8586999999825,
+        "requests": 2
+      },
+      {
+        "kind": "section",
+        "ms": 190.25229999993462,
+        "requests": 1
+      },
+      {
+        "kind": "page",
+        "ms": 383.5496999999741,
+        "requests": 2
+      },
+      {
+        "kind": "section",
+        "ms": 292.8197999999393,
+        "requests": 2
+      },
+      {
+        "kind": "page",
+        "ms": 316.7671000000555,
+        "requests": 1
+      },
+      {
+        "kind": "section",
+        "ms": 370.9908999999752,
+        "requests": 2
+      },
+      {
+        "kind": "page",
+        "ms": 364.1494999999413,
+        "requests": 1
+      },
+      {
+        "kind": "section",
+        "ms": 214.08169999998063,
+        "requests": 1
+      },
+      {
+        "kind": "page",
+        "ms": 352.3401999999769,
+        "requests": 2
+      },
+      {
+        "kind": "section",
+        "ms": 284.6901000000071,
+        "requests": 1
+      },
+      {
+        "kind": "page",
+        "ms": 343.143100000103,
+        "requests": 2
+      },
+      {
+        "kind": "section",
+        "ms": 173.6392999999225,
+        "requests": 1
+      },
+      {
+        "kind": "page",
+        "ms": 381.88119999994524,
+        "requests": 1
+      },
+      {
+        "kind": "section",
+        "ms": 238.43299999996088,
+        "requests": 1
+      },
+      {
+        "kind": "page",
+        "ms": 304.0089999999618,
+        "requests": 2
+      },
+      {
+        "kind": "section",
+        "ms": 317.9655999999959,
+        "requests": 1
+      },
+      {
+        "kind": "page",
+        "ms": 363.14610000001267,
+        "requests": 2
+      },
+      {
+        "kind": "section",
+        "ms": 209.0126000000164,
+        "requests": 1
+      },
+      {
+        "kind": "page",
+        "ms": 318.9873999999836,
+        "requests": 2
+      },
+      {
+        "kind": "section",
+        "ms": 329.01430000003893,
+        "requests": 1
+      },
+      {
+        "kind": "page",
+        "ms": 355.0275000000838,
+        "requests": 2
+      }
+    ],
+    "requests": [
+      {
+        "url": "/api/pages?sectionId=cmvt7a6k900p93o711u8yncj5",
+        "method": "GET",
+        "ms": 48.70219999994151,
+        "status": 200
+      },
+      {
+        "url": "/api/pages/cmvt7a6qz00pf3o71n6j1778k/knowledge",
+        "method": "GET",
+        "ms": 54.49780000001192,
+        "status": 200
+      },
+      {
+        "url": "/api/pages/cmvt7a6l400pa3o71rmclkhr2",
+        "method": "GET",
+        "ms": 11.519300000043586,
+        "status": 200
+      },
+      {
+        "url": "/api/pages?sectionId=cmvt7a6q100pe3o71jc826av1",
+        "method": "GET",
+        "ms": 27.57500000006985,
+        "status": 200
+      },
+      {
+        "url": "/api/pages/cmvt7a6l400pa3o71rmclkhr2/knowledge",
+        "method": "GET",
+        "ms": 29.67269999999553,
+        "status": 200
+      },
+      {
+        "url": "/api/pages/cmvt7a6qz00pf3o71n6j1778k",
+        "method": "GET",
+        "ms": 0.06279999995604157,
+        "status": 200
+      },
+      {
+        "url": "/api/pages?sectionId=cmvt7a6vq00pj3o71yt2g0ar4",
+        "method": "GET",
+        "ms": 35.19950000010431,
+        "status": 200
+      },
+      {
+        "url": "/api/pages/cmvt7a6qz00pf3o71n6j1778k/knowledge",
+        "method": "GET",
+        "ms": 82.98040000000037,
+        "status": 200
+      },
+      {
+        "url": "/api/pages/cmvt7a6wn00pk3o711wdyjiku",
+        "method": "GET",
+        "ms": 32.71480000007432,
+        "status": 200
+      },
+      {
+        "url": "/api/recent",
+        "method": "POST",
+        "ms": 196.1740999999456,
+        "status": 200
+      },
+      {
+        "url": "/api/pages?sectionId=cmvt7a74g00po3o71w4bi2a78",
+        "method": "GET",
+        "ms": 28.887899999972433,
+        "status": 200
+      },
+      {
+        "url": "/api/pages/cmvt7a6wn00pk3o711wdyjiku/knowledge",
+        "method": "GET",
+        "ms": 119.27799999993294,
+        "status": 200
+      },
+      {
+        "url": "/api/pages/cmvt7a75a00pp3o71j6xytap6",
+        "method": "GET",
+        "ms": 36.14129999990109,
+        "status": 200
+      },
+      {
+        "url": "/api/recent",
+        "method": "POST",
+        "ms": 119.3965999999782,
+        "status": 200
+      },
+      {
+        "url": "/api/pages?sectionId=cmvt7a7aj00pt3o71w5u122qj",
+        "method": "GET",
+        "ms": 26.381099999998696,
+        "status": 200
+      },
+      {
+        "url": "/api/pages/cmvt7a75a00pp3o71j6xytap6/knowledge",
+        "method": "GET",
+        "ms": 78.14749999996275,
+        "status": 200
+      },
+      {
+        "url": "/api/pages/cmvt7a7b400pu3o71uktig5qc",
+        "method": "GET",
+        "ms": 2.6670000000158325,
+        "status": 200
+      },
+      {
+        "url": "/api/recent",
+        "method": "POST",
+        "ms": 179.95530000003055,
+        "status": 200
+      },
+      {
+        "url": "/api/pages?sectionId=cmvt7a6k900p93o711u8yncj5",
+        "method": "GET",
+        "ms": 24.358399999910034,
+        "status": 200
+      },
+      {
+        "url": "/api/pages/cmvt7a7b400pu3o71uktig5qc/knowledge",
+        "method": "GET",
+        "ms": 43.21629999997094,
+        "status": 200
+      },
+      {
+        "url": "/api/pages/cmvt7a6l400pa3o71rmclkhr2",
+        "method": "GET",
+        "ms": 68.18369999993593,
+        "status": 200
+      },
+      {
+        "url": "/api/pages?sectionId=cmvt7a6q100pe3o71jc826av1",
+        "method": "GET",
+        "ms": 25.87369999999646,
+        "status": 200
+      },
+      {
+        "url": "/api/pages/cmvt7a6l400pa3o71rmclkhr2/knowledge",
+        "method": "GET",
+        "ms": 64.79769999999553,
+        "status": 200
+      },
+      {
+        "url": "/api/pages/cmvt7a6qz00pf3o71n6j1778k",
+        "method": "GET",
+        "ms": 24.106099999975413,
+        "status": 200
+      },
+      {
+        "url": "/api/pages?sectionId=cmvt7a6vq00pj3o71yt2g0ar4",
+        "method": "GET",
+        "ms": 32.75419999996666,
+        "status": 200
+      },
+      {
+        "url": "/api/pages/cmvt7a6qz00pf3o71n6j1778k/knowledge",
+        "method": "GET",
+        "ms": 33.65399999998044,
+        "status": 200
+      },
+      {
+        "url": "/api/pages/cmvt7a6wn00pk3o711wdyjiku",
+        "method": "GET",
+        "ms": 3.549100000062026,
+        "status": 200
+      },
+      {
+        "url": "/api/pages?sectionId=cmvt7a74g00po3o71w4bi2a78",
+        "method": "GET",
+        "ms": 29.662899999995716,
+        "status": 200
+      },
+      {
+        "url": "/api/pages/cmvt7a6wn00pk3o711wdyjiku/knowledge",
+        "method": "GET",
+        "ms": 47.62239999999292,
+        "status": 200
+      },
+      {
+        "url": "/api/pages/cmvt7a75a00pp3o71j6xytap6",
+        "method": "GET",
+        "ms": 57.605999999912456,
+        "status": 200
+      },
+      {
+        "url": "/api/pages?sectionId=cmvt7a7aj00pt3o71w5u122qj",
+        "method": "GET",
+        "ms": 25.374499999918044,
+        "status": 200
+      },
+      {
+        "url": "/api/pages/cmvt7a75a00pp3o71j6xytap6/knowledge",
+        "method": "GET",
+        "ms": 75.56720000004862,
+        "status": 200
+      },
+      {
+        "url": "/api/pages/cmvt7a7b400pu3o71uktig5qc",
+        "method": "GET",
+        "ms": 16.45579999999609,
+        "status": 200
+      },
+      {
+        "url": "/api/pages?sectionId=cmvt7a6k900p93o711u8yncj5",
+        "method": "GET",
+        "ms": 24.651599999982864,
+        "status": 200
+      },
+      {
+        "url": "/api/pages/cmvt7a7b400pu3o71uktig5qc/knowledge",
+        "method": "GET",
+        "ms": 132.9372999999905,
+        "status": 200
+      },
+      {
+        "url": "/api/pages/cmvt7a6l400pa3o71rmclkhr2",
+        "method": "GET",
+        "ms": 36.8798999999417,
+        "status": 200
+      },
+      {
+        "url": "/api/pages?sectionId=cmvt7a6q100pe3o71jc826av1",
+        "method": "GET",
+        "ms": 32.40509999997448,
+        "status": 200
+      },
+      {
+        "url": "/api/pages/cmvt7a6l400pa3o71rmclkhr2/knowledge",
+        "method": "GET",
+        "ms": 54.80699999991339,
+        "status": 200
+      },
+      {
+        "url": "/api/pages/cmvt7a6qz00pf3o71n6j1778k",
+        "method": "GET",
+        "ms": 32.78859999997076,
+        "status": 200
+      },
+      {
+        "url": "/api/pages?sectionId=cmvt7a6vq00pj3o71yt2g0ar4",
+        "method": "GET",
+        "ms": 34.83840000000782,
+        "status": 200
+      },
+      {
+        "url": "/api/pages/cmvt7a6qz00pf3o71n6j1778k/knowledge",
+        "method": "GET",
+        "ms": 60.3420000000624,
+        "status": 200
+      },
+      {
+        "url": "/api/pages/cmvt7a6wn00pk3o711wdyjiku",
+        "method": "GET",
+        "ms": 3.9049000000813976,
+        "status": 200
+      },
+      {
+        "url": "/api/pages?sectionId=cmvt7a74g00po3o71w4bi2a78",
+        "method": "GET",
+        "ms": 35.55410000006668,
+        "status": 200
+      },
+      {
+        "url": "/api/pages/cmvt7a6wn00pk3o711wdyjiku/knowledge",
+        "method": "GET",
+        "ms": 45.01500000001397,
+        "status": 200
+      },
+      {
+        "url": "/api/pages/cmvt7a75a00pp3o71j6xytap6",
+        "method": "GET",
+        "ms": 62.11709999991581,
+        "status": 200
+      },
+      {
+        "url": "/api/pages?sectionId=cmvt7a7aj00pt3o71w5u122qj",
+        "method": "GET",
+        "ms": 39.84829999995418,
+        "status": 200
+      },
+      {
+        "url": "/api/pages/cmvt7a75a00pp3o71j6xytap6/knowledge",
+        "method": "GET",
+        "ms": 112.13450000004377,
+        "status": 200
+      },
+      {
+        "url": "/api/pages/cmvt7a7b400pu3o71uktig5qc",
+        "method": "GET",
+        "ms": 42.339799999957904,
+        "status": 200
+      },
+      {
+        "url": "/api/pages?sectionId=cmvt7a6k900p93o711u8yncj5",
+        "method": "GET",
+        "ms": 73.21490000002086,
+        "status": 200
+      },
+      {
+        "url": "/api/pages/cmvt7a7b400pu3o71uktig5qc/knowledge",
+        "method": "GET",
+        "ms": 44.27099999994971,
+        "status": 200
+      },
+      {
+        "url": "/api/pages/cmvt7a6l400pa3o71rmclkhr2",
+        "method": "GET",
+        "ms": 12.462399999960326,
+        "status": 200
+      },
+      {
+        "url": "/api/pages?sectionId=cmvt7a6q100pe3o71jc826av1",
+        "method": "GET",
+        "ms": 27.272100000060163,
+        "status": 200
+      },
+      {
+        "url": "/api/pages/cmvt7a6l400pa3o71rmclkhr2/knowledge",
+        "method": "GET",
+        "ms": 43.756900000036694,
+        "status": 200
+      },
+      {
+        "url": "/api/pages/cmvt7a6qz00pf3o71n6j1778k",
+        "method": "GET",
+        "ms": 52.28039999993052,
+        "status": 200
+      },
+      {
+        "url": "/api/pages?sectionId=cmvt7a6vq00pj3o71yt2g0ar4",
+        "method": "GET",
+        "ms": 24.490499999956228,
+        "status": 200
+      },
+      {
+        "url": "/api/pages/cmvt7a6qz00pf3o71n6j1778k/knowledge",
+        "method": "GET",
+        "ms": 38.31119999999646,
+        "status": 200
+      },
+      {
+        "url": "/api/pages/cmvt7a6wn00pk3o711wdyjiku",
+        "method": "GET",
+        "ms": 0.06559999997261912,
+        "status": 200
+      },
+      {
+        "url": "/api/pages?sectionId=cmvt7a74g00po3o71w4bi2a78",
+        "method": "GET",
+        "ms": 61.527099999948405,
+        "status": 200
+      },
+      {
+        "url": "/api/pages/cmvt7a6wn00pk3o711wdyjiku/knowledge",
+        "method": "GET",
+        "ms": 91.16669999994338,
+        "status": 200
+      },
+      {
+        "url": "/api/pages/cmvt7a75a00pp3o71j6xytap6",
+        "method": "GET",
+        "ms": 3.490899999975227,
+        "status": 200
+      },
+      {
+        "url": "/api/pages?sectionId=cmvt7a7aj00pt3o71w5u122qj",
+        "method": "GET",
+        "ms": 33.26130000001285,
+        "status": 200
+      },
+      {
+        "url": "/api/pages/cmvt7a75a00pp3o71j6xytap6/knowledge",
+        "method": "GET",
+        "ms": 101.78490000008605,
+        "status": 200
+      },
+      {
+        "url": "/api/pages/cmvt7a7b400pu3o71uktig5qc",
+        "method": "GET",
+        "ms": 11.20519999996759,
+        "status": 200
+      },
+      {
+        "url": "/api/pages?sectionId=cmvt7a6k900p93o711u8yncj5",
+        "method": "GET",
+        "ms": 30.249599999981,
+        "status": 200
+      },
+      {
+        "url": "/api/pages/cmvt7a7b400pu3o71uktig5qc/knowledge",
+        "method": "GET",
+        "ms": 73.33360000001267,
+        "status": 200
+      },
+      {
+        "url": "/api/pages/cmvt7a6l400pa3o71rmclkhr2",
+        "method": "GET",
+        "ms": 17.077400000067428,
+        "status": 200
+      },
+      {
+        "url": "/api/pages?sectionId=cmvt7a6q100pe3o71jc826av1",
+        "method": "GET",
+        "ms": 26.186999999918044,
+        "status": 200
+      },
+      {
+        "url": "/api/pages/cmvt7a6l400pa3o71rmclkhr2/knowledge",
+        "method": "GET",
+        "ms": 52.42839999997523,
+        "status": 200
+      },
+      {
+        "url": "/api/pages/cmvt7a6qz00pf3o71n6j1778k",
+        "method": "GET",
+        "ms": 51.55149999994319,
+        "status": 200
+      },
+      {
+        "url": "/api/pages?sectionId=cmvt7a6vq00pj3o71yt2g0ar4",
+        "method": "GET",
+        "ms": 27.15810000000056,
+        "status": 200
+      },
+      {
+        "url": "/api/pages/cmvt7a6qz00pf3o71n6j1778k/knowledge",
+        "method": "GET",
+        "ms": 92.98739999998361,
+        "status": 200
+      },
+      {
+        "url": "/api/pages/cmvt7a6wn00pk3o711wdyjiku",
+        "method": "GET",
+        "ms": 13.697599999955855,
+        "status": 200
+      },
+      {
+        "url": "/api/pages?sectionId=cmvt7a74g00po3o71w4bi2a78",
+        "method": "GET",
+        "ms": 29.67739999992773,
+        "status": 200
+      },
+      {
+        "url": "/api/pages/cmvt7a6wn00pk3o711wdyjiku/knowledge",
+        "method": "GET",
+        "ms": 35.82730000000447,
+        "status": 200
+      },
+      {
+        "url": "/api/pages/cmvt7a75a00pp3o71j6xytap6",
+        "method": "GET",
+        "ms": 16.404999999911524,
+        "status": 200
+      },
+      {
+        "url": "/api/pages?sectionId=cmvt7a7aj00pt3o71w5u122qj",
+        "method": "GET",
+        "ms": 31.173600000096485,
+        "status": 200
+      },
+      {
+        "url": "/api/pages/cmvt7a75a00pp3o71j6xytap6/knowledge",
+        "method": "GET",
+        "ms": 96.32469999999739,
+        "status": 200
+      },
+      {
+        "url": "/api/pages/cmvt7a7b400pu3o71uktig5qc",
+        "method": "GET",
+        "ms": 24.620499999960884,
+        "status": 200
+      },
+      {
+        "url": "/api/pages?sectionId=cmvt7a6k900p93o711u8yncj5",
+        "method": "GET",
+        "ms": 27.402799999923445,
+        "status": 200
+      },
+      {
+        "url": "/api/pages/cmvt7a6l400pa3o71rmclkhr2",
+        "method": "GET",
+        "ms": 28.06359999999404,
+        "status": 200
+      },
+      {
+        "url": "/api/pages?sectionId=cmvt7a6q100pe3o71jc826av1",
+        "method": "GET",
+        "ms": 30.776799999992363,
+        "status": 200
+      },
+      {
+        "url": "/api/pages/cmvt7a6l400pa3o71rmclkhr2/knowledge",
+        "method": "GET",
+        "ms": 105.71860000002198,
+        "status": 200
+      },
+      {
+        "url": "/api/pages/cmvt7a6qz00pf3o71n6j1778k",
+        "method": "GET",
+        "ms": 55.429600000032224,
+        "status": 200
+      },
+      {
+        "url": "/api/pages?sectionId=cmvt7a6vq00pj3o71yt2g0ar4",
+        "method": "GET",
+        "ms": 143.96259999996983,
+        "status": 200
+      },
+      {
+        "url": "/api/pages/cmvt7a6qz00pf3o71n6j1778k/knowledge",
+        "method": "GET",
+        "ms": 70.57900000002701,
+        "status": 200
+      },
+      {
+        "url": "/api/pages/cmvt7a6wn00pk3o711wdyjiku",
+        "method": "GET",
+        "ms": 3.785299999988638,
+        "status": 200
+      },
+      {
+        "url": "/api/pages?sectionId=cmvt7a74g00po3o71w4bi2a78",
+        "method": "GET",
+        "ms": 46.233599999919534,
+        "status": 200
+      },
+      {
+        "url": "/api/pages/cmvt7a6wn00pk3o711wdyjiku/knowledge",
+        "method": "GET",
+        "ms": 67.82360000000335,
+        "status": 200
+      },
+      {
+        "url": "/api/pages/cmvt7a75a00pp3o71j6xytap6",
+        "method": "GET",
+        "ms": 3.3619000000180677,
+        "status": 200
+      },
+      {
+        "url": "/api/pages?sectionId=cmvt7a7aj00pt3o71w5u122qj",
+        "method": "GET",
+        "ms": 30.23459999996703,
+        "status": 200
+      },
+      {
+        "url": "/api/pages/cmvt7a75a00pp3o71j6xytap6/knowledge",
+        "method": "GET",
+        "ms": 105.15029999997932,
+        "status": 200
+      },
+      {
+        "url": "/api/pages/cmvt7a7b400pu3o71uktig5qc",
+        "method": "GET",
+        "ms": 43.48699999996461,
+        "status": 200
+      }
+    ]
+  },
+  "delayed": {
+    "responsiveness": true,
+    "ms": 189.1648999999743
+  },
+  "split": {
+    "requests": [
+      {
+        "url": "/api/pages/cmvt7a7e100pw3o712zhjyg9t",
+        "method": "GET",
+        "ms": 23.195899999933317,
+        "status": 200
+      },
+      {
+        "url": "/api/recent",
+        "method": "POST",
+        "ms": 166.16319999995176,
+        "status": 200
+      },
+      {
+        "url": "/api/pages/cmvt7a7e100pw3o712zhjyg9t/knowledge",
+        "method": "GET",
+        "ms": 140.49710000003688,
+        "status": 200
+      }
+    ],
+    "end": {
+      "metrics": {
+        "commits": 1594,
+        "duration": 8946,
+        "renders": {
+          "NotebookWorkspace": 497,
+          "NotebookSidebar": 1048,
+          "NotebookSidebarTree": 35,
+          "WorkspacePane": 1099,
+          "RichTextEditor": 985
+        },
+        "mounts": {
+          "NotebookWorkspace": 1,
+          "NotebookSidebar": 1,
+          "NotebookSidebarTree": 1,
+          "WorkspacePane": 35,
+          "RichTextEditor": 33
+        },
+        "longTasks": [
+          96,
+          62,
+          62,
+          172,
+          232,
+          93,
+          192,
+          87,
+          90,
+          54,
+          61,
+          148,
+          65,
+          99,
+          116,
+          61,
+          186,
+          86,
+          90,
+          51,
+          67,
+          142,
+          76,
+          116,
+          61,
+          168,
+          82,
+          83,
+          61,
+          131,
+          66,
+          125,
+          77,
+          165,
+          51,
+          58,
+          83,
+          82,
+          111,
+          72,
+          187,
+          74,
+          97,
+          62,
+          143,
+          84,
+          101,
+          65,
+          177,
+          77,
+          80,
+          62,
+          127,
+          61,
+          92,
+          79,
+          162,
+          58,
+          87,
+          80,
+          76,
+          169,
+          55,
+          66,
+          85,
+          82,
+          132,
+          65,
+          135,
+          80,
+          157,
+          51,
+          80,
+          85,
+          93,
+          62,
+          170,
+          74,
+          77,
+          57,
+          126,
+          56,
+          117,
+          75,
+          78,
+          57,
+          124,
+          83,
+          87,
+          139,
+          77,
+          93,
+          104,
+          125,
+          121,
+          119,
+          160,
+          196,
+          118,
+          115,
+          109,
+          218,
+          130,
+          113,
+          114,
+          114,
+          216,
+          110,
+          109,
+          109,
+          165,
+          160,
+          110,
+          108,
+          110,
+          162,
+          163,
+          107,
+          115,
+          116,
+          218,
+          107,
+          105,
+          107
+        ],
+        "treeEmpty": 0,
+        "treeRemoved": 0,
+        "editorMounts": 33
+      },
+      "heap": 78019845
+    }
+  },
+  "errors": []
+}

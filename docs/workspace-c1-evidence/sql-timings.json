@@ -1,0 +1,26 @@
+{
+  "scope": "Dedicated synthetic PostgreSQL 18 database; representative ownership-scoped SELECTs, no schema/index changes",
+  "results": [
+    {
+      "action": "notebook tree",
+      "planningMs": 0.169,
+      "executionMs": 0.084,
+      "node": "Incremental Sort",
+      "rows": 14
+    },
+    {
+      "action": "section page list",
+      "planningMs": 0.423,
+      "executionMs": 0.099,
+      "node": "Sort",
+      "rows": 2
+    },
+    {
+      "action": "page document",
+      "planningMs": 0.62,
+      "executionMs": 0.177,
+      "node": "Nested Loop",
+      "rows": 1
+    }
+  ]
+}

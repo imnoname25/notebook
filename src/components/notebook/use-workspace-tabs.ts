@@ -1,5 +1,6 @@
 "use client";
-import { useCallback, useLayoutEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useLayoutEffect, useRef, useState } from "react";
+import { DocumentTransitionQueue } from "@/lib/editor-save-queue";
 import { api } from "@/lib/client-api";
 import { EMPTY_TABS, parseTabSession, tabSessionKey, type DocumentTab } from "@/lib/document-tabs";
 import { DEFAULT_SPLIT, mergePaneTabs, otherPane, splitPreferenceKey, splitPreferenceSchema, type WorkspacePaneId } from "@/lib/split-workspace";
@@ -7,7 +8,7 @@ import { getPageHref } from "@/lib/workspace-navigation";
 import { useDocumentTabs, type DocumentHistory } from "./use-document-tabs";
 import type { EditorSaveController, PageDocument } from "./types";
 
-type Options = { userId: string; load(pane: WorkspacePaneId, id: string, history: DocumentHistory, current: () => boolean, preloaded?: PageDocument): Promise<PageDocument | null>; present(page: PageDocument | null): void; onController(value: EditorSaveController | null): void; report(error: unknown): void; notice(message: string): void };
+type Options = { userId: string; load(pane: WorkspacePaneId, id: string, history: DocumentHistory, current: () => boolean, signal: AbortSignal, preloaded?: PageDocument): Promise<PageDocument | null>; present(page: PageDocument | null): void; onController(value: EditorSaveController | null): void; report(error: unknown): void; notice(message: string): void };
 export function useWorkspaceTabs(options: Options) {
   const callbacks = useRef(options);useLayoutEffect(() => { callbacks.current = options; });
   const [documents, setDocuments] = useState<Record<WorkspacePaneId, PageDocument | null>>({ left: null, right: null });
@@ -15,6 +16,8 @@ export function useWorkspaceTabs(options: Options) {
   const [layout, setLayout] = useState<{ split: boolean; active: WorkspacePaneId; ratio: number }>(DEFAULT_SPLIT);
   const layoutRef = useRef(layout);const hydrated = useRef(false);const transaction = useRef(false);
   const [busy, setBusy] = useState(false);const [epochs, setEpochs] = useState<Record<string, number>>({});
+  const leaveIntents = useRef(new DocumentTransitionQueue());
+  useEffect(() => { const queue = leaveIntents.current;return () => queue.cancel(); }, []);
   const staged = useRef(new Map<string, PageDocument>());
   const pendingOwners = useRef(new Map<string, { pane: WorkspacePaneId; count: number }>());
   const raw = useRef<Record<WorkspacePaneId, ReturnType<typeof useDocumentTabs>> | null>(null);
@@ -37,12 +40,12 @@ export function useWorkspaceTabs(options: Options) {
     const href = docs.current[pane] ? getPageHref(docs.current[pane]!.id) : "/app";
     if (history !== "none" && `${location.pathname}${location.search}` !== href) window.history[history === "push" ? "pushState" : "replaceState"](null, "", href);
   }, [editor, persist]);
-  const load = useCallback(async (pane: WorkspacePaneId, id: string, history: DocumentHistory, current: () => boolean) => {
-    const page = await callbacks.current.load(pane, id, history, current, staged.current.get(id));
+  const load = useCallback(async (pane: WorkspacePaneId, id: string, history: DocumentHistory, current: () => boolean, signal: AbortSignal) => {
+    const page = await callbacks.current.load(pane, id, history, current, signal, staged.current.get(id));
     staged.current.delete(id);return page;
   }, []);
-  const left = useDocumentTabs({ userId: options.userId, load: (id, history, current) => load("left", id, history, current), flush: async () => { await editor("left")?.flush(false); }, clear: () => accept("left", null), report: options.report, notice: options.notice });
-  const right = useDocumentTabs({ userId: options.userId, storageKey: `${tabSessionKey(options.userId)}:right`, excludeRestored: () => new Set(raw.current?.left.snapshot().tabs.map(tab => tab.pageId)), load: (id, history, current) => load("right", id, history, current), flush: async () => { await editor("right")?.flush(false); }, clear: () => accept("right", null), report: options.report, notice: options.notice });
+  const left = useDocumentTabs({ userId: options.userId, load: (id, history, current, signal) => load("left", id, history, current, signal), flush: async () => { await editor("left")?.flush(false); }, clear: () => accept("left", null), report: options.report, notice: options.notice });
+  const right = useDocumentTabs({ userId: options.userId, storageKey: `${tabSessionKey(options.userId)}:right`, excludeRestored: () => new Set(raw.current?.left.snapshot().tabs.map(tab => tab.pageId)), load: (id, history, current, signal) => load("right", id, history, current, signal), flush: async () => { await editor("right")?.flush(false); }, clear: () => accept("right", null), report: options.report, notice: options.notice });
   useLayoutEffect(() => { raw.current = { left, right }; });
   const owner = useCallback((id: string) => (["left", "right"] as const).find(pane => raw.current?.[pane].snapshot().tabs.some(tab => tab.pageId === id) || docs.current[pane]?.id === id) ?? pendingOwners.current.get(id)?.pane, []);
   const open = useCallback(async (id: string, mode: DocumentTab["mode"] = "preview", history: DocumentHistory = "push", pane?: WorkspacePaneId) => {
@@ -65,7 +68,11 @@ export function useWorkspaceTabs(options: Options) {
     try { await Promise.all([raw.current!.left.settle(), raw.current!.right.settle()]);await operation();return true; } catch (error) { callbacks.current.report(error);return false; }
     finally { transaction.current = false;setBusy(false);setDocuments(docs.current);if (present) callbacks.current.present(docs.current[layoutRef.current.active]);callbacks.current.onController(editor(layoutRef.current.active) ?? null); }
   }, [editor]);
-  const leave = useCallback((operation: () => void) => atomic(async () => { await flushAll();operation(); }, false), [atomic, flushAll]);
+  const leave = useCallback((operation: () => void) => leaveIntents.current.run(async current => {
+    let applied = false;
+    const success = await atomic(async () => { await flushAll();if (current()) { operation();applied = true; } }, false);
+    return success && applied;
+  }).then(Boolean), [atomic, flushAll]);
   const transfer = useCallback((id: string, target: WorkspacePaneId) => atomic(async () => {
     const source = owner(id);if (!source || source === target) return;
     const oldSource = raw.current![source].snapshot();const oldDoc = docs.current[source];

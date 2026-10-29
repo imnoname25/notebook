@@ -1,0 +1,1665 @@
+{
+  "theme": "studio-graphite",
+  "serial": {
+    "start": {
+      "metrics": {
+        "commits": 87,
+        "duration": 1294,
+        "renders": {
+          "NotebookWorkspace": 25,
+          "NotebookSidebar": 53,
+          "WorkspacePane": 77,
+          "RichTextEditor": 31
+        },
+        "mounts": {
+          "NotebookWorkspace": 1,
+          "NotebookSidebar": 1,
+          "WorkspacePane": 4,
+          "RichTextEditor": 2
+        },
+        "longTasks": [
+          51,
+          104,
+          69,
+          165,
+          64,
+          61,
+          170,
+          76,
+          56,
+          233,
+          311,
+          69,
+          76,
+          105,
+          103,
+          68,
+          63
+        ],
+        "treeEmpty": 0,
+        "treeRemoved": 0,
+        "editorMounts": 2
+      },
+      "heap": 59225581
+    },
+    "end": {
+      "metrics": {
+        "commits": 1150,
+        "duration": 10903,
+        "renders": {
+          "NotebookWorkspace": 308,
+          "NotebookSidebar": 796,
+          "WorkspacePane": 744,
+          "RichTextEditor": 489
+        },
+        "mounts": {
+          "NotebookWorkspace": 1,
+          "NotebookSidebar": 1,
+          "WorkspacePane": 34,
+          "RichTextEditor": 32
+        },
+        "longTasks": [
+          51,
+          104,
+          69,
+          165,
+          64,
+          61,
+          170,
+          76,
+          56,
+          233,
+          311,
+          69,
+          76,
+          105,
+          103,
+          68,
+          63,
+          104,
+          64,
+          89,
+          196,
+          126,
+          59,
+          80,
+          54,
+          139,
+          115,
+          232,
+          102,
+          55,
+          72,
+          134,
+          106,
+          54,
+          54,
+          125,
+          196,
+          64,
+          105,
+          50,
+          225,
+          98,
+          115,
+          232,
+          106,
+          145,
+          275,
+          139,
+          267,
+          65,
+          111,
+          54,
+          160,
+          75,
+          55,
+          70,
+          114,
+          117,
+          57,
+          86,
+          170,
+          118,
+          56,
+          184,
+          93,
+          71,
+          104,
+          169,
+          102,
+          70,
+          116,
+          87,
+          63,
+          188,
+          78,
+          105,
+          195,
+          79,
+          144,
+          100,
+          100,
+          221,
+          97,
+          98,
+          186,
+          100,
+          99,
+          58,
+          84,
+          171,
+          109,
+          100,
+          98,
+          85,
+          179,
+          112,
+          257,
+          63,
+          104,
+          235,
+          54,
+          98,
+          108,
+          56,
+          74,
+          170,
+          103,
+          196,
+          82,
+          127,
+          97,
+          80,
+          211,
+          97,
+          85,
+          220,
+          115,
+          142,
+          60,
+          52,
+          67,
+          108,
+          61,
+          110,
+          183,
+          77
+        ],
+        "treeEmpty": 0,
+        "treeRemoved": 0,
+        "editorMounts": 32
+      },
+      "heap": 84465369
+    },
+    "actions": [
+      {
+        "kind": "section",
+        "ms": 484.89990000000034,
+        "requests": 2
+      },
+      {
+        "kind": "page",
+        "ms": 533.6293999999998,
+        "requests": 2
+      },
+      {
+        "kind": "section",
+        "ms": 385.9491999999991,
+        "requests": 2
+      },
+      {
+        "kind": "page",
+        "ms": 977.2507999999998,
+        "requests": 4
+      },
+      {
+        "kind": "section",
+        "ms": 573.5045000000009,
+        "requests": 2
+      },
+      {
+        "kind": "page",
+        "ms": 523.2623000000003,
+        "requests": 3
+      },
+      {
+        "kind": "section",
+        "ms": 428.28409999999894,
+        "requests": 3
+      },
+      {
+        "kind": "page",
+        "ms": 559.0493000000006,
+        "requests": 5
+      },
+      {
+        "kind": "section",
+        "ms": 537.4788000000008,
+        "requests": 3
+      },
+      {
+        "kind": "page",
+        "ms": 408.1324999999997,
+        "requests": 3
+      },
+      {
+        "kind": "section",
+        "ms": 693.194300000001,
+        "requests": 3
+      },
+      {
+        "kind": "page",
+        "ms": 379.6219000000001,
+        "requests": 2
+      },
+      {
+        "kind": "section",
+        "ms": 564.6690999999992,
+        "requests": 2
+      },
+      {
+        "kind": "page",
+        "ms": 468.0548000000017,
+        "requests": 4
+      },
+      {
+        "kind": "section",
+        "ms": 612.0044000000016,
+        "requests": 2
+      },
+      {
+        "kind": "page",
+        "ms": 400.4933000000019,
+        "requests": 2
+      },
+      {
+        "kind": "section",
+        "ms": 472.88930000000255,
+        "requests": 3
+      },
+      {
+        "kind": "page",
+        "ms": 451.2582000000002,
+        "requests": 3
+      },
+      {
+        "kind": "section",
+        "ms": 356.237000000001,
+        "requests": 2
+      },
+      {
+        "kind": "page",
+        "ms": 518.634100000003,
+        "requests": 3
+      },
+      {
+        "kind": "section",
+        "ms": 292.79399999999805,
+        "requests": 1
+      },
+      {
+        "kind": "page",
+        "ms": 538.5999999999985,
+        "requests": 4
+      },
+      {
+        "kind": "section",
+        "ms": 229.01480000000083,
+        "requests": 1
+      },
+      {
+        "kind": "page",
+        "ms": 607.2106000000022,
+        "requests": 4
+      },
+      {
+        "kind": "section",
+        "ms": 411.53280000000086,
+        "requests": 2
+      },
+      {
+        "kind": "page",
+        "ms": 746.225699999999,
+        "requests": 3
+      },
+      {
+        "kind": "section",
+        "ms": 488.5764999999992,
+        "requests": 2
+      },
+      {
+        "kind": "page",
+        "ms": 902.6696000000011,
+        "requests": 3
+      },
+      {
+        "kind": "section",
+        "ms": 187.58069999999861,
+        "requests": 1
+      },
+      {
+        "kind": "page",
+        "ms": 582.5724000000009,
+        "requests": 4
+      },
+      {
+        "kind": "section",
+        "ms": 264.85719999999856,
+        "requests": 1
+      },
+      {
+        "kind": "page",
+        "ms": 509.7069999999985,
+        "requests": 3
+      },
+      {
+        "kind": "section",
+        "ms": 449.1252999999997,
+        "requests": 3
+      },
+      {
+        "kind": "page",
+        "ms": 406.77820000000065,
+        "requests": 3
+      },
+      {
+        "kind": "section",
+        "ms": 437.5503000000026,
+        "requests": 2
+      },
+      {
+        "kind": "page",
+        "ms": 392.83020000000033,
+        "requests": 2
+      },
+      {
+        "kind": "section",
+        "ms": 238.93639999999868,
+        "requests": 2
+      },
+      {
+        "kind": "page",
+        "ms": 549.6239999999998,
+        "requests": 4
+      },
+      {
+        "kind": "section",
+        "ms": 207.6293000000005,
+        "requests": 1
+      },
+      {
+        "kind": "page",
+        "ms": 567.1336999999985,
+        "requests": 4
+      },
+      {
+        "kind": "section",
+        "ms": 427.14789999999994,
+        "requests": 2
+      },
+      {
+        "kind": "page",
+        "ms": 361.5491000000002,
+        "requests": 1
+      },
+      {
+        "kind": "section",
+        "ms": 482.5536000000029,
+        "requests": 4
+      },
+      {
+        "kind": "page",
+        "ms": 475.5633999999991,
+        "requests": 2
+      },
+      {
+        "kind": "section",
+        "ms": 390.14919999999984,
+        "requests": 2
+      },
+      {
+        "kind": "page",
+        "ms": 417.067500000001,
+        "requests": 3
+      },
+      {
+        "kind": "section",
+        "ms": 282.20900000000256,
+        "requests": 2
+      },
+      {
+        "kind": "page",
+        "ms": 559.5146000000022,
+        "requests": 4
+      },
+      {
+        "kind": "section",
+        "ms": 264.37049999999726,
+        "requests": 1
+      },
+      {
+        "kind": "page",
+        "ms": 608.449099999998,
+        "requests": 4
+      },
+      {
+        "kind": "section",
+        "ms": 284.57189999999537,
+        "requests": 2
+      },
+      {
+        "kind": "page",
+        "ms": 448.9657999999981,
+        "requests": 2
+      },
+      {
+        "kind": "section",
+        "ms": 472.1640000000043,
+        "requests": 3
+      },
+      {
+        "kind": "page",
+        "ms": 443.0442999999941,
+        "requests": 2
+      },
+      {
+        "kind": "section",
+        "ms": 528.6937999999936,
+        "requests": 3
+      },
+      {
+        "kind": "page",
+        "ms": 361.84599999999773,
+        "requests": 3
+      },
+      {
+        "kind": "section",
+        "ms": 316.55599999999686,
+        "requests": 1
+      },
+      {
+        "kind": "page",
+        "ms": 468.9962999999989,
+        "requests": 3
+      },
+      {
+        "kind": "section",
+        "ms": 238.04849999999715,
+        "requests": 2
+      },
+      {
+        "kind": "page",
+        "ms": 444.4956999999995,
+        "requests": 4
+      }
+    ],
+    "requests": [
+      {
+        "url": "/api/pages/cmvt6banu00093o71rikfpwm5/knowledge",
+        "method": "GET",
+        "ms": 391.2625000000007,
+        "status": 200
+      },
+      {
+        "url": "/api/pages?sectionId=cmvt6b9os00033o71bkr8lad7",
+        "method": "GET",
+        "ms": 224.52280000000064,
+        "status": 200
+      },
+      {
+        "url": "/api/pages/cmvt6b9sh00043o71733ccono",
+        "method": "GET",
+        "ms": 1.0769000000000233,
+        "status": 200
+      },
+      {
+        "url": "/api/account/preferences",
+        "method": "GET",
+        "ms": 63.4445999999989,
+        "status": 200
+      },
+      {
+        "url": "/api/account/preferences",
+        "method": "GET",
+        "ms": 142.40270000000055,
+        "status": 200
+      },
+      {
+        "url": "/api/pages?sectionId=cmvt6bamo00083o71v7no32qi",
+        "method": "GET",
+        "ms": 65.29619999999886,
+        "status": 200
+      },
+      {
+        "url": "/api/pages/cmvt6b9sh00043o71733ccono/knowledge",
+        "method": "GET",
+        "ms": 307.95870000000104,
+        "status": 200
+      },
+      {
+        "url": "/api/pages/cmvt6banu00093o71rikfpwm5",
+        "method": "GET",
+        "ms": 198.51810000000114,
+        "status": 200
+      },
+      {
+        "url": "/api/account/preferences",
+        "method": "GET",
+        "ms": 136.32550000000083,
+        "status": 200
+      },
+      {
+        "url": "/api/account/preferences",
+        "method": "GET",
+        "ms": 201.6877000000004,
+        "status": 200
+      },
+      {
+        "url": "/api/pages/cmvt6banu00093o71rikfpwm5/knowledge",
+        "method": "GET",
+        "ms": 65.43970000000081,
+        "status": 200
+      },
+      {
+        "url": "/api/pages?sectionId=cmvt6basw000d3o71ifkefjm1",
+        "method": "GET",
+        "ms": 95.33519999999953,
+        "status": 200
+      },
+      {
+        "url": "/api/pages/cmvt6batt000e3o71cj2k9q2c",
+        "method": "GET",
+        "ms": 51.233799999999974,
+        "status": 200
+      },
+      {
+        "url": "/api/recent",
+        "method": "POST",
+        "ms": 137.1214,
+        "status": 200
+      },
+      {
+        "url": "/api/account/preferences",
+        "method": "GET",
+        "ms": 132.3016000000007,
+        "status": 200
+      },
+      {
+        "url": "/api/pages?sectionId=cmvt6basw000d3o71ifkefjm1",
+        "method": "GET",
+        "ms": 151.44900000000052,
+        "status": 200
+      },
+      {
+        "url": "/api/account/preferences",
+        "method": "GET",
+        "ms": 295.8285999999989,
+        "status": 200
+      },
+      {
+        "url": "/api/pages?sectionId=cmvt6baz4000i3o71cavo3cri",
+        "method": "GET",
+        "ms": 26.391700000000128,
+        "status": 200
+      },
+      {
+        "url": "/api/pages/cmvt6batt000e3o71cj2k9q2c/knowledge",
+        "method": "GET",
+        "ms": 188.1954999999998,
+        "status": 200
+      },
+      {
+        "url": "/api/pages/cmvt6bb0i000j3o71vzpahqvm",
+        "method": "GET",
+        "ms": 61.585000000000946,
+        "status": 200
+      },
+      {
+        "url": "/api/recent",
+        "method": "POST",
+        "ms": 168.15080000000125,
+        "status": 200
+      },
+      {
+        "url": "/api/account/preferences",
+        "method": "GET",
+        "ms": 74.77409999999873,
+        "status": 200
+      },
+      {
+        "url": "/api/account/preferences",
+        "method": "GET",
+        "ms": 144.22839999999997,
+        "status": 200
+      },
+      {
+        "url": "/api/pages?sectionId=cmvt6baz4000i3o71cavo3cri",
+        "method": "GET",
+        "ms": 85.02760000000126,
+        "status": 200
+      },
+      {
+        "url": "/api/pages/cmvt6bb0i000j3o71vzpahqvm/knowledge",
+        "method": "GET",
+        "ms": 209.8137000000006,
+        "status": 200
+      },
+      {
+        "url": "/api/pages?sectionId=cmvt6bb6k000n3o7121hpg24x",
+        "method": "GET",
+        "ms": 29.56760000000031,
+        "status": 200
+      },
+      {
+        "url": "/api/pages/cmvt6bb7h000o3o71jaiyvmx0",
+        "method": "GET",
+        "ms": 24.21019999999953,
+        "status": 200
+      },
+      {
+        "url": "/api/recent",
+        "method": "POST",
+        "ms": 154.52089999999953,
+        "status": 200
+      },
+      {
+        "url": "/api/account/preferences",
+        "method": "GET",
+        "ms": 119.97199999999975,
+        "status": 200
+      },
+      {
+        "url": "/api/account/preferences",
+        "method": "GET",
+        "ms": 414.1256000000012,
+        "status": 200
+      },
+      {
+        "url": "/api/pages?sectionId=cmvt6b9os00033o71bkr8lad7",
+        "method": "GET",
+        "ms": 252.40149999999994,
+        "status": 200
+      },
+      {
+        "url": "/api/pages/cmvt6bb7h000o3o71jaiyvmx0/knowledge",
+        "method": "GET",
+        "ms": 245.10820000000058,
+        "status": 200
+      },
+      {
+        "url": "/api/pages/cmvt6b9sh00043o71733ccono",
+        "method": "GET",
+        "ms": 33.47179999999935,
+        "status": 200
+      },
+      {
+        "url": "/api/account/preferences",
+        "method": "GET",
+        "ms": 86.58650000000125,
+        "status": 200
+      },
+      {
+        "url": "/api/account/preferences",
+        "method": "GET",
+        "ms": 129.37189999999828,
+        "status": 200
+      },
+      {
+        "url": "/api/pages?sectionId=cmvt6bamo00083o71v7no32qi",
+        "method": "GET",
+        "ms": 38.722499999999854,
+        "status": 200
+      },
+      {
+        "url": "/api/pages/cmvt6b9sh00043o71733ccono/knowledge",
+        "method": "GET",
+        "ms": 149.96740000000136,
+        "status": 200
+      },
+      {
+        "url": "/api/pages/cmvt6banu00093o71rikfpwm5",
+        "method": "GET",
+        "ms": 88.72069999999803,
+        "status": 200
+      },
+      {
+        "url": "/api/account/preferences",
+        "method": "GET",
+        "ms": 81.22710000000006,
+        "status": 200
+      },
+      {
+        "url": "/api/account/preferences",
+        "method": "GET",
+        "ms": 109.48040000000037,
+        "status": 200
+      },
+      {
+        "url": "/api/pages/cmvt6banu00093o71rikfpwm5/knowledge",
+        "method": "GET",
+        "ms": 293.41739999999845,
+        "status": 200
+      },
+      {
+        "url": "/api/pages?sectionId=cmvt6basw000d3o71ifkefjm1",
+        "method": "GET",
+        "ms": 47.53949999999895,
+        "status": 200
+      },
+      {
+        "url": "/api/pages/cmvt6batt000e3o71cj2k9q2c",
+        "method": "GET",
+        "ms": 67.15759999999864,
+        "status": 200
+      },
+      {
+        "url": "/api/account/preferences",
+        "method": "GET",
+        "ms": 93.93179999999847,
+        "status": 200
+      },
+      {
+        "url": "/api/account/preferences",
+        "method": "GET",
+        "ms": 141.66389999999956,
+        "status": 200
+      },
+      {
+        "url": "/api/pages?sectionId=cmvt6baz4000i3o71cavo3cri",
+        "method": "GET",
+        "ms": 50.46030000000246,
+        "status": 200
+      },
+      {
+        "url": "/api/pages/cmvt6batt000e3o71cj2k9q2c/knowledge",
+        "method": "GET",
+        "ms": 122.69740000000093,
+        "status": 200
+      },
+      {
+        "url": "/api/pages/cmvt6bb0i000j3o71vzpahqvm",
+        "method": "GET",
+        "ms": 16.078199999999924,
+        "status": 200
+      },
+      {
+        "url": "/api/account/preferences",
+        "method": "GET",
+        "ms": 94.9377999999997,
+        "status": 200
+      },
+      {
+        "url": "/api/account/preferences",
+        "method": "GET",
+        "ms": 136.76480000000083,
+        "status": 200
+      },
+      {
+        "url": "/api/pages?sectionId=cmvt6bb6k000n3o7121hpg24x",
+        "method": "GET",
+        "ms": 44.61269999999786,
+        "status": 200
+      },
+      {
+        "url": "/api/pages/cmvt6bb0i000j3o71vzpahqvm/knowledge",
+        "method": "GET",
+        "ms": 95.51699999999983,
+        "status": 200
+      },
+      {
+        "url": "/api/pages/cmvt6bb7h000o3o71jaiyvmx0",
+        "method": "GET",
+        "ms": 4.0328000000008615,
+        "status": 200
+      },
+      {
+        "url": "/api/account/preferences",
+        "method": "GET",
+        "ms": 44.82809999999881,
+        "status": 200
+      },
+      {
+        "url": "/api/account/preferences",
+        "method": "GET",
+        "ms": 158.21990000000005,
+        "status": 200
+      },
+      {
+        "url": "/api/pages?sectionId=cmvt6b9os00033o71bkr8lad7",
+        "method": "GET",
+        "ms": 33.09570000000167,
+        "status": 200
+      },
+      {
+        "url": "/api/pages/cmvt6bb7h000o3o71jaiyvmx0/knowledge",
+        "method": "GET",
+        "ms": 93.23340000000098,
+        "status": 200
+      },
+      {
+        "url": "/api/pages/cmvt6b9sh00043o71733ccono",
+        "method": "GET",
+        "ms": 18.966599999999744,
+        "status": 200
+      },
+      {
+        "url": "/api/account/preferences",
+        "method": "GET",
+        "ms": 68.93060000000332,
+        "status": 200
+      },
+      {
+        "url": "/api/account/preferences",
+        "method": "GET",
+        "ms": 69.23700000000099,
+        "status": 200
+      },
+      {
+        "url": "/api/pages?sectionId=cmvt6bamo00083o71v7no32qi",
+        "method": "GET",
+        "ms": 41.591700000000856,
+        "status": 200
+      },
+      {
+        "url": "/api/pages/cmvt6b9sh00043o71733ccono/knowledge",
+        "method": "GET",
+        "ms": 180.35069999999905,
+        "status": 200
+      },
+      {
+        "url": "/api/pages/cmvt6banu00093o71rikfpwm5",
+        "method": "GET",
+        "ms": 107.72230000000127,
+        "status": 200
+      },
+      {
+        "url": "/api/account/preferences",
+        "method": "GET",
+        "ms": 121.3044000000009,
+        "status": 200
+      },
+      {
+        "url": "/api/account/preferences",
+        "method": "GET",
+        "ms": 152.79130000000077,
+        "status": 200
+      },
+      {
+        "url": "/api/pages/cmvt6banu00093o71rikfpwm5/knowledge",
+        "method": "GET",
+        "ms": 126.52140000000145,
+        "status": 200
+      },
+      {
+        "url": "/api/pages?sectionId=cmvt6basw000d3o71ifkefjm1",
+        "method": "GET",
+        "ms": 87.03940000000148,
+        "status": 200
+      },
+      {
+        "url": "/api/pages/cmvt6batt000e3o71cj2k9q2c",
+        "method": "GET",
+        "ms": 101.50730000000112,
+        "status": 200
+      },
+      {
+        "url": "/api/account/preferences",
+        "method": "GET",
+        "ms": 114.77200000000084,
+        "status": 200
+      },
+      {
+        "url": "/api/account/preferences",
+        "method": "GET",
+        "ms": 213.28260000000228,
+        "status": 200
+      },
+      {
+        "url": "/api/pages/cmvt6batt000e3o71cj2k9q2c/knowledge",
+        "method": "GET",
+        "ms": 152.2546000000002,
+        "status": 200
+      },
+      {
+        "url": "/api/pages?sectionId=cmvt6baz4000i3o71cavo3cri",
+        "method": "GET",
+        "ms": 42.773699999997916,
+        "status": 200
+      },
+      {
+        "url": "/api/pages/cmvt6bb0i000j3o71vzpahqvm",
+        "method": "GET",
+        "ms": 257.53069999999934,
+        "status": 200
+      },
+      {
+        "url": "/api/account/preferences",
+        "method": "GET",
+        "ms": 110.71639999999752,
+        "status": 200
+      },
+      {
+        "url": "/api/account/preferences",
+        "method": "GET",
+        "ms": 139.6925999999985,
+        "status": 200
+      },
+      {
+        "url": "/api/pages?sectionId=cmvt6bb6k000n3o7121hpg24x",
+        "method": "GET",
+        "ms": 31.77310000000216,
+        "status": 200
+      },
+      {
+        "url": "/api/pages/cmvt6bb0i000j3o71vzpahqvm/knowledge",
+        "method": "GET",
+        "ms": 245.62999999999738,
+        "status": 200
+      },
+      {
+        "url": "/api/pages/cmvt6bb7h000o3o71jaiyvmx0",
+        "method": "GET",
+        "ms": 104.13430000000153,
+        "status": 200
+      },
+      {
+        "url": "/api/account/preferences",
+        "method": "GET",
+        "ms": 99.28340000000026,
+        "status": 200
+      },
+      {
+        "url": "/api/account/preferences",
+        "method": "GET",
+        "ms": 100.22779999999693,
+        "status": 200
+      },
+      {
+        "url": "/api/pages?sectionId=cmvt6b9os00033o71bkr8lad7",
+        "method": "GET",
+        "ms": 34.63560000000143,
+        "status": 200
+      },
+      {
+        "url": "/api/pages/cmvt6bb7h000o3o71jaiyvmx0/knowledge",
+        "method": "GET",
+        "ms": 238.11739999999918,
+        "status": 200
+      },
+      {
+        "url": "/api/pages/cmvt6b9sh00043o71733ccono",
+        "method": "GET",
+        "ms": 44.123200000001816,
+        "status": 200
+      },
+      {
+        "url": "/api/account/preferences",
+        "method": "GET",
+        "ms": 161.5084999999999,
+        "status": 200
+      },
+      {
+        "url": "/api/account/preferences",
+        "method": "GET",
+        "ms": 204.21340000000055,
+        "status": 200
+      },
+      {
+        "url": "/api/pages/cmvt6b9sh00043o71733ccono/knowledge",
+        "method": "GET",
+        "ms": 33.257800000003044,
+        "status": 200
+      },
+      {
+        "url": "/api/pages?sectionId=cmvt6bamo00083o71v7no32qi",
+        "method": "GET",
+        "ms": 32.82719999999972,
+        "status": 200
+      },
+      {
+        "url": "/api/pages/cmvt6banu00093o71rikfpwm5",
+        "method": "GET",
+        "ms": 57.482599999999366,
+        "status": 200
+      },
+      {
+        "url": "/api/account/preferences",
+        "method": "GET",
+        "ms": 67.85099999999875,
+        "status": 200
+      },
+      {
+        "url": "/api/account/preferences",
+        "method": "GET",
+        "ms": 85.8773000000001,
+        "status": 200
+      },
+      {
+        "url": "/api/pages?sectionId=cmvt6basw000d3o71ifkefjm1",
+        "method": "GET",
+        "ms": 29.981300000003102,
+        "status": 200
+      },
+      {
+        "url": "/api/pages/cmvt6banu00093o71rikfpwm5/knowledge",
+        "method": "GET",
+        "ms": 45.05319999999847,
+        "status": 200
+      },
+      {
+        "url": "/api/pages/cmvt6batt000e3o71cj2k9q2c",
+        "method": "GET",
+        "ms": 33.20170000000144,
+        "status": 200
+      },
+      {
+        "url": "/api/account/preferences",
+        "method": "GET",
+        "ms": 74.61670000000231,
+        "status": 200
+      },
+      {
+        "url": "/api/account/preferences",
+        "method": "GET",
+        "ms": 279.45920000000115,
+        "status": 200
+      },
+      {
+        "url": "/api/pages?sectionId=cmvt6baz4000i3o71cavo3cri",
+        "method": "GET",
+        "ms": 35.66939999999886,
+        "status": 200
+      },
+      {
+        "url": "/api/pages/cmvt6batt000e3o71cj2k9q2c/knowledge",
+        "method": "GET",
+        "ms": 75.4372000000003,
+        "status": 200
+      },
+      {
+        "url": "/api/pages/cmvt6bb0i000j3o71vzpahqvm",
+        "method": "GET",
+        "ms": 3.440600000001723,
+        "status": 200
+      },
+      {
+        "url": "/api/account/preferences",
+        "method": "GET",
+        "ms": 68.66820000000007,
+        "status": 200
+      },
+      {
+        "url": "/api/account/preferences",
+        "method": "GET",
+        "ms": 68.52240000000165,
+        "status": 200
+      },
+      {
+        "url": "/api/pages?sectionId=cmvt6bb6k000n3o7121hpg24x",
+        "method": "GET",
+        "ms": 35.91009999999733,
+        "status": 200
+      },
+      {
+        "url": "/api/pages/cmvt6bb0i000j3o71vzpahqvm/knowledge",
+        "method": "GET",
+        "ms": 72.65320000000065,
+        "status": 200
+      },
+      {
+        "url": "/api/pages/cmvt6bb7h000o3o71jaiyvmx0",
+        "method": "GET",
+        "ms": 35.89249999999811,
+        "status": 200
+      },
+      {
+        "url": "/api/account/preferences",
+        "method": "GET",
+        "ms": 115.94830000000002,
+        "status": 200
+      },
+      {
+        "url": "/api/account/preferences",
+        "method": "GET",
+        "ms": 148.69900000000052,
+        "status": 200
+      },
+      {
+        "url": "/api/pages/cmvt6bb7h000o3o71jaiyvmx0/knowledge",
+        "method": "GET",
+        "ms": 227.2316000000028,
+        "status": 200
+      },
+      {
+        "url": "/api/pages?sectionId=cmvt6b9os00033o71bkr8lad7",
+        "method": "GET",
+        "ms": 43.18920000000071,
+        "status": 200
+      },
+      {
+        "url": "/api/pages/cmvt6b9sh00043o71733ccono",
+        "method": "GET",
+        "ms": 29.71059999999852,
+        "status": 200
+      },
+      {
+        "url": "/api/account/preferences",
+        "method": "GET",
+        "ms": 104.9474999999984,
+        "status": 200
+      },
+      {
+        "url": "/api/account/preferences",
+        "method": "GET",
+        "ms": 434.3816999999981,
+        "status": 200
+      },
+      {
+        "url": "/api/pages?sectionId=cmvt6bamo00083o71v7no32qi",
+        "method": "GET",
+        "ms": 42.29369999999835,
+        "status": 200
+      },
+      {
+        "url": "/api/pages/cmvt6b9sh00043o71733ccono/knowledge",
+        "method": "GET",
+        "ms": 120.34879999999976,
+        "status": 200
+      },
+      {
+        "url": "/api/pages/cmvt6banu00093o71rikfpwm5",
+        "method": "GET",
+        "ms": 58.588700000000244,
+        "status": 200
+      },
+      {
+        "url": "/api/account/preferences",
+        "method": "GET",
+        "ms": 80.47439999999915,
+        "status": 200
+      },
+      {
+        "url": "/api/account/preferences",
+        "method": "GET",
+        "ms": 400.89610000000175,
+        "status": 200
+      },
+      {
+        "url": "/api/pages?sectionId=cmvt6basw000d3o71ifkefjm1",
+        "method": "GET",
+        "ms": 47.94520000000193,
+        "status": 200
+      },
+      {
+        "url": "/api/pages/cmvt6banu00093o71rikfpwm5/knowledge",
+        "method": "GET",
+        "ms": 298.5233999999982,
+        "status": 200
+      },
+      {
+        "url": "/api/pages/cmvt6batt000e3o71cj2k9q2c",
+        "method": "GET",
+        "ms": 111.02249999999913,
+        "status": 200
+      },
+      {
+        "url": "/api/account/preferences",
+        "method": "GET",
+        "ms": 89.89919999999984,
+        "status": 200
+      },
+      {
+        "url": "/api/account/preferences",
+        "method": "GET",
+        "ms": 294.70770000000266,
+        "status": 200
+      },
+      {
+        "url": "/api/pages?sectionId=cmvt6baz4000i3o71cavo3cri",
+        "method": "GET",
+        "ms": 33.99989999999889,
+        "status": 200
+      },
+      {
+        "url": "/api/pages/cmvt6batt000e3o71cj2k9q2c/knowledge",
+        "method": "GET",
+        "ms": 78.8176999999996,
+        "status": 200
+      },
+      {
+        "url": "/api/pages/cmvt6bb0i000j3o71vzpahqvm",
+        "method": "GET",
+        "ms": 0.7259999999987485,
+        "status": 200
+      },
+      {
+        "url": "/api/account/preferences",
+        "method": "GET",
+        "ms": 65.31850000000486,
+        "status": 200
+      },
+      {
+        "url": "/api/account/preferences",
+        "method": "GET",
+        "ms": 109.3076000000001,
+        "status": 200
+      },
+      {
+        "url": "/api/pages?sectionId=cmvt6bb6k000n3o7121hpg24x",
+        "method": "GET",
+        "ms": 36.74279999999999,
+        "status": 200
+      },
+      {
+        "url": "/api/pages/cmvt6bb0i000j3o71vzpahqvm/knowledge",
+        "method": "GET",
+        "ms": 113.1047000000035,
+        "status": 200
+      },
+      {
+        "url": "/api/pages/cmvt6bb7h000o3o71jaiyvmx0",
+        "method": "GET",
+        "ms": 60.62960000000021,
+        "status": 200
+      },
+      {
+        "url": "/api/account/preferences",
+        "method": "GET",
+        "ms": 113.79430000000139,
+        "status": 200
+      },
+      {
+        "url": "/api/account/preferences",
+        "method": "GET",
+        "ms": 114.6594000000041,
+        "status": 200
+      },
+      {
+        "url": "/api/pages?sectionId=cmvt6b9os00033o71bkr8lad7",
+        "method": "GET",
+        "ms": 34.26640000000043,
+        "status": 200
+      },
+      {
+        "url": "/api/pages/cmvt6bb7h000o3o71jaiyvmx0/knowledge",
+        "method": "GET",
+        "ms": 72.45919999999751,
+        "status": 200
+      },
+      {
+        "url": "/api/pages/cmvt6b9sh00043o71733ccono",
+        "method": "GET",
+        "ms": 12.220600000000559,
+        "status": 200
+      },
+      {
+        "url": "/api/account/preferences",
+        "method": "GET",
+        "ms": 90.91709999999875,
+        "status": 200
+      },
+      {
+        "url": "/api/account/preferences",
+        "method": "GET",
+        "ms": 185.73920000000362,
+        "status": 200
+      },
+      {
+        "url": "/api/pages?sectionId=cmvt6bamo00083o71v7no32qi",
+        "method": "GET",
+        "ms": 32.66100000000006,
+        "status": 200
+      },
+      {
+        "url": "/api/pages/cmvt6b9sh00043o71733ccono/knowledge",
+        "method": "GET",
+        "ms": 99.6909999999989,
+        "status": 200
+      },
+      {
+        "url": "/api/pages/cmvt6banu00093o71rikfpwm5",
+        "method": "GET",
+        "ms": 29.533900000002177,
+        "status": 200
+      },
+      {
+        "url": "/api/account/preferences",
+        "method": "GET",
+        "ms": 91.27950000000419,
+        "status": 200
+      },
+      {
+        "url": "/api/account/preferences",
+        "method": "GET",
+        "ms": 305.3634999999995,
+        "status": 200
+      },
+      {
+        "url": "/api/pages/cmvt6banu00093o71rikfpwm5/knowledge",
+        "method": "GET",
+        "ms": 274.3325999999943,
+        "status": 200
+      },
+      {
+        "url": "/api/pages?sectionId=cmvt6basw000d3o71ifkefjm1",
+        "method": "GET",
+        "ms": 39.442000000002736,
+        "status": 200
+      },
+      {
+        "url": "/api/pages/cmvt6batt000e3o71cj2k9q2c",
+        "method": "GET",
+        "ms": 8.747600000002421,
+        "status": 200
+      },
+      {
+        "url": "/api/account/preferences",
+        "method": "GET",
+        "ms": 55.1481000000058,
+        "status": 200
+      },
+      {
+        "url": "/api/account/preferences",
+        "method": "GET",
+        "ms": 74.1617000000042,
+        "status": 200
+      },
+      {
+        "url": "/api/pages?sectionId=cmvt6baz4000i3o71cavo3cri",
+        "method": "GET",
+        "ms": 36.67119999999704,
+        "status": 200
+      },
+      {
+        "url": "/api/pages/cmvt6batt000e3o71cj2k9q2c/knowledge",
+        "method": "GET",
+        "ms": 154.52700000000186,
+        "status": 200
+      },
+      {
+        "url": "/api/pages/cmvt6bb0i000j3o71vzpahqvm",
+        "method": "GET",
+        "ms": 4.208299999998417,
+        "status": 200
+      },
+      {
+        "url": "/api/account/preferences",
+        "method": "GET",
+        "ms": 70.43349999999919,
+        "status": 200
+      },
+      {
+        "url": "/api/account/preferences",
+        "method": "GET",
+        "ms": 150.35899999999674,
+        "status": 200
+      },
+      {
+        "url": "/api/pages?sectionId=cmvt6bb6k000n3o7121hpg24x",
+        "method": "GET",
+        "ms": 30.95110000000568,
+        "status": 200
+      },
+      {
+        "url": "/api/pages/cmvt6bb0i000j3o71vzpahqvm/knowledge",
+        "method": "GET",
+        "ms": 154.3992999999973,
+        "status": 200
+      },
+      {
+        "url": "/api/pages/cmvt6bb7h000o3o71jaiyvmx0",
+        "method": "GET",
+        "ms": 25.118299999994633,
+        "status": 200
+      },
+      {
+        "url": "/api/account/preferences",
+        "method": "GET",
+        "ms": 100.15380000000005,
+        "status": 200
+      },
+      {
+        "url": "/api/account/preferences",
+        "method": "GET",
+        "ms": 106.81940000000031,
+        "status": 200
+      }
+    ]
+  },
+  "delayed": {
+    "responsiveness": false,
+    "elapsed": 17765.879
+  },
+  "split": {
+    "requests": [
+      {
+        "url": "/api/pages/cmvt6bbau000q3o71eee0gzfl",
+        "method": "GET",
+        "ms": 10.33640000000014,
+        "status": 200
+      },
+      {
+        "url": "/api/recent",
+        "method": "POST",
+        "ms": 178.66229999999632,
+        "status": 200
+      },
+      {
+        "url": "/api/account/preferences",
+        "method": "GET",
+        "ms": 132.31469999999536,
+        "status": 200
+      },
+      {
+        "url": "/api/pages?sectionId=cmvt6bb6k000n3o7121hpg24x",
+        "method": "GET",
+        "ms": 82.7647999999972,
+        "status": 200
+      },
+      {
+        "url": "/api/account/preferences",
+        "method": "GET",
+        "ms": 239.12779999999475,
+        "status": 200
+      },
+      {
+        "url": "/api/pages/cmvt6bbau000q3o71eee0gzfl/knowledge",
+        "method": "GET",
+        "ms": 424.3133999999991,
+        "status": 200
+      },
+      {
+        "url": "/api/pages/cmvt6bb7h000o3o71jaiyvmx0/knowledge",
+        "method": "GET",
+        "ms": 424.7410999999993,
+        "status": 200
+      }
+    ],
+    "end": {
+      "metrics": {
+        "commits": 1852,
+        "duration": 14740,
+        "renders": {
+          "NotebookWorkspace": 409,
+          "NotebookSidebar": 1401,
+          "WorkspacePane": 954,
+          "RichTextEditor": 917
+        },
+        "mounts": {
+          "NotebookWorkspace": 1,
+          "NotebookSidebar": 1,
+          "WorkspacePane": 35,
+          "RichTextEditor": 33
+        },
+        "longTasks": [
+          51,
+          104,
+          69,
+          165,
+          64,
+          61,
+          170,
+          76,
+          56,
+          233,
+          311,
+          69,
+          76,
+          105,
+          103,
+          68,
+          63,
+          104,
+          64,
+          89,
+          196,
+          126,
+          59,
+          80,
+          54,
+          139,
+          115,
+          232,
+          102,
+          55,
+          72,
+          134,
+          106,
+          54,
+          54,
+          125,
+          196,
+          64,
+          105,
+          50,
+          225,
+          98,
+          115,
+          232,
+          106,
+          145,
+          275,
+          139,
+          267,
+          65,
+          111,
+          54,
+          160,
+          75,
+          55,
+          70,
+          114,
+          117,
+          57,
+          86,
+          170,
+          118,
+          56,
+          184,
+          93,
+          71,
+          104,
+          169,
+          102,
+          70,
+          116,
+          87,
+          63,
+          188,
+          78,
+          105,
+          195,
+          79,
+          144,
+          100,
+          100,
+          221,
+          97,
+          98,
+          186,
+          100,
+          99,
+          58,
+          84,
+          171,
+          109,
+          100,
+          98,
+          85,
+          179,
+          112,
+          257,
+          63,
+          104,
+          235,
+          54,
+          98,
+          108,
+          56,
+          74,
+          170,
+          103,
+          196,
+          82,
+          127,
+          97,
+          80,
+          211,
+          97,
+          85,
+          220,
+          115,
+          142,
+          60,
+          52,
+          67,
+          108,
+          61,
+          110,
+          183,
+          77,
+          74,
+          62,
+          114,
+          53,
+          123,
+          138,
+          286,
+          105,
+          85,
+          105,
+          229,
+          84,
+          87,
+          153,
+          263,
+          110,
+          101,
+          261,
+          96,
+          101,
+          115,
+          223,
+          365,
+          303,
+          130,
+          113,
+          252,
+          131,
+          83,
+          158,
+          192,
+          107,
+          108,
+          236
+        ],
+        "treeEmpty": 0,
+        "treeRemoved": 0,
+        "editorMounts": 33
+      },
+      "heap": 83911574
+    }
+  },
+  "errors": []
+}

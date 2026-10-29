@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState, type CSSProperties } from "react";
+import { memo, useEffect, useLayoutEffect, useMemo, useRef, useState, type CSSProperties } from "react";
 
 import {
   ChevronDown,
@@ -37,6 +37,9 @@ import { ensureExpandedNotebook, toggleExpandedNotebook } from "@/lib/notebook-t
 
 type Props = {
   notebooks: Notebook[];
+  loading?: boolean;
+  error?: string;
+  onRetry?(): void;
   activeNotebookId: string | null;
   activeSectionId: string | null;
   density?: "comfortable" | "compact";
@@ -195,6 +198,30 @@ function SectionTree({
 }
 
 export function NotebookSidebar(props: Props) {
+  // Editor busy/outline/status commits must not rerender the entire DnD tree.
+  // Forward to committed callbacks so memoization never captures stale navigation.
+  const latest = useRef(props);useLayoutEffect(() => { latest.current = props; });
+  const events = useMemo(() => ({
+    onNotebookSelect: (id: string) => latest.current.onNotebookSelect(id),
+    onSectionSelect: (section: Section) => latest.current.onSectionSelect(section),
+    onAddNotebook: () => latest.current.onAddNotebook(),
+    onNotebookMenu: (book: Notebook) => latest.current.onNotebookMenu(book),
+    onAddSection: (id: string, parent?: string) => latest.current.onAddSection(id, parent),
+    onSectionMenu: (section: Section) => latest.current.onSectionMenu(section),
+    onNotebookReorder: (ids: string[]) => latest.current.onNotebookReorder(ids),
+    onSectionReorder: (id: string, parent: string | null, ids: string[]) => latest.current.onSectionReorder(id, parent, ids),
+    onTrashOpen: () => latest.current.onTrashOpen(), onTagsOpen: () => latest.current.onTagsOpen(),
+    onInboxOpen: () => latest.current.onInboxOpen(), onTodayOpen: () => latest.current.onTodayOpen(),
+    onFavoritesOpen: () => latest.current.onFavoritesOpen?.(), onRecentOpen: () => latest.current.onRecentOpen?.(),
+    onTemplatesOpen: () => latest.current.onTemplatesOpen?.(), onSettingsOpen: () => latest.current.onSettingsOpen?.(),
+    onRetry: () => latest.current.onRetry?.(),
+  }), []);
+  return <MemoNotebookSidebar {...props} {...events}
+    onFavoritesOpen={props.onFavoritesOpen ? events.onFavoritesOpen : undefined} onRecentOpen={props.onRecentOpen ? events.onRecentOpen : undefined}
+    onTemplatesOpen={props.onTemplatesOpen ? events.onTemplatesOpen : undefined} onSettingsOpen={props.onSettingsOpen ? events.onSettingsOpen : undefined}/>;
+}
+const MemoNotebookSidebar = memo(NotebookSidebarTree);
+function NotebookSidebarTree(props: Props) {
   const ordered = [...props.notebooks].sort(
     (a, b) => a.sortOrder - b.sortOrder,
   );
@@ -268,7 +295,9 @@ export function NotebookSidebar(props: Props) {
         </Button>
       </div>
       <div className="notebook-navigation-tree min-h-0 flex-1 space-y-1 overflow-y-auto">
-        {ordered.length === 0 && (
+        {props.error && <div role="status" className="px-3 py-2 text-sm text-muted-foreground">{props.error} <button className="underline" onClick={props.onRetry}>Повторить</button></div>}
+        {props.loading && ordered.length === 0 && <p role="status" className="p-3 text-sm text-muted-foreground">Загрузка блокнотов…</p>}
+        {!props.loading && !props.error && ordered.length === 0 && (
           <div className="p-3 text-sm text-muted-foreground">
             <p className="mb-3">Здесь появятся ваши блокноты.</p>
             <Button size="sm" onClick={props.onAddNotebook}>

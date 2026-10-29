@@ -30,6 +30,8 @@ type Props = {
   pages: PageSummary[];
   activePageId: string | null;
   loading: boolean;
+  error?: string;
+  onRetry?(): void;
   density?: "comfortable" | "compact";
   notebookColor?: string;
   viewMode?: PageListView;
@@ -117,7 +119,8 @@ export function PageList(props: Props) {
             <div className="h-12 animate-pulse rounded-md bg-muted" />
           </div>
         )}
-        {!props.loading && props.section && ordered.length === 0 && (
+        {props.error && <div role="status" className="p-3 text-sm text-muted-foreground">{props.error} <button className="underline" onClick={props.onRetry}>Повторить</button></div>}
+        {!props.loading && !props.error && props.section && ordered.length === 0 && (
           <div className="p-5 text-center text-sm text-muted-foreground">
             <p className="mb-3">В разделе пока нет страниц.</p>
             <Button size="sm" onClick={props.onAdd}>

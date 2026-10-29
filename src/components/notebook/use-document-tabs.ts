@@ -12,7 +12,7 @@ type Options = {
   userId: string;
   storageKey?: string;
   excludeRestored?(): Set<string>;
-  load(id: string, history: DocumentHistory, current: () => boolean): Promise<Meta | null>;
+  load(id: string, history: DocumentHistory, current: () => boolean, signal: AbortSignal): Promise<Meta | null>;
   flush(): Promise<void>;
   clear(): void;
   report(error: unknown): void;
@@ -33,11 +33,11 @@ export function useDocumentTabs(options: Options) {
     if (hydrated.current) try { localStorage.setItem(callbacks.current.storageKey ?? tabSessionKey(callbacks.current.userId), serializeTabSession(next)); } catch { callbacks.current.notice("Не удалось сохранить сессию вкладок в этом браузере"); }
   }, []);
   const title = useCallback((id: string, value: string) => setTitles(old => old[id] === value ? old : { ...old, [id]: value }), []);
-  const run = useCallback(async (operation: (current: () => boolean) => Promise<boolean>) => {
+  const run = useCallback(async (operation: (current: () => boolean, signal: AbortSignal) => Promise<boolean>) => {
     try {
-      return await transitions.current.run(async current => {
+      return await transitions.current.run(async (current, signal) => {
         setBusy(true);
-        try { return await operation(current); } finally { setBusy(false); }
+        try { return await operation(current, signal); } finally { setBusy(false); }
       }) ?? false;
     } catch (error) {
       callbacks.current.report(error);
@@ -46,22 +46,22 @@ export function useDocumentTabs(options: Options) {
       return false;
     }
   }, []);
-  const open = useCallback((id: string, mode: DocumentTab["mode"] = "preview", history: DocumentHistory = "push") => { intent.current++;return run(async current => {
+  const open = useCallback((id: string, mode: DocumentTab["mode"] = "preview", history: DocumentHistory = "push") => { intent.current++;return run(async (current, signal) => {
     if (ref.current.tabs.length >= 100 && !ref.current.tabs.some(t => t.pageId === id) && !(mode === "preview" && ref.current.tabs.some(t => t.mode === "preview"))) { callbacks.current.notice("Открыто 100 вкладок. Закройте ненужные документы перед открытием новых.");return false; }
-    const meta = await callbacks.current.load(id, history, current);
+    const meta = await callbacks.current.load(id, history, current, signal);
     if (!meta || !current()) return false;
     title(meta.id, meta.title);commit(openDocumentTab(ref.current, id, mode));return true;
   }); }, [commit, run, title]);
   const leave = useCallback((operation: () => void) => { intent.current++;return run(async current => {
     await callbacks.current.flush();if (!current()) return false;operation();return true;
   }); }, [run]);
-  const close = useCallback((ids: string[], explicit = false) => { intent.current++;return run(async current => {
+  const close = useCallback((ids: string[], explicit = false) => { intent.current++;return run(async (current, signal) => {
     let next = closeDocumentTabs(ref.current, ids, explicit);
     if (next.activePageId !== ref.current.activePageId) {
       await callbacks.current.flush();if (!current()) return false;
       next = closeDocumentTabs(ref.current, ids, explicit);
       if (next.activePageId) {
-        const meta = await callbacks.current.load(next.activePageId, "replace", current);
+        const meta = await callbacks.current.load(next.activePageId, "replace", current, signal);
         if (!meta || !current()) return false;title(meta.id, meta.title);
       } else callbacks.current.clear();
     }

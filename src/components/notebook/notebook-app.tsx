@@ -20,6 +20,7 @@ import { useRouter } from "next/navigation";
 import { api, jsonOptions } from "@/lib/client-api";
 import { cn } from "@/lib/utils";
 import { EditorPane } from "./editor-pane";
+import { defaultEditorPreferences, EditorPreferencesContext, editorPreferencesSchema, EDITOR_PREFERENCES_EVENT } from "./editor-preferences";
 import { useWorkspaceViewport } from "./use-workspace-viewport";
 import { useDocumentAlignment } from "./document-alignment";
 import type { DocumentHistory } from "./use-document-tabs";
@@ -164,6 +165,10 @@ function NotebookWorkspace({ user, initialLocation }: NotebookAppProps) {
   const resolvedTheme = mounted ? browserResolvedTheme : undefined;
   const studioTheme = resolvedTheme === "studio-graphite" || resolvedTheme === "studio-atelier";
   const [notebooks, setNotebooks] = useState<Notebook[]>([]);
+  const [notebooksLoading, setNotebooksLoading] = useState(true);
+  const [notebooksError, setNotebooksError] = useState("");
+  const notebookRead = useRef<AbortController | null>(null);
+  const [editorPreferences, setEditorPreferences] = useState(defaultEditorPreferences);
   const [activeNotebookId, setActiveNotebookId] = useState<string | null>(
     initialLocation?.notebookId ?? null,
   );
@@ -173,6 +178,8 @@ function NotebookWorkspace({ user, initialLocation }: NotebookAppProps) {
   const [pages, setPages] = useState<PageSummary[]>([]);
   const [activePage, setActivePage] = useState<PageDocument | null>(null);
   const [pagesLoading, setPagesLoading] = useState(false);
+  const [pagesError, setPagesError] = useState("");
+  const pagesSection = useRef<string | null>(null);
   const [mobileView, setMobileView] = useState<MobileView>("navigation");
   const [error, setError] = useState("");
   const [actionTarget, setActionTarget] = useState<ActionTarget | null>(null);
@@ -294,11 +301,15 @@ function NotebookWorkspace({ user, initialLocation }: NotebookAppProps) {
     const now = Date.now();
     if (now - (recentRecordedAt.current.get(pageId) ?? 0) < 30_000) return;
     recentRecordedAt.current.set(pageId, now);
-    void api("/api/recent", jsonOptions("POST", { pageId })).then(() => setWorkspaceRevision((value) => value + 1)).catch(() => undefined);
+    // Opening is not a content mutation: do not invalidate lists, links and the whole workspace.
+    void api("/api/recent", jsonOptions("POST", { pageId })).catch(() => undefined);
   }, []);
   const loadNotebooks = useCallback(async () => {
+    notebookRead.current?.abort();const controller = new AbortController();notebookRead.current = controller;
+    setNotebooksLoading(true);setNotebooksError("");
     try {
-      const result = await api<{ notebooks: Notebook[] }>("/api/notebooks");
+      const result = await api<{ notebooks: Notebook[] }>("/api/notebooks", { signal: controller.signal });
+      if (controller.signal.aborted) return;
       setNotebooks(result.notebooks);
       setActiveNotebookId((current) =>
         current && result.notebooks.some((n) => n.id === current)
@@ -306,7 +317,9 @@ function NotebookWorkspace({ user, initialLocation }: NotebookAppProps) {
           : (result.notebooks[0]?.id ?? null),
       );
     } catch (cause) {
-      report(cause);
+      if (!controller.signal.aborted) { setNotebooksError("Не удалось обновить блокноты. Загруженное дерево сохранено.");report(cause); }
+    } finally {
+      if (!controller.signal.aborted) setNotebooksLoading(false);
     }
   }, [report]);
 
@@ -332,23 +345,11 @@ function NotebookWorkspace({ user, initialLocation }: NotebookAppProps) {
   }, []);
 
   useEffect(() => {
-    let cancelled = false;
-    api<{ notebooks: Notebook[] }>("/api/notebooks")
-      .then((result) => {
-        if (cancelled) return;
-        setNotebooks(result.notebooks);
-        setActiveNotebookId((current) =>
-          current &&
-          result.notebooks.some((notebook) => notebook.id === current)
-            ? current
-            : (result.notebooks[0]?.id ?? null),
-        );
-      })
-      .catch(report);
+    let cancelled = false;void Promise.resolve().then(() => { if (!cancelled) return loadNotebooks(); });
     return () => {
-      cancelled = true;
+      cancelled = true;notebookRead.current?.abort();
     };
-  }, [report]);
+  }, [loadNotebooks]);
   useEffect(() => {
     void api<{
       settings: {
@@ -359,6 +360,7 @@ function NotebookWorkspace({ user, initialLocation }: NotebookAppProps) {
       };
     }>("/api/account/preferences")
       .then(({ settings }) => {
+        setEditorPreferences(editorPreferencesSchema.parse(settings));
         setStartScreen(settings.startScreen);
         setDensity(settings.interfaceDensity);
         setSectionAccentIntensity(
@@ -389,7 +391,7 @@ function NotebookWorkspace({ user, initialLocation }: NotebookAppProps) {
           }
         }
       })
-      .catch(() => undefined);
+      .catch(report);
     const listener = (event: Event) =>
       setDensity((event as CustomEvent<"comfortable" | "compact">).detail);
     window.addEventListener("notebook:density", listener);
@@ -409,30 +411,37 @@ function NotebookWorkspace({ user, initialLocation }: NotebookAppProps) {
       "notebook:appearance-preferences",
       appearanceListener,
     );
+    const editorListener = (event: Event) => {
+      const parsed = editorPreferencesSchema.safeParse((event as CustomEvent<unknown>).detail);
+      if (parsed.success) setEditorPreferences(parsed.data);else report(new Error("Некорректные настройки редактора"));
+    };
+    window.addEventListener(EDITOR_PREFERENCES_EVENT, editorListener);
     return () => {
       window.removeEventListener("notebook:density", listener);
       window.removeEventListener(
         "notebook:appearance-preferences",
         appearanceListener,
       );
+      window.removeEventListener(EDITOR_PREFERENCES_EVENT, editorListener);
     };
-  }, [initialLocation, user.id]);
+  }, [initialLocation, user.id, report]);
   useEffect(() => {
     const sectionId = activeSection?.id;
     if (!sectionId) return;
     const controller = new AbortController();
     Promise.resolve()
       .then(() => {
-        setPages([]);
-        setPagesLoading(true);
+        if (controller.signal.aborted) return null;
+        if (pagesSection.current !== sectionId) setPages([]);
+        setPagesLoading(true);setPagesError("");
         return api<{ pages: PageSummary[] }>(
           `/api/pages?sectionId=${encodeURIComponent(sectionId)}`,
           { signal: controller.signal },
         );
       })
-      .then((result) => { if (!controller.signal.aborted) setPages(result.pages); })
+      .then((result) => { if (result && !controller.signal.aborted) { pagesSection.current = sectionId;setPages(result.pages); } })
       .catch((cause) => {
-        if ((cause as Error).name !== "AbortError") report(cause);
+        if (!controller.signal.aborted) { setPagesError("Не удалось загрузить страницы. Повторите запрос.");report(cause); }
       })
       .finally(() => {
         if (!controller.signal.aborted) setPagesLoading(false);
@@ -475,17 +484,19 @@ function NotebookWorkspace({ user, initialLocation }: NotebookAppProps) {
     });
   }
 
-  async function loadTabDocument(pane: WorkspacePaneId, pageId: string, history: DocumentHistory, current: () => boolean, preloaded?: PageDocument) {
+  async function loadTabDocument(pane: WorkspacePaneId, pageId: string, history: DocumentHistory, current: () => boolean, signal: AbortSignal, preloaded?: PageDocument) {
       const previous = workspace.docs.current[pane];
       try {
         if (previous?.id === pageId) { if (!current()) return null;return previous; }
-        const page = preloaded ?? (await api<{ page: PageDocument }>(`/api/pages/${encodeURIComponent(pageId)}`)).page;
+        const page = preloaded ?? (await api<{ page: PageDocument }>(`/api/pages/${encodeURIComponent(pageId)}`, { signal })).page;
+        if (!current()) return null;
         let availableNotebooks = notebooks;
         let notebook = availableNotebooks.find((item) =>
           item.sections.some((section) => section.id === page.sectionId),
         );
         if (!notebook) {
-          availableNotebooks = (await api<{ notebooks: Notebook[] }>("/api/notebooks")).notebooks;
+          availableNotebooks = (await api<{ notebooks: Notebook[] }>("/api/notebooks", { signal })).notebooks;
+          if (!current()) return null;
           setNotebooks(availableNotebooks);
           notebook = availableNotebooks.find((item) =>
             item.sections.some((section) => section.id === page.sectionId),
@@ -1341,6 +1352,9 @@ function NotebookWorkspace({ user, initialLocation }: NotebookAppProps) {
       visible={screen === "workspace" && mobileView === "navigation"}>
       <NotebookSidebar
         notebooks={notebooks}
+        loading={notebooksLoading}
+        error={notebooksError}
+        onRetry={() => void loadNotebooks()}
         activeNotebookId={activeNotebookId}
         activeSectionId={activeSection?.id ?? null}
         activeDestination={screen === "today" ? "today" : screen === "stickers" ? "stickers" : "workspace"}
@@ -1367,7 +1381,7 @@ function NotebookWorkspace({ user, initialLocation }: NotebookAppProps) {
   );
 
   return (
-    <div
+    <EditorPreferencesContext.Provider value={editorPreferences}><div
       data-density={density}
       data-focus-mode={focusMode ? "true" : "false"}
       data-mobile-view={mobileView}
@@ -1492,6 +1506,8 @@ function NotebookWorkspace({ user, initialLocation }: NotebookAppProps) {
                 pages={pages}
                 activePageId={activePage?.id ?? null}
                 loading={pagesLoading}
+                error={pagesError}
+                onRetry={() => setWorkspaceRevision(value => value + 1)}
                 notebookColor={activeNotebook?.color}
                 viewMode={pageListView}
                 onViewModeChange={(mode) => {
@@ -1894,6 +1910,6 @@ function NotebookWorkspace({ user, initialLocation }: NotebookAppProps) {
         }}
       />
       <UndoToast action={undoAction} onClose={() => setUndoAction(null)} onError={(cause) => { setUndoAction(null); report(cause); }} />
-    </div>
+    </div></EditorPreferencesContext.Provider>
   );
 }
