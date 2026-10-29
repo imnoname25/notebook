@@ -1,0 +1,18 @@
+{
+  "first": {
+    "content": "\" \"",
+    "border": "1px",
+    "type": "paragraph"
+  },
+  "deep": {
+    "content": "\" \"",
+    "border": "1px",
+    "type": "paragraph"
+  },
+  "modern": {
+    "content": "none",
+    "border": "0px",
+    "type": "paragraph"
+  },
+  "bullet": "\"•\""
+}

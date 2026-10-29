@@ -1,0 +1,22 @@
+{
+  "first": {
+    "content": "none",
+    "display": "none",
+    "border": "1px",
+    "type": "paragraph"
+  },
+  "deep": {
+    "content": "none",
+    "display": "none",
+    "border": "1px",
+    "type": "paragraph"
+  },
+  "modern": {
+    "content": "none",
+    "display": "inline",
+    "border": "0px",
+    "type": "paragraph"
+  },
+  "bullet": "\"•\"",
+  "quoteBorder": "2px"
+}

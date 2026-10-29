@@ -1,10 +1,12 @@
 import { expect, test, type Page } from "@playwright/test";
+import { z } from "zod";
 
 async function login(page: Page) {
-  await page.goto("/");
-  await page.getByLabel("Email").fill("admin@example.test");
-  await page.getByLabel("Пароль").fill("correct horse battery staple");
-  await page.getByRole("button", { name: "Войти", exact: true }).click();
+  const credentials = { email: "admin@example.test", password: "correct horse battery staple" };
+  const { needsSetup } = z.object({ needsSetup: z.boolean() }).parse(await page.request.get("/api/auth/status").then(response => response.json()));
+  const response = await page.request.post(needsSetup ? "/api/auth/setup" : "/api/auth/login", { data: needsSetup ? { ...credentials, name: "Visual regression" } : credentials });
+  expect(response.ok()).toBe(true);
+  await page.goto("/app");
   await expect(page).toHaveURL(/\/app$/);
 }
 

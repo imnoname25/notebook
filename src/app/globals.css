@@ -1418,9 +1418,10 @@ button,
 [data-theme-choice="system"] .notebook-theme-preview { background: linear-gradient(90deg, #edf0f5 50%, #161d29 50%); }
 .notebook-editor .bn-editor { line-height: 1.7; }
 .notebook-editor .bn-inline-content a { text-underline-offset: 0.2em; text-decoration-thickness: 1px; }
-/* Nesting is already expressed by indentation. Suppress decorative guide strokes,
-   never list markers (which live on .bn-block-content) or user text. */
-.notebook-editor .bn-block-group .bn-block-group > .bn-block-outer::before { content: none; }
+/* Nesting remains in JSON and indentation. The .bn-editor scope outranks the
+   native :not([data-prev-depth-changed]) guide, including lazy stylesheet order.
+   List markers live on .bn-block-content; never suppress them or user text. */
+.notebook-editor .bn-editor .bn-block-group .bn-block-group > .bn-block-outer::before { content: none; display: none; }
 .notebook-today { scroll-padding-block: 1rem; }
 .notebook-today > div > header { flex-wrap: wrap; }
 .notebook-today .notebook-surface { border-radius: 1rem; }
