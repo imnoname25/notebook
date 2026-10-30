@@ -1,0 +1,15 @@
+{
+  "codeCommit": "3d3111af02eb62e75e07046183a220cdb1d52aa6",
+  "workflowRun": 41007321073,
+  "url": "https://github.com/imnoname25/notebook/actions/runs/41007321073",
+  "conclusion": "success",
+  "validate": "success",
+  "smoke": "success",
+  "publish": "skipped (pull request)",
+  "architecture": "linux/amd64",
+  "postgres": "17.11",
+  "postgresImageDigest": "sha256:266d3c257594e195b309ae9d1805e54c788f1d7b375f56bf6c367aac6c917e7b",
+  "gates": ["CLI without network", "empty database", "current schema", "container restart", "16 to 17 migration upgrade", "page content hash unchanged", "backfill index", "unavailable DB refusal", "hung CLI timeout 124", "TERM-ignoring CLI killed 137", "migration error 23 refusal", "missing engine refusal", "real HTTP health"],
+  "productionDeployment": false,
+  "generalUiGate": "not rerun; prior baseline documented separately"
+}

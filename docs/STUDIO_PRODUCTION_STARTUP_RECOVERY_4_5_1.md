@@ -45,14 +45,16 @@
 | Entrypoint contract | 10/10: success, preflight failure, migrate failure, missing engine, invalid deadlines, hang; используются test doubles, это не Docker smoke |
 | Native PostgreSQL integration | 68/68 passed, PG18.6, отдельная UTF8/ICU test DB; не PG17 |
 | Native standalone `/api/health`, `/api/health/ready` | HTTP200; database connected; migrations ok, 17/17 — PG18, [evidence](startup451-evidence/native-health.json) |
-| Linux Docker / PG17 | локально недоступны Docker daemon/CLI и WSL distro; авторитетный результат — новый CI smoke |
-| Compose | проверяется отдельно; пропуск не считается успехом |
+| Linux Docker / PG17.11 | passed в [Docker CI #65](https://github.com/imnoname25/notebook/actions/runs/41007321073), amd64; локальный Docker недоступен |
+| Compose | passed в validate CI #65, synthetic example, без deployment |
 
 Первый integration запуск был некорректно подготовлен без schema, затем Windows libc-C test DB не обеспечивала Unicode case-folding (4 search/link assertions). В новой отдельной UTF8/ICU test DB после `migrate deploy` все 68 прошли. Production locale/config не менялись; это исправление подготовки нативного теста, не объяснение production startup bug.
 
 `docker/startup-smoke.sh` дополняет существующий smoke: пустая PG17/повторный запуск/current schema (existing workflow), legacy16→17 с синтетическими Page и PageLink, неизменный hash content и построенный backlink index, недоступная БД, hung CLI, CLI ignoring TERM, failure23, missing engine, health. Все ресурсы disposable CI; production mounts не используются. Injection зависания/ошибки — обозначенный synthetic CLI, а не имитация настоящей миграции.
 
 Первый CI #64 подтвердил offline CLI и реальное применение 17 migrations на PG17.11, после чего Node server сообщил Ready. Сам smoke gate не прошёл host-port health probe после перевода CI network в internal isolation. Probe перенесён внутрь контейнера (`docker exec` → настоящий HTTP localhost health), с теми же критериями HTTP200 и без увеличения ожидания. Это проверяет приложение в выбранной сетевой изоляции; внешний production proxy/host route здесь не считается протестированным. Полный startup gate должен пройти новый CI; первый run не выдаётся за успех.
+
+Повторный CI #65 завершился success: validate + smoke; прошёл весь startup matrix, включая TERM/KILL, content hash/backfill index и настоящий HTTP health. Publish в PR штатно skipped. Android CI #58 также success, исходники APK не менялись. [Сводка CI](startup451-evidence/ci-65.json). Проверенный PG image digest совпадает с PG17.11 из первого run. Это targeted startup acceptance, не зелёный общий UI gate и не приёмка production/backup. Arm64 требует отдельной build/publication проверки, runtime smoke здесь amd64.
 
 Старый общий UI baseline на `43a972d`: 52 passed / 18 failed / 7 did not run (предыдущий Studio 4.5). Это не новый прогон hotfix. Среди baseline failures: first-run/login, устаревшие settings/search/Back selectors, shared fixtures и mouse-resize/target-size assertions. Они не отключаются этим исправлением. CI startup gate не объявляется доказательством зелёного общего UI/E2E gate; Studio 4.4-E имеет отдельное незакоммиченное состояние и сюда не переносится.
 
@@ -88,6 +90,7 @@ docker exec notebook-postgres psql -U notebook -d notebook -Atc 'SELECT migratio
 1. Использовать только проверенный `ghcr.io/imnoname25/notebook@sha256:<fixed-image-digest>` с OCI revision hotfix. Не повторно тянуть mutable main без сверки.
 2. До Apply выполнить offline engine check исправленного image в отдельном контейнере: `docker run --rm --network none --entrypoint sh <fixed-reference> -c 'test -x "$PRISMA_SCHEMA_ENGINE_BINARY" && timeout --kill-after=5s 20s /app/node_modules/.bin/prisma -v'`. Это не обращается к production DB.
 3. Сохранить старый image локально, конфигурацию, volumes и secrets. Менять только Repository на fixed reference и при необходимости добавить `MIGRATION_TIMEOUT_SECONDS=180`. Не менять application URLs, PUID/PGID, PG image, mounts или credentials.
+   Старый ручной override `PRISMA_SCHEMA_ENGINE_BINARY`, если он был добавлен при диагностике, проверить отдельно: штатный fixed image использует `/app/prisma/schema-engine` из собственного ENV.
 4. Ручной Unraid Apply, один application process. Не запускать второй `node server.js` поверх штатного запуска.
 5. Лог обязан пройти storage → preflight → database available → migration deadline/deploy → Migrations complete → non-root server. В текущем состоянии 17/17 новых SQL нет. При mismatch, failed history или timeout остановиться; не делать `migrate resolve`/ручную правку history без анализа.
 6. Проверить `/api/health` и `/api/health/ready` HTTP200, database connected, migrations ok. Затем вход, дерево, чтение/редактирование synthetic smoke page, autosave, вложения, история/поиск. Не выполнять реальный restore поверх production.
