@@ -1,0 +1,73 @@
+{
+  "health": {
+    "httpStatus": 200,
+    "body": {
+      "status": "ok",
+      "app": "Notebook",
+      "version": "0.6.0",
+      "database": "connected",
+      "storage": {
+        "uploads": {
+          "status": "ok",
+          "writable": true,
+          "freeBytes": 4000481280
+        },
+        "backups": {
+          "status": "ok",
+          "writable": true,
+          "freeBytes": 4000481280
+        },
+        "temporary": {
+          "status": "ok",
+          "writable": true,
+          "freeBytes": 4000481280
+        }
+      },
+      "migrations": "ok",
+      "timestamp": "2026-10-30T04:53:08.985Z"
+    }
+  },
+  "health/ready": {
+    "httpStatus": 200,
+    "body": {
+      "status": "ok",
+      "app": "Notebook",
+      "version": "0.6.0",
+      "ready": true,
+      "database": {
+        "status": "ok",
+        "responseTimeMs": 2
+      },
+      "storage": {
+        "uploads": {
+          "status": "ok",
+          "writable": true,
+          "freeBytes": 4000382976
+        },
+        "backups": {
+          "status": "ok",
+          "writable": true,
+          "freeBytes": 4000382976
+        },
+        "temporary": {
+          "status": "ok",
+          "writable": true,
+          "freeBytes": 4000382976
+        }
+      },
+      "migrations": {
+        "status": "ok",
+        "applied": 17,
+        "expected": 17,
+        "failed": 0
+      },
+      "fts": {
+        "status": "ok",
+        "vectorColumns": 3,
+        "ginIndexes": 3,
+        "indexedPages": 0
+      },
+      "timestamp": "2026-10-30T04:53:09.039Z"
+    }
+  }
+}

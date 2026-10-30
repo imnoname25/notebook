@@ -1,0 +1,52 @@
+{
+  "platform": "win32",
+  "prismaVersion": "7.9.1",
+  "missing": {
+    "args": [
+      "migrate",
+      "status"
+    ],
+    "code": null,
+    "timedOut": true,
+    "durationMs": 6029,
+    "engineFetchRequests": 2,
+    "databaseConnections": 0,
+    "output": "Loaded Prisma config from prisma.config.ts.\n\n"
+  },
+  "empty": {
+    "args": [
+      "migrate",
+      "deploy"
+    ],
+    "code": 0,
+    "timedOut": false,
+    "durationMs": 1743,
+    "engineFetchRequests": 0,
+    "databaseConnections": 2,
+    "output": "Loaded Prisma config from prisma.config.ts.\n\nPrisma schema loaded from prisma\\schema.prisma.\nDatasource \"db\": PostgreSQL database \"notebook_startup451_repro2\", schema \"public\" at \"127.0.0.1:58613\"\n\n17 migrations found in prisma/migrations\n\nApplying migration `202608140001_initial`\nApplying migration `202608140002_trash_search`\nApplying migration `202608140003_page_history_notebook_appearance_sessions`\nApplying migration `202608140004_portable_data_attachments`\nApplying migration `202608140005_operations_editor_settings`\nApplying migration `202608140006_search_templates_remote_backups`\nApplying migration `202608160001_security_totp_vault_foundation`\nApplying migration `202608160001_ui_appearance_density`\nApplying migration `202608170001_user_management`\nApplying migration `202608210001_appearance_2_0`\nApplying migration `202608210002_usability_navigation`\nApplying migration `202608210003_quick_notes_and_tags`\nApplying migration `202608210004_wow_identity`\nApplying migration `202608210005_product_polish_3`\nApplying migration `202608210006_live_widgets`\nApplying migration `202608210007_quick_note_order`\nApplying migration `202610270001_internal_links_backfill`\n\n┌─────────────────────────────────────────────────────────┐\n│  Update available 7.9.1 -> 8.0.0-rc.28                  │\n│                                                         │\n│  This is a major update - please follow the guide at    │\n│  https://pris.ly/d/major-version-upgrade                │\n│                                                         │\n│  Run the following to update                            │\n│    npm i --save-dev prisma@latest                       │\n│    npm i @prisma/client@latest                          │\n└─────────────────────────────────────────────────────────┘\nThe following migration(s) have been applied:\n\nmigrations/\n  └─ 202608140001_initial/\n    └─ migration.sql\n  └─ 202608140002_trash_search/\n    └─ migration.sql\n  └─ 202608140003_page_history_notebook_appearance_sessions/\n    └─ migration.sql\n  └─ 202608140004_portable_data_attachments/\n    └─ migration.sql\n  └─ 202608140005_operations_editor_settings/\n    └─ migration.sql\n  └─ 202608140006_search_templates_remote_backups/\n    └─ migration.sql\n  └─ 202608160001_security_totp_vault_foundation/\n    └─ migration.sql\n  └─ 202608160001_ui_appearance_density/\n    └─ migration.sql\n  └─ 202608170001_user_management/\n    └─ migration.sql\n  └─ 202608210001_appearance_2_0/\n    └─ migration.sql\n  └─ 202608210002_usability_navigation/\n    └─ migration.sql\n  └─ 202608210003_quick_notes_and_tags/\n    └─ migration.sql\n  └─ 202608210004_wow_identity/\n    └─ migration.sql\n  └─ 202608210005_product_polish_3/\n    └─ migration.sql\n  └─ 202608210006_live_widgets/\n    └─ migration.sql\n  └─ 202608210007_quick_note_order/\n    └─ migration.sql\n  └─ 202610270001_internal_links_backfill/\n    └─ migration.sql\n\nAll migrations have been successfully applied.\n"
+  },
+  "current": {
+    "args": [
+      "migrate",
+      "deploy"
+    ],
+    "code": 0,
+    "timedOut": false,
+    "durationMs": 1305,
+    "engineFetchRequests": 0,
+    "databaseConnections": 2,
+    "output": "Loaded Prisma config from prisma.config.ts.\n\nPrisma schema loaded from prisma\\schema.prisma.\nDatasource \"db\": PostgreSQL database \"notebook_startup451_repro2\", schema \"public\" at \"127.0.0.1:58613\"\n\n17 migrations found in prisma/migrations\n\n\nNo pending migrations to apply.\n"
+  },
+  "unavailable": {
+    "args": [
+      "migrate",
+      "deploy"
+    ],
+    "code": 1,
+    "timedOut": false,
+    "durationMs": 3114,
+    "engineFetchRequests": 0,
+    "databaseConnections": 0,
+    "output": "Loaded Prisma config from prisma.config.ts.\n\nPrisma schema loaded from prisma\\schema.prisma.\nDatasource \"db\": PostgreSQL database \"notebook_startup451_20261030\", schema \"public\" at \"127.0.0.1:1\"\n\nError: Schema engine error:\n\n"
+  }
+}

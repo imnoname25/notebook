@@ -62,9 +62,14 @@ assert(
   "entrypoint must execute preflight.mjs from the application tree during root bootstrap",
 );
 assert(
-  entrypointLines.includes('"$APP_DIR/node_modules/.bin/prisma" migrate deploy'),
+  entrypoint.includes('timeout --signal=TERM --kill-after=10s "${MIGRATION_TIMEOUT_SECONDS}s" "$APP_DIR/node_modules/.bin/prisma" migrate deploy'),
   "entrypoint must execute the packaged Prisma CLI from /app/node_modules during root bootstrap",
 );
+assert(dockerfile.includes('&& ./node_modules/.bin/prisma --version'), "production dependencies must fetch/verify the native Schema Engine at build time");
+assert(dockerfile.includes('COPY --from=production-dependencies /app/node_modules/@prisma/engines/schema-engine-* /app/prisma/schema-engine'), "runner must carry the target-platform Schema Engine");
+assert(dockerfile.includes('PRISMA_SCHEMA_ENGINE_BINARY=/app/prisma/schema-engine'), "CLI must use the packaged engine without runtime download");
+assert(entrypoint.includes('[ ! -x "$PRISMA_SCHEMA_ENGINE_BINARY" ]'), "missing engine must fail closed before CLI download");
+assert(entrypoint.includes('exit "$migration_status"'), "migration failures and deadlines must stop startup");
 assert(!entrypoint.includes("/usr/local/lib/notebook"), "entrypoint references a Node script outside /app");
 assert(!/chown[^\r\n]*(?:\/app|\$APP_DIR)/.test(entrypoint), "entrypoint must not chown the application tree");
 assert(!/chown[^\r\n]*\/app/.test(dockerfile), "Dockerfile must not chown the application tree");

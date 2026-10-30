@@ -120,6 +120,8 @@ npm run dev
 | `UMASK`                         | маска создаваемых приложением файлов, по умолчанию `002`                                             |
 | `FIX_PERMISSIONS`               | одноразовая рекурсивная коррекция владельца uploads/backups; обычно `0`                              |
 | `DATABASE_WAIT_TIMEOUT_SECONDS` | ограниченный startup timeout ожидания PostgreSQL, по умолчанию 90 секунд                             |
+| `MIGRATION_TIMEOUT_SECONDS` | deadline `prisma migrate deploy`: 5–900 секунд, default 180; затем TERM и через 10s KILL, сервер при ошибке не запускается |
+| `PRISMA_SCHEMA_ENGINE_BINARY` | внутренний Docker default `/app/prisma/schema-engine`; engine включён в образ, загрузки при startup нет; Linux path не задавать для локальной разработки Windows/macOS |
 
 `APP_ORIGIN=https://...` включает флаг `secure` у session cookie. За Nginx Proxy Manager передавайте обычные `Host`, `X-Forwarded-Host` и `X-Forwarded-Proto`.
 

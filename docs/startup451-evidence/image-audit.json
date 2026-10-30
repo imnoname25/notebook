@@ -1,0 +1,27 @@
+{
+  "revision": "43a972d8542cc977879964439c4f8aceba005b10",
+  "indexDigest": "sha256:f8275ecc7f64b912c970947ce0c6cd7d00b6e800ce396cf82c861aae687cb36e",
+  "amd64Manifest": "sha256:dda849059616fccf14b3eb5b6e5e4f638d877535f7a4474878200040dc2735cc",
+  "versions": {
+    "@prisma/client": "7.9.1",
+    "@prisma/engines": "7.9.1",
+    "prisma": "7.9.1"
+  },
+  "layers": [
+    {
+      "layer": 8,
+      "digest": "sha256:10876d8a109abc8237cd009d3bc9321c7d1388326136d5d6f58b601c8307969b",
+      "matches": []
+    },
+    {
+      "layer": 17,
+      "digest": "sha256:a11987fca205fb2fada88f14a07a558e3fd9e07b92eb911ca1c73d49ba157f19",
+      "matches": [
+        {
+          "name": "app/node_modules/@prisma/engines/package.json",
+          "size": 1049
+        }
+      ]
+    }
+  ]
+}

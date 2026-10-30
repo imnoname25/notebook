@@ -17,6 +17,7 @@ FROM base AS production-dependencies
 ENV NODE_ENV=production
 COPY package.json package-lock.json ./
 RUN npm ci --omit=dev --legacy-peer-deps --ignore-scripts \
+    && ./node_modules/.bin/prisma --version \
     && npm cache clean --force
 
 FROM base AS builder
@@ -40,6 +41,7 @@ ENV NODE_ENV=production \
     UPLOAD_DIR=/data/uploads \
     BACKUP_DIR=/data/backups \
     HOME=/tmp \
+    PRISMA_SCHEMA_ENGINE_BINARY=/app/prisma/schema-engine \
     NOTEBOOK_VERSION=${NOTEBOOK_VERSION} \
     NOTEBOOK_GIT_SHA=${NOTEBOOK_GIT_SHA} \
     NOTEBOOK_CHANNEL=${NOTEBOOK_CHANNEL}
@@ -62,6 +64,8 @@ COPY --from=builder /app/shared ./shared
 COPY --from=builder /app/scripts ./scripts
 COPY --from=builder /app/package.json ./package.json
 COPY --from=production-dependencies /app/node_modules ./node_modules
+# Downloaded and verified by the packaged CLI at build time, for this target arch/OpenSSL.
+COPY --from=production-dependencies /app/node_modules/@prisma/engines/schema-engine-* /app/prisma/schema-engine
 COPY docker/notebook-entrypoint.sh /usr/local/bin/notebook-entrypoint
 COPY docker/preflight.mjs /app/docker/preflight.mjs
 RUN mkdir -p /data/uploads /data/backups \

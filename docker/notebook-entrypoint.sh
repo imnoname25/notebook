@@ -8,6 +8,17 @@ FIX_PERMISSIONS="${FIX_PERMISSIONS:-0}"
 UPLOAD_DIR="${UPLOAD_DIR:-/data/uploads}"
 BACKUP_DIR="${BACKUP_DIR:-/data/backups}"
 APP_DIR=/app
+MIGRATION_TIMEOUT_SECONDS="${MIGRATION_TIMEOUT_SECONDS:-180}"
+PRISMA_SCHEMA_ENGINE_BINARY="${PRISMA_SCHEMA_ENGINE_BINARY:-$APP_DIR/prisma/schema-engine}"
+export PRISMA_SCHEMA_ENGINE_BINARY
+
+case "$MIGRATION_TIMEOUT_SECONDS" in
+  ""|*[!0-9]*|????*) echo "MIGRATION_TIMEOUT_SECONDS must be an integer from 5 to 900" >&2; exit 1 ;;
+esac
+if [ "$MIGRATION_TIMEOUT_SECONDS" -lt 5 ] || [ "$MIGRATION_TIMEOUT_SECONDS" -gt 900 ]; then
+  echo "MIGRATION_TIMEOUT_SECONDS must be an integer from 5 to 900" >&2
+  exit 1
+fi
 
 case "$PUID" in
   ""|*[!0-9]*) echo "PUID must be a positive numeric UID" >&2; exit 1 ;;
@@ -67,7 +78,21 @@ echo "Backups storage writable"
 node "$APP_DIR/docker/preflight.mjs"
 
 echo "Running database migrations..."
-"$APP_DIR/node_modules/.bin/prisma" migrate deploy
+echo "Migration deadline: ${MIGRATION_TIMEOUT_SECONDS}s (+10s forced termination grace)"
+if [ ! -x "$PRISMA_SCHEMA_ENGINE_BINARY" ]; then
+  echo "Packaged Prisma Schema Engine is missing or not executable; rebuild the image. Refusing runtime download or server startup." >&2
+  exit 1
+fi
+if timeout --signal=TERM --kill-after=10s "${MIGRATION_TIMEOUT_SECONDS}s" "$APP_DIR/node_modules/.bin/prisma" migrate deploy; then
+  :
+else
+  migration_status=$?
+  case "$migration_status" in
+    124|137) echo "Prisma migrations exceeded ${MIGRATION_TIMEOUT_SECONDS}s (or were killed). Server will not start. Check image engine, database locks and connectivity; do not bypass migrations." >&2 ;;
+    *) echo "Prisma migrations failed (exit $migration_status). Server will not start; inspect the Prisma error above." >&2 ;;
+  esac
+  exit "$migration_status"
+fi
 echo "Migrations complete"
 
 echo "Starting Notebook as UID $PUID and GID $PGID (umask $UMASK)"
