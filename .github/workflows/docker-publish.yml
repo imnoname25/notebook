@@ -161,7 +161,6 @@ jobs:
             --cap-drop=ALL \
             --cap-add=CHOWN --cap-add=DAC_OVERRIDE --cap-add=FOWNER --cap-add=SETGID --cap-add=SETUID \
             --security-opt=no-new-privileges:true \
-            -p 3100:3000 \
             -e DATABASE_URL='postgresql://notebook:notebook-smoke-password@notebook-smoke-postgres:5432/notebook?schema=public' \
             -e APP_ORIGIN=http://127.0.0.1:3100 \
             -e SETTINGS_ENCRYPTION_KEY=1111111111111111111111111111111111111111111111111111111111111111 \
@@ -171,7 +170,7 @@ jobs:
             notebook:smoke
 
           for attempt in $(seq 1 90); do
-            curl --fail --silent http://127.0.0.1:3100/api/health/ready >/dev/null && break
+            docker exec notebook-smoke-app node -e 'fetch("http://127.0.0.1:3000/api/health/ready").then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))' && break
             [ "$attempt" -eq 90 ] && exit 1
             sleep 2
           done
@@ -204,7 +203,7 @@ jobs:
 
           docker restart notebook-smoke-app
           for attempt in $(seq 1 90); do
-            curl --fail --silent http://127.0.0.1:3100/api/health/ready >/dev/null && break
+            docker exec notebook-smoke-app node -e 'fetch("http://127.0.0.1:3000/api/health/ready").then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))' && break
             [ "$attempt" -eq 90 ] && exit 1
             sleep 2
           done

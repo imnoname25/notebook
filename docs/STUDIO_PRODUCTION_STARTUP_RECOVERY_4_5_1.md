@@ -52,6 +52,8 @@
 
 `docker/startup-smoke.sh` дополняет существующий smoke: пустая PG17/повторный запуск/current schema (existing workflow), legacy16→17 с синтетическими Page и PageLink, неизменный hash content и построенный backlink index, недоступная БД, hung CLI, CLI ignoring TERM, failure23, missing engine, health. Все ресурсы disposable CI; production mounts не используются. Injection зависания/ошибки — обозначенный synthetic CLI, а не имитация настоящей миграции.
 
+Первый CI #64 подтвердил offline CLI и реальное применение 17 migrations на PG17.11, после чего Node server сообщил Ready. Сам smoke gate не прошёл host-port health probe после перевода CI network в internal isolation. Probe перенесён внутрь контейнера (`docker exec` → настоящий HTTP localhost health), с теми же критериями HTTP200 и без увеличения ожидания. Это проверяет приложение в выбранной сетевой изоляции; внешний production proxy/host route здесь не считается протестированным. Полный startup gate должен пройти новый CI; первый run не выдаётся за успех.
+
 Старый общий UI baseline на `43a972d`: 52 passed / 18 failed / 7 did not run (предыдущий Studio 4.5). Это не новый прогон hotfix. Среди baseline failures: first-run/login, устаревшие settings/search/Back selectors, shared fixtures и mouse-resize/target-size assertions. Они не отключаются этим исправлением. CI startup gate не объявляется доказательством зелёного общего UI/E2E gate; Studio 4.4-E имеет отдельное незакоммиченное состояние и сюда не переносится.
 
 ## Runbook Unraid — выполнять только после отдельного разрешённого maintenance window
