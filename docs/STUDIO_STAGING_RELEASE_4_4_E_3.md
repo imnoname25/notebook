@@ -4,7 +4,13 @@
 
 - Release base: `b7c4ef6a3f6d8f15325d63740c82e638330b7493` (E/E.1/E.2, HTTP94/94).
 - Branch: `staging/studio-4.4-e`; main не изменяется и merge не выполняется.
-- Build revision, Actions URL, digest: **ожидаются после CI**. Не запускать по mutable tag вместо подтверждённого digest.
+- Build revision: `a97d5a90d3d63b6cd143bfd2692bd334793778e5`.
+- Actions: [42016345051 — SUCCESS](https://github.com/imnoname25/notebook/actions/runs/42016345051).
+- Verified image: `ghcr.io/imnoname25/notebook@sha256:ebb5299341d00cc8a8701dd6a278e3f5cdbab5b66fb0fbfdfcbef1d209dd3202` (`linux/amd64`).
+- Tags: `staging-4.4-e`, `staging-4.4-e-a97d5a90d3d63b6cd143bfd2692bd334793778e5`.
+- [Compose at build SHA](https://github.com/imnoname25/notebook/blob/a97d5a90d3d63b6cd143bfd2692bd334793778e5/docker-compose.staging.yml), [env example](https://github.com/imnoname25/notebook/blob/a97d5a90d3d63b6cd143bfd2692bd334793778e5/.env.staging.example).
+- [CI evidence](staging-4-4-e-3/ci.json), [independent registry audit](staging-4-4-e-3/registry.json).
+- Статус: **READY FOR MANUAL STAGING**, не production GO и не уже развёрнутый Unraid staging.
 - Studio4.5.1 Schema Engine fix унаследован через `abcac2961a0c7c08403b51be4db82da40a15c37e`: engine копируется в `/app/prisma/schema-engine`, entrypoint проверяет executable и ограничивает migrate deploy по времени. Приложение не стартует при ошибке migration.
 - Deployment на Unraid **не выполнялся**; ниже только ручной runbook. Production notebook:3100, notebook-postgres, их mounts/env не изменялись.
 
@@ -67,12 +73,12 @@ cd /mnt/user/appdata/note-staging/config
 
 Не выполнять recursive chmod/chown вне staging. Compose create_host_path:false намеренно запрещает молча создавать путь с опечаткой. PUID:PGID99:100, umask002; штатный entrypoint назначит владельца только uploads/backups. PostgreSQL image управляет своим datadir отдельно.
 
-Создать `.env.staging` один раз (не копировать production secrets); `PINNED_IMAGE_FROM_REPORT` заменить на полный проверенный ghcr.io/...@sha256:... из этого отчёта. Секреты не вводятся как литералы команды и не печатаются:
+Создать `.env.staging` один раз (не копировать production secrets); Команда ниже уже содержит проверенный immutable image digest. Секреты не вводятся как литералы команды и не печатаются:
 
 ```bash
 test ! -e .env.staging || { echo 'Stop: existing staging env; use update procedure'; exit 1; }
 {
-  printf 'STAGING_IMAGE=%s\n' 'PINNED_IMAGE_FROM_REPORT'
+  printf 'STAGING_IMAGE=%s\n' 'ghcr.io/imnoname25/notebook@sha256:ebb5299341d00cc8a8701dd6a278e3f5cdbab5b66fb0fbfdfcbef1d209dd3202'
   printf 'STAGING_DB_PASSWORD=%s\n' "$(openssl rand -hex 32)"
   printf 'STAGING_SETTINGS_KEY=%s\n' "$(openssl rand -hex 32)"
   printf 'STAGING_BIND_IP=127.0.0.1\n'
@@ -165,6 +171,17 @@ docker compose -p notebook-staging -f docker-compose.staging.yml --env-file .env
 
 - E.2 app gate: HTTP94/94, unit450 passed /70 DB-gated skipped, integration69/69; app исходники не меняются E.3.
 - Staging isolation/CI guards: 12/12 local checks, validate:docker and validate:unraid PASS, Unraid42 tests PASS, Windows runner58 safeguards PASS (без SSH).
-- Новый npm run check PASS: version contract, lint, typecheck, unit450 passed /70 skipped, production build. GitHub Docker/Compose/PG17 smoke: результаты дополняются после завершения.
+- Новый npm run check PASS: version contract, lint, typecheck, unit450 passed /70 skipped, production build. GitHub validate/smoke/publish-staging SUCCESS; production publish SKIPPED. Реальный Docker/Compose/PG17 gate пройден в CI.
 - Локальный Docker engine отсутствует; настоящий Docker/Compose gate выполняется в GitHub Actions, не объявляется локально пройденным.
 - На Unraid ничего не запускалось; health/auth/edit/Fold acceptance остаются ручными.
+
+
+## Итог публикации и границы приёмки
+
+- Registry digest прочитан обратно через GHCR API и совпал с CI smoke/build/push. Оба staging tags указывают на один digest, config OCI revision = build SHA, platform = linux/amd64, packaged-engine env = /app/prisma/schema-engine.
+- CI startup-smoke подтвердил offline CLI, empty/current database, restart, upgrade с сохранением content/backlinks, недоступную БД, hung/failed CLI, отсутствующий engine и health.
+- Linux CI unit: **451 passed /69 skipped**. Windows local: **450/70**; дополнительный Windows skip — file-symlink security test при EPERM (backup-storage.test.ts), в Linux он выполнен. Это не скрытые retries. Staging checks12/12, Unraid42, PowerShell safeguards55 в Linux /58 локально в Windows.
+- Production tags main и edge до/после: `sha256:35c58de7ecaf31551b02451cb6b9bc6fca1de422c24fecdb895c826708d7732e`, без изменений. Remote main остаётся `abcac2961a0c7c08403b51be4db82da40a15c37e`; локальный main остаётся b7c4ef6. Merge в main не выполнялся.
+- Последующий commit только docs фиксирует результаты, не меняет image revision и не запускает новый Docker build благодаря paths-ignore docs/**. Использовать build SHA из идентификации выше, а не SHA документационного commit, для проверки OCI revision.
+- На Unraid не выполнялись pull/up/migrations/setup или запросы к production DB/volumes. Production health физически не проверялся. Auth/edit/Notepad paste/Fold smoke на реальном staging остаются за пользователем после ручного запуска.
+- Изменённые файлы E.3: docker-publish workflow, .gitleaksignore (три точных non-secret fingerprints), .gitignore, .env.example, .env.staging.example, README, docker-compose.staging.yml, scripts/check-staging-deployment.mjs, scripts/staging-config-check.mjs, этот runbook и два JSON evidence. Dockerfile/entrypoint, app code, Prisma schema/migrations, Android APK, пользовательская .vscode/ и незавершённые материалы Studio4.5 не изменялись.

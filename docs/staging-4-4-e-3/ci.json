@@ -1,0 +1,276 @@
+{
+  "runId": 42016345051,
+  "url": "https://github.com/imnoname25/notebook/actions/runs/42016345051",
+  "status": "completed",
+  "conclusion": "success",
+  "buildRevision": "a97d5a90d3d63b6cd143bfd2692bd334793778e5",
+  "releaseBase": "b7c4ef6a3f6d8f15325d63740c82e638330b7493",
+  "imageDigest": "sha256:ebb5299341d00cc8a8701dd6a278e3f5cdbab5b66fb0fbfdfcbef1d209dd3202",
+  "linuxUnit": {
+    "passed": 451,
+    "skipped": 69
+  },
+  "stagingChecks": {
+    "passed": 12,
+    "failed": 0
+  },
+  "unraidTests": 42,
+  "powershellSafeguards": {
+    "linux": 55,
+    "windowsLocal": 58
+  },
+  "startupRecovery": "2026-11-05T11:19:56.7366695Z Startup recovery gate passed: offline CLI, empty database, current schema, restart, legacy upgrade/content/backlinks, failed DB, hung/failed CLI, missing engine and health.",
+  "jobs": [
+    {
+      "name": "validate",
+      "id": 127207718686,
+      "status": "completed",
+      "conclusion": "success",
+      "steps": [
+        {
+          "name": "Set up job",
+          "status": "completed",
+          "conclusion": "success"
+        },
+        {
+          "name": "Check out repository",
+          "status": "completed",
+          "conclusion": "success"
+        },
+        {
+          "name": "Set up Node.js",
+          "status": "completed",
+          "conclusion": "success"
+        },
+        {
+          "name": "Install dependencies",
+          "status": "completed",
+          "conclusion": "success"
+        },
+        {
+          "name": "Check new commits for secrets",
+          "status": "completed",
+          "conclusion": "success"
+        },
+        {
+          "name": "Lint, typecheck, unit tests and production build",
+          "status": "completed",
+          "conclusion": "success"
+        },
+        {
+          "name": "Verify shared application version",
+          "status": "completed",
+          "conclusion": "success"
+        },
+        {
+          "name": "Verify release tag and shared application version",
+          "status": "completed",
+          "conclusion": "skipped"
+        },
+        {
+          "name": "Validate Unraid templates",
+          "status": "completed",
+          "conclusion": "success"
+        },
+        {
+          "name": "Validate Docker packaging",
+          "status": "completed",
+          "conclusion": "success"
+        },
+        {
+          "name": "Validate Compose configuration (synthetic example, no deployment)",
+          "status": "completed",
+          "conclusion": "success"
+        },
+        {
+          "name": "Validate staging isolation and publication guards",
+          "status": "completed",
+          "conclusion": "success"
+        },
+        {
+          "name": "Validate isolated staging Compose (synthetic values, no deployment)",
+          "status": "completed",
+          "conclusion": "success"
+        },
+        {
+          "name": "Test Unraid deployment safeguards without Docker access",
+          "status": "completed",
+          "conclusion": "success"
+        },
+        {
+          "name": "Test PowerShell deployment launcher without SSH access",
+          "status": "completed",
+          "conclusion": "success"
+        },
+        {
+          "name": "Record source and migration identity",
+          "status": "completed",
+          "conclusion": "success"
+        },
+        {
+          "name": "Run actions/upload-artifact@v6",
+          "status": "completed",
+          "conclusion": "success"
+        },
+        {
+          "name": "Post Set up Node.js",
+          "status": "completed",
+          "conclusion": "success"
+        },
+        {
+          "name": "Post Check out repository",
+          "status": "completed",
+          "conclusion": "success"
+        },
+        {
+          "name": "Complete job",
+          "status": "completed",
+          "conclusion": "success"
+        }
+      ]
+    },
+    {
+      "name": "smoke",
+      "id": 127209212212,
+      "status": "completed",
+      "conclusion": "success",
+      "steps": [
+        {
+          "name": "Set up job",
+          "status": "completed",
+          "conclusion": "success"
+        },
+        {
+          "name": "Check out repository",
+          "status": "completed",
+          "conclusion": "success"
+        },
+        {
+          "name": "Set up Docker Buildx",
+          "status": "completed",
+          "conclusion": "success"
+        },
+        {
+          "name": "Build amd64 smoke image",
+          "status": "completed",
+          "conclusion": "success"
+        },
+        {
+          "name": "Verify image runtime dependencies and permissions",
+          "status": "completed",
+          "conclusion": "success"
+        },
+        {
+          "name": "Test migrations, readiness and restart",
+          "status": "completed",
+          "conclusion": "success"
+        },
+        {
+          "name": "Export tested staging image",
+          "status": "completed",
+          "conclusion": "success"
+        },
+        {
+          "name": "Run actions/upload-artifact@v6",
+          "status": "completed",
+          "conclusion": "success"
+        },
+        {
+          "name": "Post Build amd64 smoke image",
+          "status": "completed",
+          "conclusion": "success"
+        },
+        {
+          "name": "Post Set up Docker Buildx",
+          "status": "completed",
+          "conclusion": "success"
+        },
+        {
+          "name": "Post Check out repository",
+          "status": "completed",
+          "conclusion": "success"
+        },
+        {
+          "name": "Complete job",
+          "status": "completed",
+          "conclusion": "success"
+        }
+      ]
+    },
+    {
+      "name": "publish-staging",
+      "id": 127214117695,
+      "status": "completed",
+      "conclusion": "success",
+      "steps": [
+        {
+          "name": "Set up job",
+          "status": "completed",
+          "conclusion": "success"
+        },
+        {
+          "name": "Run actions/download-artifact@v7",
+          "status": "completed",
+          "conclusion": "success"
+        },
+        {
+          "name": "Load the exact smoke-tested amd64 image and verify revision",
+          "status": "completed",
+          "conclusion": "success"
+        },
+        {
+          "name": "Set up Docker Buildx for registry verification",
+          "status": "completed",
+          "conclusion": "success"
+        },
+        {
+          "name": "Log in to GHCR",
+          "status": "completed",
+          "conclusion": "success"
+        },
+        {
+          "name": "Publish staging tags only and verify registry digest",
+          "status": "completed",
+          "conclusion": "success"
+        },
+        {
+          "name": "Run actions/download-artifact@v7",
+          "status": "completed",
+          "conclusion": "success"
+        },
+        {
+          "name": "Bind staging digest to source identity",
+          "status": "completed",
+          "conclusion": "success"
+        },
+        {
+          "name": "Run actions/upload-artifact@v6",
+          "status": "completed",
+          "conclusion": "success"
+        },
+        {
+          "name": "Post Log in to GHCR",
+          "status": "completed",
+          "conclusion": "success"
+        },
+        {
+          "name": "Post Set up Docker Buildx for registry verification",
+          "status": "completed",
+          "conclusion": "success"
+        },
+        {
+          "name": "Complete job",
+          "status": "completed",
+          "conclusion": "success"
+        }
+      ]
+    },
+    {
+      "name": "publish",
+      "id": 127214119450,
+      "status": "completed",
+      "conclusion": "skipped"
+    }
+  ],
+  "deploymentPerformed": false
+}
