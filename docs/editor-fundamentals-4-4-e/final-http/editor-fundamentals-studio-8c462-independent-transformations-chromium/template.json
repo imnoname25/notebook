@@ -1,0 +1,62 @@
+{
+  "name": "Fundamentals template",
+  "content": [
+    {
+      "id": "edbccfbc-4a04-43e7-9339-7e530056804f",
+      "type": "heading",
+      "props": {
+        "level": 2,
+        "textColor": "default",
+        "isToggleable": false,
+        "textAlignment": "left",
+        "backgroundColor": "default"
+      },
+      "content": [
+        {
+          "text": "Template1",
+          "type": "text",
+          "styles": {}
+        }
+      ],
+      "children": []
+    },
+    {
+      "id": "6bc8fb79-d308-4f2d-a37f-1953d884f9e7",
+      "type": "heading",
+      "props": {
+        "level": 2,
+        "textColor": "default",
+        "isToggleable": false,
+        "textAlignment": "left",
+        "backgroundColor": "default"
+      },
+      "content": [
+        {
+          "text": "Template2",
+          "type": "text",
+          "styles": {}
+        }
+      ],
+      "children": []
+    },
+    {
+      "id": "d6accb9d-7bbe-4199-9f8e-6aa8cc7b343d",
+      "type": "heading",
+      "props": {
+        "level": 2,
+        "textColor": "default",
+        "isToggleable": false,
+        "textAlignment": "left",
+        "backgroundColor": "default"
+      },
+      "content": [
+        {
+          "text": "Template3",
+          "type": "text",
+          "styles": {}
+        }
+      ],
+      "children": []
+    }
+  ]
+}

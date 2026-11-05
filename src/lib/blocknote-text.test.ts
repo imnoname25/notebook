@@ -12,6 +12,14 @@ describe("BlockNote search normalization", () => {
     expect(extractBlockNoteText(null)).toBe("");
   });
 
+  it("indexes legacy shorthand content and table cells without appearance metadata", () => {
+    expect(extractBlockNoteText([
+      { id: "legacy", type: "paragraph", props: { backgroundColor: "transparent", textColor: "violet" }, content: "Русское превью", children: [{ type: "paragraph", content: "Вложенный текст" }] },
+      { type: "table", content: { type: "tableContent", columnWidths: [240, 240], rows: [{ cells: ["Значение", { type: "tableCell", content: "Вторая ячейка" }] }] } },
+    ])).toBe("Русское превью Вложенный текст Значение Вторая ячейка");
+    expect(extractBlockNoteText("  Заголовок\nдокумента ")).toBe("Заголовок документа");
+  });
+
   it("creates a bounded snippet around the match", () => {
     const snippet = createSearchSnippet(`${"a".repeat(100)} needle ${"b".repeat(100)}`, "needle", 20);
     expect(snippet).toContain("needle");

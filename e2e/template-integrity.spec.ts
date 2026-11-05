@@ -28,7 +28,7 @@ for (const theme of ["studio-graphite", "studio-atelier"]) test(`${theme}: real 
   const backup = await page.request.get("/api/data/backup");expect(backup.ok()).toBe(true);const bytes = await backup.body();
   const destinationEmail = `restore-${Date.now()}@example.test`;
   expect((await page.request.post("/api/admin/users", { data: { name: "Restore destination", email: destinationEmail, password: credentials.password, role: "ADMIN", mustChangePassword: false } })).ok()).toBe(true);
-  const otherContext = await browser.newContext({ baseURL: "http://127.0.0.1:3100" });const other = await otherContext.newPage();
+  const otherContext = await browser.newContext({ baseURL: test.info().project.use.baseURL });const other = await otherContext.newPage();
   try {
     expect((await other.request.post("/api/auth/login", { data: { email: destinationEmail, password: credentials.password } })).ok()).toBe(true);
     expect((await other.request.get(`/api/templates/${template.id}/export`)).status()).toBe(404);

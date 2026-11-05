@@ -36,7 +36,8 @@
 @media (max-width: 1199px) {
   /* The shell already reserves safe-area; do not add the inset to the header again. */
   :is(.studio-graphite, .studio-atelier) .notebook-app-shell > .notebook-mobile-header { height: 3.25rem; min-height: 3.25rem; }
-  :is(.studio-graphite, .studio-atelier) .notebook-app-shell .notebook-mobile-header > button { height: 2.75rem; min-height: 2.75rem; }
+  :is(.studio-graphite, .studio-atelier) .notebook-app-shell .notebook-mobile-header > button { height: 3rem; min-height: 3rem; }
+  :is(.studio-graphite, .studio-atelier) .notebook-app-shell .notebook-mobile-header > button:not(:nth-child(2)) { width: 3rem; }
   :is(.studio-graphite, .studio-atelier) .notebook-app-shell .notebook-mobile-header > button > span:first-child { width: 1.75rem; height: 1.75rem; }
   :is(.studio-graphite, .studio-atelier) .notebook-app-shell .notebook-mobile-header > button:nth-child(2) { font-size: 1rem; }
   :is(.studio-graphite, .studio-atelier) .notebook-app-shell .notebook-breadcrumbs { min-height: 2.75rem; height: 2.75rem; flex: none; }

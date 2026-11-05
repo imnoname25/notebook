@@ -21,10 +21,15 @@ export default defineConfig({
     trace: "retain-on-failure",
     screenshot: "only-on-failure",
   },
-  projects: [{ name: "chromium", use: { ...devices["Desktop Chrome"] } }],
+  projects: [
+    { name: "setup", testMatch: /auth\.setup\.ts/ },
+    { name: "chromium", testMatch: /.*\.spec\.ts/, dependencies: ["setup"], use: { ...devices["Desktop Chrome"] } },
+  ],
   webServer: {
+    // The workspace probe requires development Fiber names, not a minified build.
     command: `npm run dev -- --hostname ${serverUrl.hostname} --port ${serverUrl.port || "3100"}`,
-    url: baseURL,
+    // globalSetup applies migrations after webServer starts; login needs a schema.
+    url: `${baseURL}/api/health/live`,
     reuseExistingServer: !process.env.CI,
     timeout: 120_000,
     env: { DATABASE_URL: databaseUrl, APP_ORIGIN: baseURL },

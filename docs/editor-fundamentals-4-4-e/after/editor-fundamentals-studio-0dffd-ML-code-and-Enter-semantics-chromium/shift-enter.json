@@ -1,0 +1,23 @@
+{
+  "id": "cmvtqc8sz00j8eg71a0mfpcsj",
+  "revision": 1,
+  "content": [
+    {
+      "id": "a2b16e8f-b366-4445-8554-92171ca7538a",
+      "type": "paragraph",
+      "props": {
+        "textColor": "default",
+        "textAlignment": "left",
+        "backgroundColor": "default"
+      },
+      "content": [
+        {
+          "text": "Shift1\nShift2",
+          "type": "text",
+          "styles": {}
+        }
+      ],
+      "children": []
+    }
+  ]
+}

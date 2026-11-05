@@ -1,16 +1,17 @@
 import { expect, test, type Page } from "@playwright/test";
 import { z } from "zod";
 
-async function prepare(page: Page) {
+async function prepare(page: Page, theme: string) {
   const credentials = { email: "admin@example.test", password: "correct horse battery staple" };
   const { needsSetup } = z.object({ needsSetup: z.boolean() }).parse(await page.request.get("/api/auth/status").then(r => r.json()));
   expect((await page.request.post(needsSetup ? "/api/auth/setup" : "/api/auth/login", { data: needsSetup ? { ...credentials, name: "Search test" } : credentials })).ok()).toBe(true);
   const id = z.object({ id: z.string() });
   const { notebook } = z.object({ notebook: id }).parse(await page.request.post("/api/notebooks", { data: { title: "Search workspace" } }).then(r => r.json()));
   const { section } = z.object({ section: id }).parse(await page.request.post("/api/sections", { data: { notebookId: notebook.id, title: "Infrastructure" } }).then(r => r.json()));
-  const { page: note } = z.object({ page: id.extend({ revision: z.number() }) }).parse(await page.request.post("/api/pages", { data: { sectionId: section.id, title: "Network runbook" } }).then(r => r.json()));
+  const noteTitle = `Network runbook ${theme}`;
+  const { page: note } = z.object({ page: id.extend({ revision: z.number() }) }).parse(await page.request.post("/api/pages", { data: { sectionId: section.id, title: noteTitle } }).then(r => r.json()));
   expect((await page.request.patch(`/api/pages/${note.id}`, { data: { expectedRevision: note.revision, isFavorite: true, content: [{ type: "paragraph", content: [{ type: "text", text: "Docker backup #network", styles: {} }] }] } })).ok()).toBe(true);
-  return { notebook, section, note };
+  return { notebook, section, note, noteTitle };
 }
 
 for (const theme of ["studio-graphite", "studio-atelier"]) {
@@ -18,12 +19,12 @@ for (const theme of ["studio-graphite", "studio-atelier"]) {
     test.setTimeout(120_000);
     const errors: string[] = [];
     page.on("pageerror", error => errors.push(error.message));
-    const { notebook, section, note } = await prepare(page);
+    const { notebook, section, note, noteTitle } = await prepare(page, theme);
     await page.addInitScript(theme => localStorage.setItem("theme", theme), theme);
     await page.setViewportSize({ width: 1440, height: 900 });
     await page.goto(`/pages/${note.id}`);
     const title = page.getByLabel("Название страницы", { exact: true });
-    await expect(title).toHaveValue("Network runbook");
+    await expect(title).toHaveValue(noteTitle);
     const failSave = (route: import("@playwright/test").Route) => route.request().method() === "PATCH" ? route.fulfill({ status: 503, json: { error: "Synthetic save failure" } }) : route.continue();
     await page.route(`**/api/pages/${note.id}`, failSave);
     await page.locator(".bn-inline-content").first().click();
@@ -31,7 +32,7 @@ for (const theme of ["studio-graphite", "studio-atelier"]) {
     await page.keyboard.press("Control+k"); await page.getByRole("button", { name: /^(Расширенный поиск|Все результаты)$/ }).click();
     const view = page.getByRole("region", { name: "Глобальный поиск" });
     const input = page.getByRole("searchbox", { name: "Поиск по заголовкам и содержимому" });
-    const result = view.locator(".search-result").filter({ hasText: "Network runbook" });
+    const result = view.locator(".search-result").filter({ hasText: noteTitle });
     await expect(page.getByRole("button", { name: "Повторить сохранение", exact: true })).toBeVisible();
     await expect(view).toHaveCount(0);
     await expect(page.locator(".bn-editor")).toContainText("pending search save");
@@ -42,9 +43,9 @@ for (const theme of ["studio-graphite", "studio-atelier"]) {
     await expect(page.locator("#workspace-page-list-panel")).toHaveCount(0);
     await expect.poll(async () => JSON.stringify(await page.request.get(`/api/pages/${note.id}`).then(r => r.json()))).toContain("pending search save");
     await input.fill("Network"); await expect(result).toBeVisible(); await input.press("Enter");
-    await expect(title).toHaveValue("Network runbook");
+    await expect(title).toHaveValue(noteTitle);
     await page.goBack(); await expect(input).toHaveValue("Network");
-    await page.goForward(); await expect(title).toHaveValue("Network runbook");
+    await page.goForward(); await expect(title).toHaveValue(noteTitle);
     await page.goBack(); await page.getByRole("button", { name: "Вернуться из поиска" }).click();
     for (const [label, screen] of [["Сегодня", "today"], ["Стикеры", "stickers"]]) {
       await page.locator(".notebook-sidebar").getByRole("button", { name: label, exact: true }).click();

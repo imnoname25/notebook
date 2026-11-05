@@ -89,11 +89,11 @@ test("appearance stays readable, bounded and participates in mobile Back", async
     await sectionRow.evaluate((node) => getComputedStyle(node).backgroundColor),
   ).not.toBe("rgba(0, 0, 0, 0)");
 
-  await page.setViewportSize({ width: 390, height: 844 });
   await page
     .getByRole("button", { name: `Действия страницы ${title}` })
     .click();
   await page.getByRole("button", { name: "Оформление", exact: true }).click();
+  await page.setViewportSize({ width: 390, height: 844 });
   await expect(
     page.getByRole("dialog", { name: new RegExp("Оформление страницы") }),
   ).toBeVisible();

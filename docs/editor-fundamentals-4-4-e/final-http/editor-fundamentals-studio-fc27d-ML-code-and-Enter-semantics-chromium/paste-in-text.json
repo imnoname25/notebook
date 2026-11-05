@@ -1,0 +1,40 @@
+{
+  "id": "cmvtv2x10013b3871qk28g5xm",
+  "revision": 2,
+  "content": [
+    {
+      "id": "middle",
+      "type": "paragraph",
+      "props": {
+        "textColor": "default",
+        "textAlignment": "left",
+        "backgroundColor": "default"
+      },
+      "content": [
+        {
+          "text": "PrefixOne",
+          "type": "text",
+          "styles": {}
+        }
+      ],
+      "children": []
+    },
+    {
+      "id": "9bc2e82f-a44f-41b9-a5c2-57cb95440543",
+      "type": "paragraph",
+      "props": {
+        "textColor": "default",
+        "textAlignment": "left",
+        "backgroundColor": "default"
+      },
+      "content": [
+        {
+          "text": "TwoSuffix",
+          "type": "text",
+          "styles": {}
+        }
+      ],
+      "children": []
+    }
+  ]
+}

@@ -1,0 +1,50 @@
+{
+  "check": "passed (exit 0)",
+  "unitSummary": [
+    "Test Files  79 passed | 18 skipped (97)",
+    "Tests  450 passed | 70 skipped (520)"
+  ],
+  "unitSkippedFiles": [],
+  "integration": {
+    "passed": 69,
+    "skipped": 0,
+    "database": "native PostgreSQL 18.6, separate UTF8/ICU database"
+  },
+  "http": {
+    "passed": 93,
+    "failed": 1,
+    "skipped": 0,
+    "flaky": 0,
+    "retries": 0,
+    "blocker": "ENOSPC writing Graphite workspace performance.json; assertions after that write did not execute"
+  },
+  "postgresqlGatedUnitFiles": [
+    "src/lib/auth/two-factor.integration.test.ts",
+    "src/lib/services/data.integration.test.ts",
+    "src/lib/services/history-recovery.integration.test.ts",
+    "src/lib/services/internal-links.integration.test.ts",
+    "src/lib/services/live-widget.integration.test.ts",
+    "src/lib/services/operations.integration.test.ts",
+    "src/lib/services/page-link.integration.test.ts",
+    "src/lib/services/page-preview.integration.test.ts",
+    "src/lib/services/quick-note.integration.test.ts",
+    "src/lib/services/recent-page.integration.test.ts",
+    "src/lib/services/search-live.integration.test.ts",
+    "src/lib/services/security.integration.test.ts",
+    "src/lib/services/split-save.integration.test.ts",
+    "src/lib/services/stage6.integration.test.ts",
+    "src/lib/services/template-integrity.integration.test.ts",
+    "src/lib/services/templates-tables.integration.test.ts",
+    "src/lib/services/today-service.integration.test.ts",
+    "src/lib/services/user-management.integration.test.ts"
+  ],
+  "unitSkippedFilesNote": "Default reporter only printed aggregate skips; these 18 PostgreSQL-gated files were run separately by test:integration.",
+  "decision": "NO-GO for final release acceptance until a complete 94/94 run; no production publication",
+  "workspaceDiagnosticRerun": {
+    "passed": 3,
+    "failed": 0,
+    "skipped": 0,
+    "retries": 0,
+    "fullGateReplacement": false
+  }
+}

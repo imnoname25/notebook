@@ -1,0 +1,583 @@
+{
+  "stats": {
+    "startTime": "2026-11-05T04:35:09.658Z",
+    "duration": 1468565.845,
+    "expected": 93,
+    "skipped": 0,
+    "unexpected": 1,
+    "flaky": 0
+  },
+  "runtime": "Next dev, real Chrome/HTTP, PostgreSQL 18.6 ICU, port 3103, retries=0",
+  "results": [
+    {
+      "file": "auth.setup.ts",
+      "test": "first administrator can complete setup through the real login UI",
+      "status": "expected",
+      "errors": []
+    },
+    {
+      "file": "appearance.spec.ts",
+      "test": "appearance stays readable, bounded and participates in mobile Back",
+      "status": "expected",
+      "errors": []
+    },
+    {
+      "file": "daily-editing.spec.ts",
+      "test": "studio-graphite: headings, native slash, presets, touch and independent Split commands",
+      "status": "expected",
+      "errors": []
+    },
+    {
+      "file": "daily-editing.spec.ts",
+      "test": "studio-atelier: headings, native slash, presets, touch and independent Split commands",
+      "status": "expected",
+      "errors": []
+    },
+    {
+      "file": "daily-workflow.spec.ts",
+      "test": "quick capture converts to a tagged page and mobile Back closes its sheet",
+      "status": "expected",
+      "errors": []
+    },
+    {
+      "file": "document-tabs.spec.ts",
+      "test": "studio-graphite: pending save, failed close, session and responsive tabs",
+      "status": "expected",
+      "errors": []
+    },
+    {
+      "file": "document-tabs.spec.ts",
+      "test": "studio-atelier: pending save, failed close, session and responsive tabs",
+      "status": "expected",
+      "errors": []
+    },
+    {
+      "file": "drag-handles.spec.ts",
+      "test": "studio-graphite: page rows drag without handles, accidental navigation or action conflicts",
+      "status": "expected",
+      "errors": []
+    },
+    {
+      "file": "drag-handles.spec.ts",
+      "test": "studio-graphite: native block handle, insert, drag, text selection, template and touch menus",
+      "status": "expected",
+      "errors": []
+    },
+    {
+      "file": "drag-handles.spec.ts",
+      "test": "studio-atelier: page rows drag without handles, accidental navigation or action conflicts",
+      "status": "expected",
+      "errors": []
+    },
+    {
+      "file": "drag-handles.spec.ts",
+      "test": "studio-atelier: native block handle, insert, drag, text selection, template and touch menus",
+      "status": "expected",
+      "errors": []
+    },
+    {
+      "file": "editor-advanced.spec.ts",
+      "test": "studio-graphite: native toggle keyboard, nested outline, export and unknown block protection",
+      "status": "expected",
+      "errors": []
+    },
+    {
+      "file": "editor-advanced.spec.ts",
+      "test": "studio-atelier: native toggle keyboard, nested outline, export and unknown block protection",
+      "status": "expected",
+      "errors": []
+    },
+    {
+      "file": "editor-fundamentals.spec.ts",
+      "test": "studio-graphite: plain text lines and blank lines are independent blocks",
+      "status": "expected",
+      "errors": []
+    },
+    {
+      "file": "editor-fundamentals.spec.ts",
+      "test": "studio-graphite: native selection transforms each independent block",
+      "status": "expected",
+      "errors": []
+    },
+    {
+      "file": "editor-fundamentals.spec.ts",
+      "test": "studio-graphite: imported transparent background is not a decorative brace",
+      "status": "expected",
+      "errors": []
+    },
+    {
+      "file": "editor-fundamentals.spec.ts",
+      "test": "studio-graphite: single editor uses pane width for wide blocks",
+      "status": "expected",
+      "errors": []
+    },
+    {
+      "file": "editor-fundamentals.spec.ts",
+      "test": "studio-graphite: paste preserves context, literal characters, rich HTML, code and Enter semantics",
+      "status": "expected",
+      "errors": []
+    },
+    {
+      "file": "editor-fundamentals.spec.ts",
+      "test": "studio-graphite: insert above and below focuses editable siblings without losing nested blocks",
+      "status": "expected",
+      "errors": []
+    },
+    {
+      "file": "editor-fundamentals.spec.ts",
+      "test": "studio-graphite: template editor shares paste and independent transformations",
+      "status": "expected",
+      "errors": []
+    },
+    {
+      "file": "editor-fundamentals.spec.ts",
+      "test": "studio-atelier: plain text lines and blank lines are independent blocks",
+      "status": "expected",
+      "errors": []
+    },
+    {
+      "file": "editor-fundamentals.spec.ts",
+      "test": "studio-atelier: native selection transforms each independent block",
+      "status": "expected",
+      "errors": []
+    },
+    {
+      "file": "editor-fundamentals.spec.ts",
+      "test": "studio-atelier: imported transparent background is not a decorative brace",
+      "status": "expected",
+      "errors": []
+    },
+    {
+      "file": "editor-fundamentals.spec.ts",
+      "test": "studio-atelier: single editor uses pane width for wide blocks",
+      "status": "expected",
+      "errors": []
+    },
+    {
+      "file": "editor-fundamentals.spec.ts",
+      "test": "studio-atelier: paste preserves context, literal characters, rich HTML, code and Enter semantics",
+      "status": "expected",
+      "errors": []
+    },
+    {
+      "file": "editor-fundamentals.spec.ts",
+      "test": "studio-atelier: insert above and below focuses editable siblings without losing nested blocks",
+      "status": "expected",
+      "errors": []
+    },
+    {
+      "file": "editor-fundamentals.spec.ts",
+      "test": "studio-atelier: template editor shares paste and independent transformations",
+      "status": "expected",
+      "errors": []
+    },
+    {
+      "file": "editor-layout.spec.ts",
+      "test": "editor canvas stays left-aligned and lets wide blocks use the pane",
+      "status": "expected",
+      "errors": []
+    },
+    {
+      "file": "exact-search.spec.ts",
+      "test": "studio-graphite: search result scrolls to its snippet without saving highlights",
+      "status": "expected",
+      "errors": []
+    },
+    {
+      "file": "exact-search.spec.ts",
+      "test": "studio-atelier: search result scrolls to its snippet without saving highlights",
+      "status": "expected",
+      "errors": []
+    },
+    {
+      "file": "history-recovery.spec.ts",
+      "test": "studio-graphite: structural diff, block recovery, restore and crash draft conflict",
+      "status": "expected",
+      "errors": []
+    },
+    {
+      "file": "history-recovery.spec.ts",
+      "test": "studio-atelier: structural diff, block recovery, restore and crash draft conflict",
+      "status": "expected",
+      "errors": []
+    },
+    {
+      "file": "history-recovery.spec.ts",
+      "test": "real renderer crash preserves a draft; explicit discard does not repeat",
+      "status": "expected",
+      "errors": []
+    },
+    {
+      "file": "history-recovery.spec.ts",
+      "test": "history pagination, stale HTTP writers, foreign account and unchanged export format",
+      "status": "expected",
+      "errors": []
+    },
+    {
+      "file": "internal-links.spec.ts",
+      "test": "studio-graphite: inline links, alias, adjacent pane and live backlinks",
+      "status": "expected",
+      "errors": []
+    },
+    {
+      "file": "internal-links.spec.ts",
+      "test": "studio-atelier: inline links, alias, adjacent pane and live backlinks",
+      "status": "expected",
+      "errors": []
+    },
+    {
+      "file": "legacy-nesting.spec.ts",
+      "test": "studio-graphite: legacy paragraph nesting keeps data and functional markers",
+      "status": "expected",
+      "errors": []
+    },
+    {
+      "file": "legacy-nesting.spec.ts",
+      "test": "studio-atelier: legacy paragraph nesting keeps data and functional markers",
+      "status": "expected",
+      "errors": []
+    },
+    {
+      "file": "mobile-shell.spec.ts",
+      "test": "light: mobile shell keeps a compact safe-area-aware header",
+      "status": "expected",
+      "errors": []
+    },
+    {
+      "file": "mobile-shell.spec.ts",
+      "test": "studio-graphite: mobile shell keeps a compact safe-area-aware header",
+      "status": "expected",
+      "errors": []
+    },
+    {
+      "file": "mobile-shell.spec.ts",
+      "test": "studio-atelier: mobile shell keeps a compact safe-area-aware header",
+      "status": "expected",
+      "errors": []
+    },
+    {
+      "file": "mobile-shell.spec.ts",
+      "test": "mobile Back follows editor, pages, notebooks and overlay levels",
+      "status": "expected",
+      "errors": []
+    },
+    {
+      "file": "notebook.spec.ts",
+      "test": "user can write, search, restore and reorder notes",
+      "status": "expected",
+      "errors": []
+    },
+    {
+      "file": "notebook.spec.ts",
+      "test": "page version can be previewed and restored without a stale autosave overwrite",
+      "status": "expected",
+      "errors": []
+    },
+    {
+      "file": "notebook.spec.ts",
+      "test": "page move updates breadcrumbs and persists its destination",
+      "status": "expected",
+      "errors": []
+    },
+    {
+      "file": "notebook.spec.ts",
+      "test": "notebook appearance survives reload",
+      "status": "expected",
+      "errors": []
+    },
+    {
+      "file": "notebook.spec.ts",
+      "test": "overview, recent, outline, quick switcher and undo form one workflow",
+      "status": "expected",
+      "errors": []
+    },
+    {
+      "file": "quick-search.spec.ts",
+      "test": "studio-graphite: quick search uses real content results without leaving the editor",
+      "status": "expected",
+      "errors": []
+    },
+    {
+      "file": "quick-search.spec.ts",
+      "test": "studio-atelier: quick search uses real content results without leaving the editor",
+      "status": "expected",
+      "errors": []
+    },
+    {
+      "file": "security.spec.ts",
+      "test": "new sensitive APIs require authentication",
+      "status": "expected",
+      "errors": []
+    },
+    {
+      "file": "split-workspace.spec.ts",
+      "test": "studio-graphite: independent writers, failed close, pane transfer and responsive restoration",
+      "status": "expected",
+      "errors": []
+    },
+    {
+      "file": "split-workspace.spec.ts",
+      "test": "studio-atelier: independent writers, failed close, pane transfer and responsive restoration",
+      "status": "expected",
+      "errors": []
+    },
+    {
+      "file": "stage4.spec.ts",
+      "test": "notebook export with attachment can be previewed and imported",
+      "status": "expected",
+      "errors": []
+    },
+    {
+      "file": "stage4.spec.ts",
+      "test": "internal page link navigates by stable page ID and browser Back returns",
+      "status": "expected",
+      "errors": []
+    },
+    {
+      "file": "stage4.spec.ts",
+      "test": "mobile sequential navigation, search and Back remain usable",
+      "status": "expected",
+      "errors": []
+    },
+    {
+      "file": "stage4.spec.ts",
+      "test": "backup restore replaces content but keeps current admin",
+      "status": "expected",
+      "errors": []
+    },
+    {
+      "file": "stage5.spec.ts",
+      "test": "editor settings persist and remain usable on mobile",
+      "status": "expected",
+      "errors": []
+    },
+    {
+      "file": "stage5.spec.ts",
+      "test": "manual backup appears in settings and can be deleted",
+      "status": "expected",
+      "errors": []
+    },
+    {
+      "file": "stage5.spec.ts",
+      "test": "custom callout and safe code language survive reload",
+      "status": "expected",
+      "errors": []
+    },
+    {
+      "file": "stage5.spec.ts",
+      "test": "tabs, collapse, TOC and block deep links preserve editor structure on mobile",
+      "status": "expected",
+      "errors": []
+    },
+    {
+      "file": "stage6.spec.ts",
+      "test": "PostgreSQL FTS ranks title, opens RU/EN result and renders safe highlight",
+      "status": "expected",
+      "errors": []
+    },
+    {
+      "file": "stage6.spec.ts",
+      "test": "custom template creates a page with BlockNote custom blocks",
+      "status": "expected",
+      "errors": []
+    },
+    {
+      "file": "stage6.spec.ts",
+      "test": "print dialog and standalone HTML export are available",
+      "status": "expected",
+      "errors": []
+    },
+    {
+      "file": "sticker-board.spec.ts",
+      "test": "sticker board creates multiple cards without leaving the board",
+      "status": "expected",
+      "errors": []
+    },
+    {
+      "file": "sticker-board.spec.ts",
+      "test": "studio-graphite: freeform canvas is isolated from Today and mobile",
+      "status": "expected",
+      "errors": []
+    },
+    {
+      "file": "sticker-board.spec.ts",
+      "test": "studio-atelier: freeform canvas is isolated from Today and mobile",
+      "status": "expected",
+      "errors": []
+    },
+    {
+      "file": "sticker-checklists.spec.ts",
+      "test": "studio-graphite: checklist editing, card toggles, persistence and portable import",
+      "status": "expected",
+      "errors": []
+    },
+    {
+      "file": "sticker-checklists.spec.ts",
+      "test": "studio-atelier: checklist editing, card toggles, persistence and portable import",
+      "status": "expected",
+      "errors": []
+    },
+    {
+      "file": "studio-mobile.spec.ts",
+      "test": "studio-graphite: compact drawer, readable tables, stable editor and focus",
+      "status": "expected",
+      "errors": []
+    },
+    {
+      "file": "studio-mobile.spec.ts",
+      "test": "studio-atelier: compact drawer, readable tables, stable editor and focus",
+      "status": "expected",
+      "errors": []
+    },
+    {
+      "file": "studio-polish.spec.ts",
+      "test": "studio-graphite: sticker resize persists without changing content or mobile geometry",
+      "status": "expected",
+      "errors": []
+    },
+    {
+      "file": "studio-polish.spec.ts",
+      "test": "studio-graphite: row dragging preserves sibling scope and keyboard access",
+      "status": "expected",
+      "errors": []
+    },
+    {
+      "file": "studio-polish.spec.ts",
+      "test": "studio-atelier: sticker resize persists without changing content or mobile geometry",
+      "status": "expected",
+      "errors": []
+    },
+    {
+      "file": "studio-polish.spec.ts",
+      "test": "studio-atelier: row dragging preserves sibling scope and keyboard access",
+      "status": "expected",
+      "errors": []
+    },
+    {
+      "file": "studio.spec.ts",
+      "test": "studio-graphite: responsive composition, persistence and pending autosave",
+      "status": "expected",
+      "errors": []
+    },
+    {
+      "file": "studio.spec.ts",
+      "test": "studio-atelier: responsive composition, persistence and pending autosave",
+      "status": "expected",
+      "errors": []
+    },
+    {
+      "file": "template-integrity.spec.ts",
+      "test": "studio-graphite: real ZIP restore, template links, new block IDs and safe code",
+      "status": "expected",
+      "errors": []
+    },
+    {
+      "file": "template-integrity.spec.ts",
+      "test": "studio-atelier: real ZIP restore, template links, new block IDs and safe code",
+      "status": "expected",
+      "errors": []
+    },
+    {
+      "file": "templates-tables.spec.ts",
+      "test": "studio-graphite: template shared UI, dirty close, save errors, optimistic conflict and links",
+      "status": "expected",
+      "errors": []
+    },
+    {
+      "file": "templates-tables.spec.ts",
+      "test": "studio-graphite: native tables touch CRUD, selection, paste, widths and structural columns",
+      "status": "expected",
+      "errors": []
+    },
+    {
+      "file": "templates-tables.spec.ts",
+      "test": "studio-atelier: template shared UI, dirty close, save errors, optimistic conflict and links",
+      "status": "expected",
+      "errors": []
+    },
+    {
+      "file": "templates-tables.spec.ts",
+      "test": "studio-atelier: native tables touch CRUD, selection, paste, widths and structural columns",
+      "status": "expected",
+      "errors": []
+    },
+    {
+      "file": "unified-block-controls.spec.ts",
+      "test": "studio-graphite: unified table block controls",
+      "status": "expected",
+      "errors": []
+    },
+    {
+      "file": "unified-block-controls.spec.ts",
+      "test": "studio-atelier: unified table block controls",
+      "status": "expected",
+      "errors": []
+    },
+    {
+      "file": "unified-search.spec.ts",
+      "test": "studio-graphite: unified search, history, filters, autosave and responsive layout",
+      "status": "expected",
+      "errors": []
+    },
+    {
+      "file": "unified-search.spec.ts",
+      "test": "studio-atelier: unified search, history, filters, autosave and responsive layout",
+      "status": "expected",
+      "errors": []
+    },
+    {
+      "file": "visual-refresh.spec.ts",
+      "test": "all themes persist and system follows the device",
+      "status": "expected",
+      "errors": []
+    },
+    {
+      "file": "visual-refresh.spec.ts",
+      "test": "legacy nested paragraphs keep real parentheses and list markers on desktop and mobile",
+      "status": "expected",
+      "errors": []
+    },
+    {
+      "file": "workspace-panels.spec.ts",
+      "test": "studio-graphite: resize, persistence, focus, mobile isolation and safe last close",
+      "status": "expected",
+      "errors": []
+    },
+    {
+      "file": "workspace-panels.spec.ts",
+      "test": "studio-atelier: resize, persistence, focus, mobile isolation and safe last close",
+      "status": "expected",
+      "errors": []
+    },
+    {
+      "file": "workspace-responsiveness.spec.ts",
+      "test": "studio-graphite: measured workspace navigation and delayed reads",
+      "status": "unexpected",
+      "errors": [
+        "Error: ENOSPC: no space left on device, write\n\n  94 |   const stopped = new Promise<string>(resolve => cdp.once(\"Tracing.tracingComplete\", event => resolve(event.stream!)));await cdp.send(\"Tracing.end\");const stream = await stopped;let trace = \"\";\n  95 |   for (;;) { const data = await cdp.send(\"IO.read\", { handle: stream });trace += data.data;if (data.eof) break; }await cdp.send(\"IO.close\", { handle: stream });\n> 96 |   await writeFile(info.outputPath(\"performance.json\"), trace);await writeFile(info.outputPath(\"measurements.json\"), JSON.stringify({ theme, serial, delayed: { responsiveness, ms: delayedMs }, split: { requests: requests.slice(splitStart), end }, errors }, null, 2));\n     |   ^\n  97 |   await page.screenshot({ path: info.outputPath(`${theme}-workspace.png`) });expect(errors).toEqual([]);expect(responsiveness).toBe(true);\n  98 |   expect(serial.requests.filter(r => r.url === \"/api/notebooks\" || r.url === \"/api/account/preferences\")).toHaveLength(0);\n  99 |   expect(serial.requests.filter(r => r.url.startsWith(\"/api/pages?\"))).toHaveLength(30);\n    at C:\\Project\\Note\\e2e\\workspace-responsiveness.spec.ts:96:3",
+        "Error: apiRequestContext._wrapApiCall: ENOSPC: no space left on device, write",
+        "Error: ENOSPC: no space left on device, open 'C:\\Project\\Note\\node_modules\\.cache\\e1-acceptance-20261105\\artifacts\\workspace-responsiveness-s-e6a19-avigation-and-delayed-reads-chromium\\error-context.md'",
+        "Error: ENOSPC: no space left on device, write"
+      ]
+    },
+    {
+      "file": "workspace-responsiveness.spec.ts",
+      "test": "studio-atelier: measured workspace navigation and delayed reads",
+      "status": "expected",
+      "errors": []
+    },
+    {
+      "file": "workspace-responsiveness.spec.ts",
+      "test": "studio-graphite: reversed lists, errors, 30 rapid selections and pending autosave",
+      "status": "expected",
+      "errors": []
+    },
+    {
+      "file": "workspace-responsiveness.spec.ts",
+      "test": "studio-atelier: reversed lists, errors, 30 rapid selections and pending autosave",
+      "status": "expected",
+      "errors": []
+    }
+  ],
+  "limitation": "Graphite workspace CDP artifact write failed with ENOSPC before final assertions; not counted as pass."
+}

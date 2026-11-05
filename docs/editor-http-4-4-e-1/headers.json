@@ -1,0 +1,77 @@
+[
+  {
+    "theme": "light",
+    "buttons": [
+      {
+        "name": "Открыть навигацию",
+        "width": 48,
+        "height": 48
+      },
+      {
+        "name": "Notebook",
+        "width": 200,
+        "height": 36
+      },
+      {
+        "name": "Поиск",
+        "width": 48,
+        "height": 48
+      },
+      {
+        "name": "Ещё",
+        "width": 48,
+        "height": 48
+      }
+    ]
+  },
+  {
+    "theme": "studio-graphite",
+    "buttons": [
+      {
+        "name": "Открыть навигацию",
+        "width": 44,
+        "height": 44
+      },
+      {
+        "name": "Notebook",
+        "width": 212,
+        "height": 44
+      },
+      {
+        "name": "Поиск",
+        "width": 44,
+        "height": 44
+      },
+      {
+        "name": "Ещё",
+        "width": 44,
+        "height": 44
+      }
+    ]
+  },
+  {
+    "theme": "studio-atelier",
+    "buttons": [
+      {
+        "name": "Открыть навигацию",
+        "width": 44,
+        "height": 44
+      },
+      {
+        "name": "Notebook",
+        "width": 212,
+        "height": 44
+      },
+      {
+        "name": "Поиск",
+        "width": 44,
+        "height": 44
+      },
+      {
+        "name": "Ещё",
+        "width": 44,
+        "height": 44
+      }
+    ]
+  }
+]

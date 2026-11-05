@@ -17,11 +17,15 @@ test("quick capture converts to a tagged page and mobile Back closes its sheet",
   const converted = await page.request.post(`/api/quick-notes/${note.note.id}/convert`, { data: { sectionId: section.section.id } }).then((response) => response.json());
 
   await page.goto(`/pages/${converted.page.id}`);
-  await page.getByRole("button", { name: new RegExp(`#daily-${suffix}`) }).click();
-  const tagView = page.getByRole("dialog", { name: new RegExp(`#daily-${suffix}`) });
+  const knowledge = page.locator(".notebook-knowledge");
+  await knowledge.locator("summary").click();
+  await knowledge.getByRole("button", { name: `#daily-${suffix}`, exact: true }).click();
+  const tagView = page.getByRole("region", { name: "Глобальный поиск", exact: true });
   await expect(tagView).toBeVisible();
   await expect(tagView).toContainText(`VPN #daily-${suffix}`);
-  await page.keyboard.press("Escape");
+  await page.getByRole("button", { name: "Фильтры поиска", exact: true }).click();
+  await expect(page.getByLabel("Тег", { exact: true })).toHaveValue(`daily-${suffix}`);
+  await page.getByRole("button", { name: "Вернуться из поиска", exact: true }).click();
 
   await page.setViewportSize({ width: 390, height: 844 });
   await page.getByTestId("mobile-app-header").getByRole("button", { name: "Ещё" }).click();

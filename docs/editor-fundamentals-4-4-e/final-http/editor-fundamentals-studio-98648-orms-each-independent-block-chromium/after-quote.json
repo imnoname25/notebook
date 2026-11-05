@@ -1,0 +1,86 @@
+{
+  "id": "cmvtv1uif011x3871taxoomb2",
+  "revision": 6,
+  "content": [
+    {
+      "id": "line-0",
+      "type": "quote",
+      "props": {
+        "textColor": "default",
+        "backgroundColor": "default"
+      },
+      "content": [
+        {
+          "text": "Строка 1",
+          "type": "text",
+          "styles": {}
+        }
+      ],
+      "children": []
+    },
+    {
+      "id": "line-1",
+      "type": "quote",
+      "props": {
+        "textColor": "default",
+        "backgroundColor": "default"
+      },
+      "content": [
+        {
+          "text": "Строка 2",
+          "type": "text",
+          "styles": {}
+        }
+      ],
+      "children": []
+    },
+    {
+      "id": "line-2",
+      "type": "quote",
+      "props": {
+        "textColor": "default",
+        "backgroundColor": "default"
+      },
+      "content": [
+        {
+          "text": "Строка 3",
+          "type": "text",
+          "styles": {}
+        }
+      ],
+      "children": []
+    },
+    {
+      "id": "line-3",
+      "type": "quote",
+      "props": {
+        "textColor": "default",
+        "backgroundColor": "default"
+      },
+      "content": [
+        {
+          "text": "Строка 4",
+          "type": "text",
+          "styles": {}
+        }
+      ],
+      "children": []
+    },
+    {
+      "id": "line-4",
+      "type": "quote",
+      "props": {
+        "textColor": "default",
+        "backgroundColor": "default"
+      },
+      "content": [
+        {
+          "text": "Строка 5",
+          "type": "text",
+          "styles": {}
+        }
+      ],
+      "children": []
+    }
+  ]
+}

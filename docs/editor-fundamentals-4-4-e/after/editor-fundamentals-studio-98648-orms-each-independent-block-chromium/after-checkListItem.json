@@ -1,0 +1,96 @@
+{
+  "id": "cmvtqcsse00kbeg71jlf5e5wy",
+  "revision": 4,
+  "content": [
+    {
+      "id": "line-0",
+      "type": "checkListItem",
+      "props": {
+        "checked": false,
+        "textColor": "default",
+        "textAlignment": "left",
+        "backgroundColor": "default"
+      },
+      "content": [
+        {
+          "text": "Строка 1",
+          "type": "text",
+          "styles": {}
+        }
+      ],
+      "children": []
+    },
+    {
+      "id": "line-1",
+      "type": "checkListItem",
+      "props": {
+        "checked": false,
+        "textColor": "default",
+        "textAlignment": "left",
+        "backgroundColor": "default"
+      },
+      "content": [
+        {
+          "text": "Строка 2",
+          "type": "text",
+          "styles": {}
+        }
+      ],
+      "children": []
+    },
+    {
+      "id": "line-2",
+      "type": "checkListItem",
+      "props": {
+        "checked": false,
+        "textColor": "default",
+        "textAlignment": "left",
+        "backgroundColor": "default"
+      },
+      "content": [
+        {
+          "text": "Строка 3",
+          "type": "text",
+          "styles": {}
+        }
+      ],
+      "children": []
+    },
+    {
+      "id": "line-3",
+      "type": "checkListItem",
+      "props": {
+        "checked": false,
+        "textColor": "default",
+        "textAlignment": "left",
+        "backgroundColor": "default"
+      },
+      "content": [
+        {
+          "text": "Строка 4",
+          "type": "text",
+          "styles": {}
+        }
+      ],
+      "children": []
+    },
+    {
+      "id": "line-4",
+      "type": "checkListItem",
+      "props": {
+        "checked": false,
+        "textColor": "default",
+        "textAlignment": "left",
+        "backgroundColor": "default"
+      },
+      "content": [
+        {
+          "text": "Строка 5",
+          "type": "text",
+          "styles": {}
+        }
+      ],
+      "children": []
+    }
+  ]
+}

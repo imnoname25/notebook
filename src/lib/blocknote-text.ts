@@ -1,9 +1,13 @@
 export function extractBlockNoteText(value: unknown): string {
   const fragments: string[] = [];
 
-  function visit(node: unknown) {
+  function visit(node: unknown, textContent = false) {
+    if (typeof node === "string") {
+      if (textContent) fragments.push(node);
+      return;
+    }
     if (Array.isArray(node)) {
-      node.forEach(visit);
+      node.forEach(child => visit(child, textContent));
       return;
     }
     if (!node || typeof node !== "object") return;
@@ -11,11 +15,11 @@ export function extractBlockNoteText(value: unknown): string {
     if (type === "tableOfContents" || type === "pageVariables") return;
     for (const [key, child] of Object.entries(node)) {
       if ((key === "text" || key === "title" || key === "label" || key === "description" || key === "url" || key === "targetLabel") && typeof child === "string") fragments.push(child);
-      else visit(child);
+      else visit(child, key === "content" || key === "cells");
     }
   }
 
-  visit(value);
+  visit(value, true);
   return fragments.join(" ").replace(/\s+/g, " ").trim();
 }
 

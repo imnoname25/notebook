@@ -1,0 +1,40 @@
+{
+  "id": "cmvtv0ss501093871fq114lgo",
+  "revision": 1,
+  "content": [
+    {
+      "id": "e926fb6d-6ca1-442b-afcb-a97478adba94",
+      "type": "paragraph",
+      "props": {
+        "textColor": "default",
+        "textAlignment": "left",
+        "backgroundColor": "default"
+      },
+      "content": [
+        {
+          "text": "<script>literal</script>",
+          "type": "text",
+          "styles": {}
+        }
+      ],
+      "children": []
+    },
+    {
+      "id": "416e795f-478e-4295-b81a-23323f548a9b",
+      "type": "paragraph",
+      "props": {
+        "textColor": "default",
+        "textAlignment": "left",
+        "backgroundColor": "default"
+      },
+      "content": [
+        {
+          "text": "& text",
+          "type": "text",
+          "styles": {}
+        }
+      ],
+      "children": []
+    }
+  ]
+}

@@ -8,7 +8,7 @@ async function createFixture(page: Page) {
   const id = z.object({ id: z.string() });
   const { notebook } = z.object({ notebook: id }).parse(await page.request.post("/api/notebooks", { data: { title: "Mobile synthetic notebook" } }).then(r => r.json()));
   const { section } = z.object({ section: id }).parse(await page.request.post("/api/sections", { data: { notebookId: notebook.id, title: "Synthetic section" } }).then(r => r.json()));
-  const { page: note } = z.object({ page: id }).parse(await page.request.post("/api/pages", { data: { sectionId: section.id, title: "Mobile synthetic document" } }).then(r => r.json()));
+  const { page: note } = z.object({ page: id.extend({ revision: z.number() }) }).parse(await page.request.post("/api/pages", { data: { sectionId: section.id, title: "Mobile synthetic document" } }).then(r => r.json()));
   const content = [
     { type: "paragraph", content: "Synthetic technical document; no personal data." },
     { type: "table", content: { type: "tableContent", columnWidths: [220, 220, 220], rows: [
@@ -19,7 +19,7 @@ async function createFixture(page: Page) {
     { type: "codeBlock", props: { language: "text" }, content: "technical_reference_".repeat(30) },
     ...Array.from({ length: 24 }, (_, i) => ({ type: "numberedListItem", content: `Техническая запись ${i + 1}`, children: [{ type: "bulletListItem", content: "Вложенная запись" }] })),
   ];
-  expect((await page.request.patch(`/api/pages/${note.id}`, { data: { content, icon: "📘" } })).ok()).toBe(true);
+  expect((await page.request.patch(`/api/pages/${note.id}`, { data: { expectedRevision: note.revision, content, icon: "📘" } })).ok()).toBe(true);
   return note.id;
 }
 
@@ -82,12 +82,14 @@ for (const theme of ["studio-graphite", "studio-atelier"]) {
     await page.setViewportSize({ width: 840, height: 960 });
     await page.getByRole("button", { name: "Режим фокуса", exact: true }).click();
     await expect(page.locator('[data-mobile-screen="pages"]')).toBeHidden();
-    expect(Math.round((await page.locator(".notebook-editor-pane").boundingBox())!.width)).toBe(840);
+    const visiblePane = page.locator(".notebook-editor-pane:visible");
+    await expect(visiblePane).toHaveCount(1);
+    expect(Math.round((await visiblePane.boundingBox())!.width)).toBe(840);
     await page.getByRole("button", { name: "Выйти из режима фокуса", exact: true }).click();
     await expect(page.locator('[data-mobile-screen="pages"]')).toBeVisible();
     for (const [width, height, label] of [[393, 873, "outer"], [840, 960, "inner"]] as const) {
       await page.setViewportSize({ width, height });
-      await page.screenshot({ path: info.outputPath(`${theme}-${label}.png`) });
+      await page.screenshot({ path: info.outputPath(`${theme}-${label}.png`), animations: "disabled" });
     }
   });
 }

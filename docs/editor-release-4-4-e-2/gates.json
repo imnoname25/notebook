@@ -1,0 +1,40 @@
+{
+  "parent": "abcac2961a0c7c08403b51be4db82da40a15c37e",
+  "lint": "PASS, final after readiness correction",
+  "typecheck": "PASS, final after readiness correction",
+  "build": "PASS, before dev HTTP; product code unchanged afterward",
+  "unit": {
+    "passed": 450,
+    "skipped": 70
+  },
+  "postgresqlIntegration": {
+    "passed": 69,
+    "failed": 0,
+    "skipped": 0,
+    "files": 18,
+    "version": "18.6"
+  },
+  "http": {
+    "passed": 94,
+    "failed": 0,
+    "skipped": 0,
+    "flaky": 0,
+    "retries": 0,
+    "workers": 1,
+    "durationMs": 1542830.4079999998
+  },
+  "disk": {
+    "startBytes": 13158666240,
+    "minimumBytes": 10549997568,
+    "endBytes": 12578459648,
+    "samples": 53
+  },
+  "decision": "CONDITIONAL GO: automatic RC gate green; physical/manual and production backup/image/CI acceptance pending",
+  "push": "not authorized, not performed",
+  "review": {
+    "workingAndStagedWhitespace": "PASS",
+    "stagedSecretScan": "PASS with exact verified source-file SHA-256 exception; default 3 metadata false positives reviewed",
+    "releaseFiles": 225,
+    "preservedUserFiles": true
+  }
+}

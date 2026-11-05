@@ -1,0 +1,40 @@
+{
+  "id": "cmvtv32hq013h3871r2c2l830",
+  "revision": 2,
+  "content": [
+    {
+      "id": "keep-callout",
+      "type": "callout",
+      "props": {
+        "kind": "warning",
+        "title": "Keep title",
+        "backgroundColor": "default"
+      },
+      "content": [
+        {
+          "text": "CalloutOne",
+          "type": "text",
+          "styles": {}
+        }
+      ],
+      "children": []
+    },
+    {
+      "id": "dde2328a-47a5-4c0e-b0d2-80de64f5d5ad",
+      "type": "paragraph",
+      "props": {
+        "textColor": "default",
+        "textAlignment": "left",
+        "backgroundColor": "default"
+      },
+      "content": [
+        {
+          "text": "Two",
+          "type": "text",
+          "styles": {}
+        }
+      ],
+      "children": []
+    }
+  ]
+}

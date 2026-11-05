@@ -6,6 +6,11 @@ for (const theme of ["studio-graphite", "studio-atelier"]) {
     const credentials = { email: "admin@example.test", password: "correct horse battery staple" };
     const { needsSetup } = z.object({ needsSetup: z.boolean() }).parse(await page.request.get("/api/auth/status").then(r => r.json()));
     expect((await page.request.post(needsSetup ? "/api/auth/setup" : "/api/auth/login", { data: needsSetup ? { ...credentials, name: "Polish test" } : credentials })).ok()).toBe(true);
+    // Exact geometry must not depend on earlier tests' cards or edge auto-scroll.
+    const isolated = { email: `resize-${theme}-${Date.now()}@example.test`, password: credentials.password };
+    expect((await page.request.post("/api/admin/users", { data: { ...isolated, name: "Isolated resize", role: "USER", mustChangePassword: false } })).status()).toBe(201);
+    expect((await page.request.post("/api/auth/logout")).ok()).toBe(true);
+    expect((await page.request.post("/api/auth/login", { data: isolated })).ok()).toBe(true);
     const { note } = z.object({ note: z.object({ id: z.string() }) }).parse(await page.request.post("/api/quick-notes", { data: { title: "Размер стикера", body: "Текст\n- [ ] Контроль", color: "amber" } }).then(r => r.json()));
     const { note: other } = z.object({ note: z.object({ id: z.string() }) }).parse(await page.request.post("/api/quick-notes", { data: { title: "Независимый размер", body: "Текст", color: "green" } }).then(r => r.json()));
     await page.addInitScript(value => localStorage.setItem("theme", value), theme);
@@ -13,7 +18,14 @@ for (const theme of ["studio-graphite", "studio-atelier"]) {
     await page.goto("/app?view=stickers");
     const card = page.locator(`[data-sticker-id="${note.id}"]`);
     const handle = card.getByRole("button", { name: "Изменить размер стикера", exact: true });
+    await handle.evaluate(node => node.scrollIntoView({ block: "center", inline: "center" }));
+    await expect.poll(() => handle.evaluate(node => {
+      const box = node.getBoundingClientRect();
+      return node.contains(document.elementFromPoint(box.x + box.width / 2, box.y + box.height / 2));
+    })).toBe(true);
     const rect = (await handle.boundingBox())!;
+    const viewport = (await page.locator(".sticker-board-viewport").boundingBox())!;
+    expect(rect.y + 104).toBeLessThan(viewport.y + viewport.height - 32);
     await page.mouse.move(rect.x + 14, rect.y + 14);await page.mouse.down();
     await page.mouse.move(rect.x + 134, rect.y + 104, { steps: 20 });await page.mouse.up();
     await expect.poll(async () => Math.round((await card.boundingBox())!.width)).toBe(440);
@@ -55,7 +67,8 @@ for (const theme of ["studio-graphite", "studio-atelier"]) {
     expect((await page.request.post(needsSetup ? "/api/auth/setup" : "/api/auth/login", { data: needsSetup ? { ...credentials, name: "Tree test" } : credentials })).ok()).toBe(true);
     const entity = z.object({ id: z.string() });
     const books: string[] = [];
-    for (const title of ["Длинный русский блокнот для проверки дерева", "Соседний блокнот"]) {
+    const notebookTitle = `Длинный русский блокнот для проверки дерева ${theme}`;
+    for (const title of [notebookTitle, `Соседний блокнот ${theme}`]) {
       const { notebook } = z.object({ notebook: entity }).parse(await page.request.post("/api/notebooks", { data: { title } }).then(r => r.json()));books.push(notebook.id);
     }
     const sections: string[] = [];
@@ -64,8 +77,8 @@ for (const theme of ["studio-graphite", "studio-atelier"]) {
     }
     await page.addInitScript(value => localStorage.setItem("theme", value), theme);
     await page.setViewportSize({ width: 1440, height: 900 });await page.goto("/app");
-    const row = page.locator('[data-notebook-title="Длинный русский блокнот для проверки дерева"]');
-    await row.getByRole("button", { name: "Длинный русский блокнот для проверки дерева", exact: true }).click();
+    const row = page.locator(`[data-notebook-title="${notebookTitle}"]`);
+    await row.getByRole("button", { name: notebookTitle, exact: true }).click();
     const select = row.locator('[data-nav-select][title="Первый раздел с очень длинным названием"]');
     await expect(select).toBeVisible();
     await select.focus();await page.keyboard.press("Space");

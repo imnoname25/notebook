@@ -1,0 +1,10 @@
+{
+  "status": "interrupted for diagnosed readiness correction; not a full gate",
+  "plannedTests": 94,
+  "passedBeforeStop": 15,
+  "failedBeforeStop": 1,
+  "failedScenario": "studio-graphite: page rows drag without handles, accidental navigation or action conflicts",
+  "failure": "5s editor readiness began before slow bootstrap completed; target document HTTP read began later",
+  "correction": "Wait for successful target page GET before the unchanged editable assertion; no timeout/retry/assertion weakening",
+  "evidence": "local ignored node_modules/.cache/e2-full-20261105/artifacts/drag-handles-studio-graphi-c5d4a-igation-or-action-conflicts-chromium/trace.zip"
+}

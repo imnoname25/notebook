@@ -187,9 +187,6 @@ button,
     env(safe-area-inset-bottom, 0px)
   );
 }
-.notebook-no-print button:has(> .lucide-shield-check) {
-  display: none;
-}
 .input {
   min-height: 2.75rem;
   width: 100%;
@@ -268,9 +265,16 @@ button,
     [data-content-type="image"],
     [data-content-type="video"],
     [data-content-type="audio"],
-    [data-content-type="file"]
+    [data-content-type="file"],
+    [data-content-type="callout"],
+    [data-content-type="banner"],
+    [data-content-type="columns"],
+    [data-content-type="columnPanel"],
+    [data-content-type="tabs"],
+    [data-content-type="tabPanel"]
   ) {
   max-width: none;
+  margin-inline: 0;
 }
 .notebook-editor .bn-block-content[data-content-type="table"] {
   overflow-x: auto;
@@ -1302,7 +1306,9 @@ button,
 .notebook-color-swatch[data-color="green"] { background: var(--bn-colors-highlights-green-background); }
 .notebook-color-swatch[data-color="blue"] { background: var(--bn-colors-highlights-blue-background); }
 .notebook-color-swatch[data-color="purple"] { background: var(--bn-colors-highlights-purple-background); }
-.notebook-editor .bn-block:has(> .bn-block-content[data-background-color]:not([data-background-color="default"])) {
+/* An imported transparent background is not a highlight. Keep its JSON intact,
+   and preserve the existing decoration for actual nontransparent colors. */
+.notebook-editor .bn-block:has(> .bn-block-content[data-background-color]:not([data-background-color="default"]):not([data-background-color="transparent"])) {
   border-left: 3px solid color-mix(in srgb, currentColor 34%, transparent);
   border-radius: 0.45rem;
   padding-inline: 0.55rem 0.25rem;

@@ -360,7 +360,8 @@
 .studio-atelier .notebook-page-title-input { font-weight: 600; }
 :is(.studio-graphite, .studio-atelier) .notebook-editor .bn-editor { line-height: 1.7; }
 :is(.studio-graphite, .studio-atelier) .notebook-editor .bn-editor,
-:is(.studio-graphite, .studio-atelier) .notebook-app-shell[data-focus-mode="true"] .notebook-editor .bn-editor { width: 100%; max-width: calc(var(--notebook-reading-width) + 2 * var(--studio-reading-gutter)); margin-inline: var(--studio-document-margin-start) var(--studio-document-margin-end); }
+:is(.studio-graphite, .studio-atelier) .notebook-app-shell[data-focus-mode="true"] .notebook-editor .bn-editor { width: 100%; max-width: none; margin-inline: 0; }
+:is(.studio-graphite, .studio-atelier) .notebook-editor .bn-block-content { margin-inline: var(--studio-document-margin-start) var(--studio-document-margin-end); }
 :is(.studio-graphite, .studio-atelier) .notebook-editor [data-content-type="heading"] { font-weight: 600; line-height: 1.35; }
 :is(.studio-graphite, .studio-atelier) .notebook-editor :is(pre, code) { font-family: var(--studio-code-font); font-variant-ligatures: none; }
 :is(.studio-graphite, .studio-atelier) .notebook-editor pre { font-size: 0.8125rem; line-height: 1.65; }

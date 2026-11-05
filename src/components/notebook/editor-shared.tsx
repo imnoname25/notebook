@@ -8,7 +8,8 @@ import { linkTargetsSchema } from "@/lib/page-links";
 import { notebookEditorSchema, notebookSyntaxHighlighting, normalizeEditorBlocks, slashMenuItems, type NotebookEditor } from "./editor-schema";
 import { EditorBlockActions } from "./editor-block-actions";
 import { NotebookSideMenu } from "./editor-block-menu";
-export const sharedEditorBaseOptions = { schema: notebookEditorSchema, dictionary: notebookBlockNoteDictionary, extensions: [notebookSyntaxHighlighting], tables: { headers: true, splitCells: true } };
+import { literalTextPasteHandler, plainTextLinesExtension } from "./editor-plain-text-paste";
+export const sharedEditorBaseOptions = { schema: notebookEditorSchema, dictionary: notebookBlockNoteDictionary, pasteHandler: literalTextPasteHandler, extensions: [notebookSyntaxHighlighting, plainTextLinesExtension()], tables: { headers: true, splitCells: true } };
 export function sharedEditorOptions(content: unknown[]) { return { ...sharedEditorBaseOptions, initialContent: normalizeEditorBlocks(content) }; }
 /** No autosave, uploads, page revision, recovery or navigation state belongs here. */
 export function SharedEditorMenus({ editor, mode = "page", pageId, onPagePicker, blockActionsHost, disabled = false }: { editor: NotebookEditor; mode?: "page" | "template"; pageId?: string; onPagePicker(): void; blockActionsHost?: HTMLDivElement | null; disabled?: boolean }) {

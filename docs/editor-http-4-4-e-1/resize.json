@@ -1,0 +1,46 @@
+{
+  "before": {
+    "rect": {
+      "x": 874,
+      "y": 1909,
+      "width": 28,
+      "height": 28
+    },
+    "hit": null,
+    "width": 320
+  },
+  "unscrolled": {
+    "rect": {
+      "x": 874,
+      "y": 1909,
+      "width": 28,
+      "height": 28
+    },
+    "hit": null,
+    "width": 320
+  },
+  "visible": {
+    "rect": {
+      "x": 874,
+      "y": 808,
+      "width": 28,
+      "height": 28
+    },
+    "hit": {
+      "tag": "SPAN",
+      "classes": "",
+      "sticker": "cmvuol6ar00ct9071demh9vj8"
+    },
+    "width": 320
+  },
+  "scrolled": {
+    "rect": {
+      "x": 994,
+      "y": 886,
+      "width": 28,
+      "height": 28
+    },
+    "hit": null,
+    "width": 440
+  }
+}

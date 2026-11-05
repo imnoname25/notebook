@@ -25,6 +25,12 @@ describe("Notebook custom editor blocks", () => {
 
 // A presentation cleanup must never strip punctuation or flatten legacy nesting.
 describe("legacy content preservation", () => {
+  it("preserves imported transparent background and Windows text color metadata without normalization", () => {
+    const legacy = [{ id: "imported", type: "paragraph", props: { backgroundColor: "transparent", textColor: "windowtext", textAlignment: "left" }, content: [{ type: "text", text: "Legacy (text) {label}", styles: { bold: true } }], children: [] }];
+    const original = structuredClone(legacy);
+    expect(normalizeEditorBlocks(blockNoteContentSchema.parse(legacy))).toEqual(original);
+    expect(legacy).toEqual(original);
+  });
   it.each(["1С БСО", "(1С БСО)", "(договор № 1)", "((nested))", "[1С] {БСО}"])("preserves %s through validation, normalization and serialization", (text) => {
     const legacy = [{ id: "legacy-parent", type: "paragraph", content: [{ type: "text", text: "Родитель", styles: {} }], children: [
       { id: "legacy-child", type: "paragraph", content: [{ type: "text", text, styles: { bold: true } }], children: [] },

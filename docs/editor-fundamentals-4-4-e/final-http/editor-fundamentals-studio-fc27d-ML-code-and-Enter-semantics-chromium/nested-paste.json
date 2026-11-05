@@ -1,0 +1,58 @@
+{
+  "id": "cmvtv354z013k3871u99i9il6",
+  "revision": 2,
+  "content": [
+    {
+      "id": "keep-parent",
+      "type": "paragraph",
+      "props": {
+        "textColor": "default",
+        "textAlignment": "left",
+        "backgroundColor": "default"
+      },
+      "content": [
+        {
+          "text": "Parent",
+          "type": "text",
+          "styles": {}
+        }
+      ],
+      "children": [
+        {
+          "id": "paste-child",
+          "type": "paragraph",
+          "props": {
+            "textColor": "default",
+            "textAlignment": "left",
+            "backgroundColor": "default"
+          },
+          "content": [
+            {
+              "text": "ChildOne",
+              "type": "text",
+              "styles": {}
+            }
+          ],
+          "children": []
+        },
+        {
+          "id": "78d544fd-de29-4666-a97d-129db9196b70",
+          "type": "paragraph",
+          "props": {
+            "textColor": "default",
+            "textAlignment": "left",
+            "backgroundColor": "default"
+          },
+          "content": [
+            {
+              "text": "Two",
+              "type": "text",
+              "styles": {}
+            }
+          ],
+          "children": []
+        }
+      ]
+    }
+  ]
+}

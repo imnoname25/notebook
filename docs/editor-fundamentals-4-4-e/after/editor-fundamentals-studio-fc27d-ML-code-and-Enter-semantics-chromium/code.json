@@ -1,0 +1,21 @@
+{
+  "id": "cmvtqed9l00m1eg71n15tzuh0",
+  "revision": 2,
+  "content": [
+    {
+      "id": "code",
+      "type": "codeBlock",
+      "props": {
+        "language": "text"
+      },
+      "content": [
+        {
+          "text": "  A\n\n\tB",
+          "type": "text",
+          "styles": {}
+        }
+      ],
+      "children": []
+    }
+  ]
+}

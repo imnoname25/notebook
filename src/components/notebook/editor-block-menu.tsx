@@ -24,6 +24,7 @@ const BACKGROUND_LABELS = {
 const BACKGROUND_BLOCKS = new Set(["paragraph", "heading", "bulletListItem", "numberedListItem", "checkListItem", "quote", "codeBlock", "callout", "banner", "bookmark", "toggle", "toggleListItem"]);
 export const EditorActivityContext = createContext(true);
 const TRANSFORMABLE = new Set(["paragraph", "heading", "bulletListItem", "numberedListItem", "checkListItem", "quote", "toggleListItem"]);
+const canTransform = (block: NotebookFullBlock) => TRANSFORMABLE.has(block.type) || block.type === "callout" && !block.props.title;
 
 export function NotebookSideMenu({ pageId, onDragChange }: { pageId?: string; onDragChange?(dragging: boolean): void }) {
   return <SideMenu><NotebookDragHandle pageId={pageId} onDragChange={onDragChange}/></SideMenu>;
@@ -94,7 +95,17 @@ export function NotebookBlockMenu({ pageId, target }: { pageId?: string; target?
   const insert = (position: "before" | "after") => {
     const [created] = editor.insertBlocks([{ type: "paragraph" }], typedBlock, position);
     editor.setTextCursorPosition(created);
-
+    editor.focus();
+  };
+  const transform = (type: "paragraph" | "heading" | "bulletListItem" | "numberedListItem" | "checkListItem" | "quote" | "toggleListItem" | "callout") => {
+    const selection = editor.getSelection()?.blocks;
+    const targets = selection?.some(selected => selected.id === block.id) ? selection : [typedBlock];
+    editor.transact(() => {
+      for (const selected of targets) if (canTransform(selected)) {
+        if (type === "heading") editor.updateBlock(selected, { type, props: { level: 2 } });
+        else editor.updateBlock(selected, { type });
+      }
+    });
   };
   return <DragHandleMenu>
     {block.type === "table" && <><TableBlockSubmenu editor={editor} block={typedBlock}/><Components.Generic.Menu.Divider/></>}
@@ -109,15 +120,17 @@ export function NotebookBlockMenu({ pageId, target }: { pageId?: string; target?
     <Components.Generic.Menu.Item icon={<Clipboard size={16}/>} onClick={() => void copy(false).catch(() => window.alert("Не удалось скопировать блок. Проверьте доступ к буферу обмена и HTTPS; можно использовать системное копирование."))}>Копировать</Components.Generic.Menu.Item>
     <Components.Generic.Menu.Item icon={<Clipboard size={16}/>} onClick={() => void copy(true).catch(() => window.alert("Не удалось скопировать текст. Проверьте доступ к буферу обмена и HTTPS."))}>Копировать как текст</Components.Generic.Menu.Item>
     {pageId && <Components.Generic.Menu.Item icon={<Link2 size={16}/>} onClick={() => void navigator.clipboard.writeText(`${window.location.origin}${getPageHref(pageId, block.id)}`)}>Копировать ссылку на блок</Components.Generic.Menu.Item>}
-    {TRANSFORMABLE.has(block.type) && <Components.Generic.Menu.Root sub position="right">
+    {canTransform(typedBlock) && <Components.Generic.Menu.Root sub position="right">
       <Components.Generic.Menu.Trigger sub><Components.Generic.Menu.Item subTrigger icon={<Wand2 size={16}/>}>Преобразовать</Components.Generic.Menu.Item></Components.Generic.Menu.Trigger>
       <Components.Generic.Menu.Dropdown sub className="bn-menu-dropdown">
-        <Components.Generic.Menu.Item onClick={() => editor.updateBlock(block, { type: "paragraph" })}>Текст</Components.Generic.Menu.Item>
-        <Components.Generic.Menu.Item onClick={() => editor.updateBlock(block, { type: "heading", props: { level: 2 } })}>Заголовок</Components.Generic.Menu.Item>
-        <Components.Generic.Menu.Item onClick={() => editor.updateBlock(block, { type: "bulletListItem" })}>Маркированный список</Components.Generic.Menu.Item>
-        <Components.Generic.Menu.Item onClick={() => editor.updateBlock(block, { type: "numberedListItem" })}>Нумерованный список</Components.Generic.Menu.Item>
-        <Components.Generic.Menu.Item onClick={() => editor.updateBlock(block, { type: "checkListItem" })}>Чеклист</Components.Generic.Menu.Item>
-        <Components.Generic.Menu.Item onClick={() => editor.updateBlock(block, { type: "quote" })}>Цитата</Components.Generic.Menu.Item>
+        <Components.Generic.Menu.Item onClick={() => transform("paragraph")}>Текст</Components.Generic.Menu.Item>
+        <Components.Generic.Menu.Item onClick={() => transform("heading")}>Заголовок</Components.Generic.Menu.Item>
+        <Components.Generic.Menu.Item onClick={() => transform("bulletListItem")}>Маркированный список</Components.Generic.Menu.Item>
+        <Components.Generic.Menu.Item onClick={() => transform("numberedListItem")}>Нумерованный список</Components.Generic.Menu.Item>
+        <Components.Generic.Menu.Item onClick={() => transform("checkListItem")}>Чеклист</Components.Generic.Menu.Item>
+        <Components.Generic.Menu.Item onClick={() => transform("quote")}>Цитата</Components.Generic.Menu.Item>
+        <Components.Generic.Menu.Item onClick={() => transform("toggleListItem")}>Сворачиваемый список</Components.Generic.Menu.Item>
+        <Components.Generic.Menu.Item onClick={() => transform("callout")}>Информационный блок</Components.Generic.Menu.Item>
       </Components.Generic.Menu.Dropdown>
     </Components.Generic.Menu.Root>}
     {canColor && <Components.Generic.Menu.Root sub position="right">

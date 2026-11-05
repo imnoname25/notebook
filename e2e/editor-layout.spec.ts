@@ -17,7 +17,7 @@ async function login(page: Page) {
 
 test("editor canvas stays left-aligned and lets wide blocks use the pane", async ({ page }) => {
   await login(page);
-  await page.request.patch("/api/settings", { data: { editorContentWidth: "normal" } });
+  expect((await page.request.patch("/api/account/preferences", { data: { editorContentWidth: "normal" } })).ok()).toBe(true);
   const longNotebookTitle = "Рабочий блокнот с очень длинным названием для проверки навигации";
   const notebook = await page.request.post("/api/notebooks", { data: { title: longNotebookTitle } }).then((response) => response.json());
   const section = await page.request.post("/api/sections", { data: { notebookId: notebook.notebook.id, parentId: null, title: "Canvas" } }).then((response) => response.json());
@@ -83,11 +83,11 @@ test("editor canvas stays left-aligned and lets wide blocks use the pane", async
   }
 
   const normalWidth = await page.locator('[data-content-type="paragraph"]').evaluate((node) => node.getBoundingClientRect().width);
-  await page.request.patch("/api/settings", { data: { editorContentWidth: "wide" } });
+  expect((await page.request.patch("/api/account/preferences", { data: { editorContentWidth: "wide" } })).ok()).toBe(true);
   await page.reload();
   await page.setViewportSize({ width: 2560, height: 1440 });
   await expect(page.getByTestId("notebook-editor-canvas")).toHaveAttribute("data-content-width", "wide");
   const wideWidth = await page.locator('[data-content-type="paragraph"]').evaluate((node) => node.getBoundingClientRect().width);
   expect(wideWidth).toBeGreaterThan(normalWidth + 250);
-  await page.request.patch("/api/settings", { data: { editorContentWidth: "normal" } });
+  expect((await page.request.patch("/api/account/preferences", { data: { editorContentWidth: "normal" } })).ok()).toBe(true);
 });

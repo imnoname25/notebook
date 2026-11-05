@@ -1,0 +1,191 @@
+{
+  "id": "cmvtv3h5u01413871g2a2lsv5",
+  "revision": 3,
+  "content": [
+    {
+      "id": "parent",
+      "type": "paragraph",
+      "props": {
+        "textColor": "default",
+        "textAlignment": "left",
+        "backgroundColor": "default"
+      },
+      "content": [
+        {
+          "text": "Parent",
+          "type": "text",
+          "styles": {}
+        }
+      ],
+      "children": [
+        {
+          "id": "02d779ce-ac75-4697-82e0-368b0ca4a2f3",
+          "type": "paragraph",
+          "props": {
+            "textColor": "default",
+            "textAlignment": "left",
+            "backgroundColor": "default"
+          },
+          "content": [
+            {
+              "text": "Before child",
+              "type": "text",
+              "styles": {}
+            }
+          ],
+          "children": []
+        },
+        {
+          "id": "child",
+          "type": "paragraph",
+          "props": {
+            "textColor": "default",
+            "textAlignment": "left",
+            "backgroundColor": "default"
+          },
+          "content": [
+            {
+              "text": "Child",
+              "type": "text",
+              "styles": {}
+            }
+          ],
+          "children": []
+        },
+        {
+          "id": "369a1d49-f355-4cca-aa58-82a9ce46227e",
+          "type": "paragraph",
+          "props": {
+            "textColor": "default",
+            "textAlignment": "left",
+            "backgroundColor": "default"
+          },
+          "content": [
+            {
+              "text": "After child",
+              "type": "text",
+              "styles": {}
+            }
+          ],
+          "children": []
+        }
+      ]
+    },
+    {
+      "id": "insert-table",
+      "type": "table",
+      "props": {
+        "textColor": "default"
+      },
+      "content": {
+        "rows": [
+          {
+            "cells": [
+              {
+                "type": "tableCell",
+                "props": {
+                  "colspan": 1,
+                  "rowspan": 1,
+                  "textColor": "default",
+                  "textAlignment": "left",
+                  "backgroundColor": "default"
+                },
+                "content": [
+                  {
+                    "text": "A",
+                    "type": "text",
+                    "styles": {}
+                  }
+                ]
+              },
+              {
+                "type": "tableCell",
+                "props": {
+                  "colspan": 1,
+                  "rowspan": 1,
+                  "textColor": "default",
+                  "textAlignment": "left",
+                  "backgroundColor": "default"
+                },
+                "content": [
+                  {
+                    "text": "B",
+                    "type": "text",
+                    "styles": {}
+                  }
+                ]
+              }
+            ]
+          }
+        ],
+        "type": "tableContent",
+        "columnWidths": [
+          null,
+          null
+        ]
+      },
+      "children": []
+    },
+    {
+      "id": "insert-columns",
+      "type": "columns",
+      "props": {
+        "count": 2
+      },
+      "children": [
+        {
+          "id": "column-left",
+          "type": "columnPanel",
+          "props": {
+            "label": "Колонка"
+          },
+          "children": [
+            {
+              "id": "column-text",
+              "type": "paragraph",
+              "props": {
+                "textColor": "default",
+                "textAlignment": "left",
+                "backgroundColor": "default"
+              },
+              "content": [
+                {
+                  "text": "Left",
+                  "type": "text",
+                  "styles": {}
+                }
+              ],
+              "children": []
+            }
+          ]
+        },
+        {
+          "id": "column-right",
+          "type": "columnPanel",
+          "props": {
+            "label": "Колонка"
+          },
+          "children": [
+            {
+              "id": "right-text",
+              "type": "paragraph",
+              "props": {
+                "textColor": "default",
+                "textAlignment": "left",
+                "backgroundColor": "default"
+              },
+              "content": [
+                {
+                  "text": "Right",
+                  "type": "text",
+                  "styles": {}
+                }
+              ],
+              "children": []
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}

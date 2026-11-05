@@ -86,8 +86,8 @@ test("history pagination, stale HTTP writers, foreign account and unchanged expo
   const races = await Promise.all([page.request.patch(`/api/pages/${a.id}`, { data: { title: "HTTP writer A", expectedRevision: revision } }), page.request.patch(`/api/pages/${a.id}`, { data: { title: "HTTP writer B", expectedRevision: revision } })]);expect(races.map(response => response.status()).sort()).toEqual([200, 409]);
   const foreign = { email: `foreign-${Date.now()}@example.test`, password: "synthetic long password" };
   expect((await page.request.post("/api/admin/users", { data: { ...foreign, name: "Synthetic foreign user", mustChangePassword: false } })).ok()).toBe(true);
-  const other = await browser.newContext();expect((await other.request.post("http://127.0.0.1:3100/api/auth/login", { data: foreign })).ok()).toBe(true);
-  for (const suffix of ["versions", `versions/${oldVersion}`]) expect((await other.request.get(`http://127.0.0.1:3100/api/pages/${a.id}/${suffix}`)).status()).toBe(404);
-  expect((await other.request.post(`http://127.0.0.1:3100/api/pages/${a.id}/versions/${oldVersion}/restore`, { data: { expectedRevision: revision + 1 } })).status()).toBe(404);await other.close();
+  const other = await browser.newContext({ baseURL: test.info().project.use.baseURL });expect((await other.request.post("/api/auth/login", { data: foreign })).ok()).toBe(true);
+  for (const suffix of ["versions", `versions/${oldVersion}`]) expect((await other.request.get(`/api/pages/${a.id}/${suffix}`)).status()).toBe(404);
+  expect((await other.request.post(`/api/pages/${a.id}/versions/${oldVersion}/restore`, { data: { expectedRevision: revision + 1 } })).status()).toBe(404);await other.close();
   const backup = await page.request.get("/api/data/backup");expect(backup.ok()).toBe(true);expect(backup.headers()["content-type"]).toContain("zip");
 });

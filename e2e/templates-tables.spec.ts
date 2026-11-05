@@ -60,7 +60,7 @@ for (const theme of ["studio-graphite", "studio-atelier"]) {
     await expect.poll(async () => { const a = (await left.locator('[data-id="table-column-a"]').first().boundingBox())!, b = (await left.locator('[data-id="table-column-b"]').first().boundingBox())!;return Math.abs(a.x - b.x); }).toBeLessThan(2);
     expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(1920);await page.screenshot({ path: info.outputPath(`${theme}-tables-split.png`), animations: "disabled" });
     for (const width of [360, 840]) {
-      const context = await browser.newContext({ baseURL: "http://127.0.0.1:3100", viewport: { width, height: 900 }, hasTouch: true, isMobile: true });await context.addCookies(await page.context().cookies());const touch = await context.newPage();touch.setDefaultTimeout(10_000);await touch.addInitScript(theme => localStorage.setItem("theme", theme), theme);
+      const context = await browser.newContext({ baseURL: test.info().project.use.baseURL, viewport: { width, height: 900 }, hasTouch: true, isMobile: true });await context.addCookies(await page.context().cookies());const touch = await context.newPage();touch.setDefaultTimeout(10_000);await touch.addInitScript(theme => localStorage.setItem("theme", theme), theme);
       try {
         await touch.goto(`/pages/${note.id}`);const cells = touch.locator('[data-id="table-column-a"] td');await cells.first().tap();await expect(touch.locator(".notebook-table-actions")).toHaveCount(0);
         await tableAction(touch, "Добавить строку", true);await expect(touch.locator('[data-id="table-column-a"] tr')).toHaveCount(3);await tableAction(touch, "Удалить строку", true);await expect(touch.locator('[data-id="table-column-a"] tr')).toHaveCount(2);

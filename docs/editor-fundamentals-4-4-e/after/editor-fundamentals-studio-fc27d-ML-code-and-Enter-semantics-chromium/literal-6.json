@@ -1,0 +1,73 @@
+{
+  "id": "cmvtqds2s00ljeg71likoj22w",
+  "revision": 1,
+  "content": [
+    {
+      "id": "ff3d2feb-ca18-410b-a966-779ecc4d89e8",
+      "type": "paragraph",
+      "props": {
+        "textColor": "default",
+        "textAlignment": "left",
+        "backgroundColor": "default"
+      },
+      "content": [],
+      "children": []
+    },
+    {
+      "id": "c9be4c87-2095-47ac-b644-322209dc16d5",
+      "type": "paragraph",
+      "props": {
+        "textColor": "default",
+        "textAlignment": "left",
+        "backgroundColor": "default"
+      },
+      "content": [
+        {
+          "text": "A",
+          "type": "text",
+          "styles": {}
+        }
+      ],
+      "children": []
+    },
+    {
+      "id": "c24c86fc-7d9d-48e0-9a7c-37e127aa182e",
+      "type": "paragraph",
+      "props": {
+        "textColor": "default",
+        "textAlignment": "left",
+        "backgroundColor": "default"
+      },
+      "content": [],
+      "children": []
+    },
+    {
+      "id": "5a1f18bf-8dbf-41f2-a6b5-e9391c4e50b6",
+      "type": "paragraph",
+      "props": {
+        "textColor": "default",
+        "textAlignment": "left",
+        "backgroundColor": "default"
+      },
+      "content": [
+        {
+          "text": "B",
+          "type": "text",
+          "styles": {}
+        }
+      ],
+      "children": []
+    },
+    {
+      "id": "ac03a00f-6b88-4ff6-a3d5-362ebeba49e0",
+      "type": "paragraph",
+      "props": {
+        "textColor": "default",
+        "textAlignment": "left",
+        "backgroundColor": "default"
+      },
+      "content": [],
+      "children": []
+    }
+  ]
+}

@@ -1,13 +1,14 @@
 import { expect, test, type Page } from "@playwright/test";
+import { openSettings } from "./ui-actions";
 
 async function login(page: Page) { await page.goto("/"); await page.getByLabel("Email").fill("admin@example.test"); await page.getByLabel("Пароль").fill("correct horse battery staple"); await page.getByRole("button", { name: "Войти", exact: true }).click(); await expect(page).toHaveURL(/\/app$/); }
 
 test("editor settings persist and remain usable on mobile", async ({ page }) => {
-  await page.setViewportSize({ width: 390, height: 844 }); await login(page); await page.getByRole("button", { name: "Настройки", exact: true }).click(); await page.getByRole("button", { name: "Редактор", exact: true }).click(); await page.getByLabel("Ширина контента").selectOption("wide"); await page.getByLabel("Компактный режим").check(); await page.getByRole("button", { name: "Сохранить настройки" }).click(); await page.getByRole("button", { name: "Закрыть" }).click(); await page.reload(); await page.getByRole("button", { name: "Настройки", exact: true }).click(); await page.getByRole("button", { name: "Редактор", exact: true }).click(); await expect(page.getByLabel("Ширина контента")).toHaveValue("wide"); await expect(page.getByLabel("Компактный режим")).toBeChecked();
+  await page.setViewportSize({ width: 390, height: 844 }); await login(page); await openSettings(page); await page.getByRole("button", { name: "Редактор", exact: true }).click(); await page.getByLabel("Ширина контента").selectOption("wide"); await page.getByLabel("Компактный режим").check(); await page.getByRole("button", { name: "Сохранить настройки" }).click(); await page.getByRole("button", { name: "Закрыть" }).click(); await page.reload(); await openSettings(page); await page.getByRole("button", { name: "Редактор", exact: true }).click(); await expect(page.getByLabel("Ширина контента")).toHaveValue("wide"); await expect(page.getByLabel("Компактный режим")).toBeChecked();
 });
 
 test("manual backup appears in settings and can be deleted", async ({ page }) => {
-  await login(page); await page.getByRole("button", { name: "Настройки", exact: true }).click(); await page.getByRole("button", { name: "Резервные копии", exact: true }).click(); await page.getByRole("button", { name: "Создать резервную копию" }).click(); await expect(page.getByRole("link", { name: "Скачать backup" }).first()).toBeVisible({ timeout: 20_000 }); page.once("dialog", (dialog) => dialog.accept()); await page.getByRole("button", { name: "Удалить backup" }).first().click();
+  await login(page); await openSettings(page); await page.getByRole("button", { name: "Резервные копии", exact: true }).click(); await page.getByRole("button", { name: "Создать резервную копию" }).click(); await expect(page.getByRole("link", { name: "Скачать backup" }).first()).toBeVisible({ timeout: 20_000 }); page.once("dialog", (dialog) => dialog.accept()); await page.getByRole("button", { name: "Удалить backup" }).first().click();
 });
 
 test("custom callout and safe code language survive reload", async ({ page }) => {
@@ -32,9 +33,14 @@ test("tabs, collapse, TOC and block deep links preserve editor structure on mobi
   await page.setViewportSize({ width: 390, height: 844 });
   await page.goto(`/pages/${created.page.id}#block=linux-heading`);
   await expect(page.getByRole("tab", { name: "Linux" })).toHaveAttribute("aria-selected", "true");
-  await expect(page.getByText("Docker compose", { exact: true })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "Docker compose", exact: true })).toBeVisible();
   await expect(page.locator(".notebook-toc")).toContainText("Настройка VPN");
   await expect(page.locator('[data-content-type="table"] .tableWrapper')).toHaveCSS("overflow-x", "auto");
-  await expect(page.locator('[data-content-type="columns"] + .bn-block-group')).toHaveCSS("grid-template-columns", /.+/);
+  const columns = page.locator('.bn-block-outer[data-id="columns"] > .bn-block > .bn-block-group');
+  await expect(columns).toHaveCSS("display", "grid");
+  const leftColumn = page.locator('.bn-block-outer[data-id="left-column"]');
+  const rightColumn = page.locator('.bn-block-outer[data-id="right-column"]');
+  await expect(leftColumn).toBeVisible();await expect(rightColumn).toBeVisible();
+  expect((await rightColumn.boundingBox())!.y).toBeGreaterThan((await leftColumn.boundingBox())!.y);
   expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(true);
 });

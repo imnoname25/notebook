@@ -1,0 +1,25 @@
+{
+  "baseline": {
+    "startTime": "2026-10-29T11:26:01.674Z",
+    "duration": 1495042.874,
+    "expected": 52,
+    "skipped": 7,
+    "unexpected": 18,
+    "flaky": 0
+  },
+  "current": {
+    "startTime": "2026-10-29T18:05:03.789Z",
+    "duration": 1438977.456,
+    "expected": 70,
+    "skipped": 7,
+    "unexpected": 14,
+    "flaky": 0
+  },
+  "unexpectedNotInBaseline": [],
+  "previouslyFailingNowPassed": [
+    "editor-layout.spec.ts: editor canvas stays left-aligned and lets wide blocks use the pane",
+    "studio-mobile.spec.ts: studio-atelier: compact drawer, readable tables, stable editor and focus",
+    "studio-mobile.spec.ts: studio-graphite: compact drawer, readable tables, stable editor and focus",
+    "workspace-responsiveness.spec.ts: studio-graphite: measured workspace navigation and delayed reads"
+  ]
+}

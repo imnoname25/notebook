@@ -16,4 +16,20 @@ export default async function globalSetup() {
   await client.connect();
   try { await client.query('TRUNCATE TABLE "User" RESTART IDENTITY CASCADE'); }
   finally { await client.end(); }
+  // Cold compilation is test preparation, not a timed user interaction. The
+  // first fresh webpack run spent 23s compiling / before showing the login UI.
+  const baseURL = process.env.E2E_BASE_URL ?? "http://127.0.0.1:3100";
+  const publicPaths = ["/", "/login", "/app"];
+  const authPaths = ["/api/auth/setup", "/api/auth/login"];
+  const protectedPaths = ["/api/account/preferences", "/api/notifications", "/api/notebooks"];
+  for (const pathname of [...publicPaths, ...authPaths, ...protectedPaths]) {
+    const response = await fetch(new URL(pathname, baseURL), {
+      method: authPaths.includes(pathname) ? "OPTIONS" : "GET",
+      signal: AbortSignal.timeout(120_000),
+    });
+    if (protectedPaths.includes(pathname) ? response.status !== 401 : !response.ok) {
+      throw new Error(`E2E route preparation failed: ${pathname} (${response.status})`);
+    }
+    await response.arrayBuffer();
+  }
 }

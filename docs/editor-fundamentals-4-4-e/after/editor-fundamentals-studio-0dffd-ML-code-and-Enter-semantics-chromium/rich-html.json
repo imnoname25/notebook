@@ -1,0 +1,48 @@
+{
+  "id": "cmvtqbv5x00iteg71igbd8vh7",
+  "revision": 1,
+  "content": [
+    {
+      "id": "68c2dc71-0008-4485-b025-3dd21c776949",
+      "type": "paragraph",
+      "props": {
+        "textColor": "default",
+        "textAlignment": "left",
+        "backgroundColor": "default"
+      },
+      "content": [
+        {
+          "text": "Browser1",
+          "type": "text",
+          "styles": {
+            "bold": true
+          }
+        }
+      ],
+      "children": []
+    },
+    {
+      "id": "c711e1ae-900e-40fa-bc7e-21768b5f47e9",
+      "type": "paragraph",
+      "props": {
+        "textColor": "default",
+        "textAlignment": "left",
+        "backgroundColor": "default"
+      },
+      "content": [
+        {
+          "href": "https://example.test",
+          "type": "link",
+          "content": [
+            {
+              "text": "Browser2",
+              "type": "text",
+              "styles": {}
+            }
+          ]
+        }
+      ],
+      "children": []
+    }
+  ]
+}

@@ -1,0 +1,21 @@
+{
+  "id": "cmvtv3876013n3871n30faxut",
+  "revision": 2,
+  "content": [
+    {
+      "id": "code",
+      "type": "codeBlock",
+      "props": {
+        "language": "text"
+      },
+      "content": [
+        {
+          "text": "  A\n\n\tB",
+          "type": "text",
+          "styles": {}
+        }
+      ],
+      "children": []
+    }
+  ]
+}

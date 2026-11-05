@@ -1,0 +1,28 @@
+{
+  "stats": {
+    "startTime": "2026-11-05T05:00:41.061Z",
+    "duration": 140582.348,
+    "expected": 3,
+    "skipped": 0,
+    "unexpected": 0,
+    "flaky": 0
+  },
+  "scope": "Diagnostic only: setup + Graphite/Atelier measured workspace; not a full gate replacement",
+  "results": [
+    {
+      "file": "auth.setup.ts",
+      "test": "first administrator can complete setup through the real login UI",
+      "status": "expected"
+    },
+    {
+      "file": "workspace-responsiveness.spec.ts",
+      "test": "studio-graphite: measured workspace navigation and delayed reads",
+      "status": "expected"
+    },
+    {
+      "file": "workspace-responsiveness.spec.ts",
+      "test": "studio-atelier: measured workspace navigation and delayed reads",
+      "status": "expected"
+    }
+  ]
+}
