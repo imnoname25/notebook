@@ -416,3 +416,8 @@ Appearance metadata входит в portable JSON/ZIP export формата v3, 
 ## Лицензия
 
 Лицензия пока не выбрана.
+
+
+### Изолированный Studio staging
+
+Staging Studio 4.4-E разворачивается вручную, отдельно от production: [runbook](docs/STUDIO_STAGING_RELEASE_4_4_E_3.md), `docker-compose.staging.yml`, `.env.staging.example`. Переменные `STAGING_IMAGE`, `STAGING_DB_PASSWORD`, `STAGING_SETTINGS_KEY`, `STAGING_BIND_IP`, `STAGING_ORIGIN` относятся только к staging. Образ закрепляется по digest; обязательны отдельные hostname, PostgreSQL, internal network и каталоги `/mnt/user/appdata/note-staging/`. Не используйте production `.env` или mounts. CI публикует staging image, но не запускает deployment.

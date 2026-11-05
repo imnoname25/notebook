@@ -51,3 +51,6 @@ next-env.d.ts
 __pycache__/
 *.pyc
 unraid/deployment.local.json
+
+# Public staging configuration example only; actual .env.staging remains ignored.
+!.env.staging.example

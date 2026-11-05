@@ -2,7 +2,8 @@ name: Docker image
 
 on:
   push:
-    branches: [main]
+    branches: [main, staging/studio-4.4-e]
+    paths-ignore: ["docs/**"]
     tags: ["v*"]
   pull_request:
     branches: [main]
@@ -43,12 +44,16 @@ jobs:
           range="-1"
           if [[ "$SCAN_BASE" =~ ^[0-9a-f]{40}$ ]]; then
             if [[ "$SCAN_BASE" == "0000000000000000000000000000000000000000" ]]; then
-              range="HEAD"
+              if [[ "$GITHUB_REF" == "refs/heads/staging/studio-4.4-e" ]]; then
+                range="$(git merge-base HEAD origin/main)..HEAD"
+              else
+                range="HEAD"
+              fi
             else
               range="$SCAN_BASE..HEAD"
             fi
           fi
-          docker run --rm -v "$PWD:/repo" ghcr.io/gitleaks/gitleaks:v8.24.3 git /repo --redact --no-banner --log-opts="$range"
+          docker run --rm -v "$PWD:/repo" ghcr.io/gitleaks/gitleaks:v8.24.3 git /repo --redact --no-banner --gitleaks-ignore-path=/repo/.gitleaksignore --log-opts="$range"
       - name: Lint, typecheck, unit tests and production build
         run: npm run check
       - name: Verify shared application version
@@ -62,6 +67,17 @@ jobs:
         run: npm run validate:docker
       - name: Validate Compose configuration (synthetic example, no deployment)
         run: docker compose --env-file .env.example config --quiet
+      - name: Validate staging isolation and publication guards
+        run: node --test scripts/staging-config-check.mjs
+      - name: Validate isolated staging Compose (synthetic values, no deployment)
+        env:
+          STAGING_IMAGE: ghcr.io/imnoname25/notebook@sha256:1111111111111111111111111111111111111111111111111111111111111111
+          STAGING_DB_PASSWORD: "2222222222222222222222222222222222222222222222222222222222222222"
+          STAGING_SETTINGS_KEY: "1111111111111111111111111111111111111111111111111111111111111111"
+        run: |
+          set -Eeuo pipefail
+          docker compose -f docker-compose.staging.yml --env-file .env.staging.example config --quiet
+          docker compose -f docker-compose.staging.yml --env-file .env.staging.example config --format json | node scripts/check-staging-deployment.mjs
       - name: Test Unraid deployment safeguards without Docker access
         run: python3 -m unittest discover -s unraid -p 'test_*.py'
       - name: Test PowerShell deployment launcher without SSH access
@@ -92,9 +108,9 @@ jobs:
           tags: notebook:smoke
           platforms: linux/amd64
           build-args: |
-            NOTEBOOK_VERSION=smoke
+            NOTEBOOK_VERSION=${{ github.ref == 'refs/heads/staging/studio-4.4-e' && 'staging-4.4-e' || 'smoke' }}
             NOTEBOOK_GIT_SHA=${{ github.sha }}
-            NOTEBOOK_CHANNEL=smoke
+            NOTEBOOK_CHANNEL=${{ github.ref == 'refs/heads/staging/studio-4.4-e' && 'staging' || 'smoke' }}
             OCI_SOURCE=https://github.com/${{ github.repository }}
           cache-from: type=gha,scope=notebook-smoke
           cache-to: type=gha,mode=max,scope=notebook-smoke
@@ -210,6 +226,84 @@ jobs:
 
           # Same image and PostgreSQL 17, no public egress: upgrade and failure gates.
           bash docker/startup-smoke.sh notebook:smoke
+
+
+      - name: Export tested staging image
+        if: github.ref == 'refs/heads/staging/studio-4.4-e' && github.event_name != 'pull_request'
+        run: |
+          set -Eeuo pipefail
+          docker save notebook:smoke | gzip -1 > "$RUNNER_TEMP/notebook-staging.tar.gz"
+      - uses: actions/upload-artifact@v6
+        if: github.ref == 'refs/heads/staging/studio-4.4-e' && github.event_name != 'pull_request'
+        with:
+          name: notebook-staging-runtime-${{ github.sha }}
+          path: ${{ runner.temp }}/notebook-staging.tar.gz
+          retention-days: 2
+          if-no-files-found: error
+
+  publish-staging:
+    if: github.event_name != 'pull_request' && github.ref == 'refs/heads/staging/studio-4.4-e'
+    needs: smoke
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    permissions:
+      contents: read
+      packages: write
+    steps:
+      - uses: actions/download-artifact@v7
+        with:
+          name: notebook-staging-runtime-${{ github.sha }}
+          path: staging-runtime
+      - name: Load the exact smoke-tested amd64 image and verify revision
+        run: |
+          set -Eeuo pipefail
+          gzip -dc staging-runtime/notebook-staging.tar.gz | docker load
+          test "$(docker image inspect notebook:smoke --format '{{.Os}}/{{.Architecture}}')" = linux/amd64
+          test "$(docker image inspect notebook:smoke --format '{{index .Config.Labels "org.opencontainers.image.revision"}}')" = "$GITHUB_SHA"
+          docker run --rm --network none --entrypoint sh notebook:smoke -c '
+            test -x "$PRISMA_SCHEMA_ENGINE_BINARY"
+            timeout --kill-after=5s 20s /app/node_modules/.bin/prisma -v >/dev/null
+          '
+      - name: Set up Docker Buildx for registry verification
+        uses: docker/setup-buildx-action@v4
+      - name: Log in to GHCR
+        uses: docker/login-action@v4
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+      - name: Publish staging tags only and verify registry digest
+        id: staging
+        run: |
+          set -Eeuo pipefail
+          image="ghcr.io/${GITHUB_REPOSITORY_OWNER,,}/notebook"
+          for tag in staging-4.4-e "staging-4.4-e-$GITHUB_SHA"; do
+            docker tag notebook:smoke "$image:$tag"
+            docker push "$image:$tag"
+          done
+          digest="$(docker buildx imagetools inspect "$image:staging-4.4-e-$GITHUB_SHA" --format '{{json .Manifest}}' | jq -er '.digest')"
+          [[ "$digest" =~ ^sha256:[0-9a-f]{64}$ ]]
+          test "$(docker buildx imagetools inspect "$image:staging-4.4-e" --format '{{json .Manifest}}' | jq -er '.digest')" = "$digest"
+          docker pull "$image@$digest"
+          test "$(docker image inspect "$image@$digest" --format '{{index .Config.Labels "org.opencontainers.image.revision"}}')" = "$GITHUB_SHA"
+          test "$(docker image inspect "$image@$digest" --format '{{.Os}}/{{.Architecture}}')" = linux/amd64
+          printf 'image=%s@%s\n' "$image" "$digest" >> "$GITHUB_OUTPUT"
+          { echo '## Staging publication verified'; printf 'Image: `%s@%s`\nRevision: `%s`\nPlatform: `linux/amd64`\n' "$image" "$digest" "$GITHUB_SHA"; echo 'No deployment. Production tags were not written.'; } >> "$GITHUB_STEP_SUMMARY"
+      - uses: actions/download-artifact@v7
+        with:
+          name: notebook-source-${{ github.sha }}
+          path: image-metadata
+      - name: Bind staging digest to source identity
+        env:
+          STAGING_IMAGE: ${{ steps.staging.outputs.image }}
+        run: |
+          jq --arg image "$STAGING_IMAGE" '. + {image: $image, channel:"staging", platform:"linux/amd64"}' image-metadata/image-source.json > image-metadata/staging-image.json
+      - uses: actions/upload-artifact@v6
+        with:
+          name: notebook-staging-image-${{ github.sha }}
+          path: image-metadata/staging-image.json
+          retention-days: 90
+          if-no-files-found: error
 
   publish:
     if: github.event_name != 'pull_request' && (github.ref == 'refs/heads/main' || startsWith(github.ref, 'refs/tags/v'))
