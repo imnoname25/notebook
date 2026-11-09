@@ -112,3 +112,8 @@ Push tag из локального Git запускает оба существ�
 использовать [отдельный production runbook](unraid-production.md), а не Compose overlay.
 Новых runtime secrets/env нет; optional
 `NOTEBOOK_UPDATE_IMAGE` описан в `.env.example`.
+
+
+## Studio 4.4-F production promotion
+
+Production image publication uses a manual `Docker image` workflow dispatch with `promote_production=true` on the reviewed `main` commit or version tag. The default input is false. Validation and runtime smoke remain required dependencies. Review source SHA, migration identity, backup/rollback and registry tags before this operation. Staging publication remains scoped to `staging/studio-4.4-e`. Unraid deployment has its separate manual approval procedure.

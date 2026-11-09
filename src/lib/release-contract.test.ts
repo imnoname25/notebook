@@ -18,7 +18,7 @@ describe("release channel contract", () => {
     const publish = workflow.split("\n  publish:")[1];
     expect(smoke).toContain("needs: validate");
     expect(publish).toContain("needs: smoke");
-    expect(publish).toContain("github.event_name != 'pull_request'");
+    expect(publish).toContain("github.event_name == 'workflow_dispatch' && inputs.promote_production");
     expect(workflow).toContain("run: npm run check");
     expect(workflow).toContain("run: ./unraid/test-windows-runner.ps1");
     expect(smoke).toContain("/api/health/ready");

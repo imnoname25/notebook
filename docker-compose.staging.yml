@@ -1,0 +1,79 @@
+# Staging only: docker compose -p notebook-staging -f docker-compose.staging.yml --env-file .env.staging ...
+name: notebook-staging
+services:
+  postgres:
+    image: postgres:17-alpine
+    container_name: notebook-staging-postgres
+    restart: unless-stopped
+    stop_grace_period: 60s
+    shm_size: 256mb
+    environment:
+      POSTGRES_DB: notebook_staging
+      POSTGRES_USER: notebook_staging
+      POSTGRES_PASSWORD: "${STAGING_DB_PASSWORD:?Generate an independent staging password}"
+    volumes:
+      - type: bind
+        source: /mnt/user/appdata/note-staging/postgres
+        target: /var/lib/postgresql/data
+        bind:
+          create_host_path: false
+    networks: [staging]
+    healthcheck:
+      test: [CMD-SHELL, 'pg_isready -U notebook_staging -d notebook_staging']
+      interval: 10s
+      timeout: 5s
+      start_period: 30s
+      retries: 10
+    logging:
+      driver: json-file
+      options: {max-size: 10m, max-file: "3"}
+
+  notebook:
+    image: "${STAGING_IMAGE:?Set the verified ghcr.io image pinned by digest}"
+    container_name: notebook-staging
+    restart: unless-stopped
+    init: true
+    stop_grace_period: 30s
+    cap_drop: [ALL]
+    cap_add: [CHOWN, DAC_OVERRIDE, FOWNER, SETGID, SETUID]
+    security_opt: [no-new-privileges:true]
+    depends_on:
+      postgres: {condition: service_healthy}
+    environment:
+      DATABASE_URL: "postgresql://notebook_staging:${STAGING_DB_PASSWORD:?Generate an independent staging password}@postgres:5432/notebook_staging?schema=public"
+      APP_ORIGIN: "${STAGING_ORIGIN:?Set a separate staging hostname origin}"
+      SETTINGS_ENCRYPTION_KEY: "${STAGING_SETTINGS_KEY:?Generate an independent staging key}"
+      UPLOAD_DIR: /data/uploads
+      BACKUP_DIR: /data/backups
+      NOTEBOOK_CHANNEL: staging
+      PUID: "99"
+      PGID: "100"
+      UMASK: "002"
+      DATABASE_WAIT_TIMEOUT_SECONDS: "90"
+      MIGRATION_TIMEOUT_SECONDS: "180"
+    ports:
+      - "${STAGING_BIND_IP:-127.0.0.1}:3101:3000"
+    volumes:
+      - type: bind
+        source: /mnt/user/appdata/note-staging/uploads
+        target: /data/uploads
+        bind: {create_host_path: false}
+      - type: bind
+        source: /mnt/user/appdata/note-staging/backups
+        target: /data/backups
+        bind: {create_host_path: false}
+    networks: [staging]
+    healthcheck:
+      test: [CMD, node, -e, "fetch('http://127.0.0.1:3000/api/health/ready').then(r=>{if(!r.ok)process.exit(1)}).catch(()=>process.exit(1))"]
+      interval: 30s
+      timeout: 5s
+      start_period: 90s
+      retries: 3
+    logging:
+      driver: json-file
+      options: {max-size: 10m, max-file: "3"}
+
+networks:
+  staging:
+    name: notebook-staging-net
+    internal: true
