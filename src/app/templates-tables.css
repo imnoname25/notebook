@@ -7,11 +7,11 @@
 
 .notebook-editor .tableWrapper { min-width: 0; max-width: 100%; overflow-x: auto; overscroll-behavior-inline: contain; }
 @container (max-width: 48rem) {
-  :is(.studio-graphite, .studio-atelier) .notebook-editor .bn-block:has(> :is(.bn-block-content, .react-renderer) [data-columns]) > .bn-block-group { grid-template-columns: minmax(0, 1fr); }
+  :is(.studio-graphite, .studio-atelier, .midnight-ink, .paper-coffee, .forest-terminal, .nord-studio) .notebook-editor .bn-block:has(> :is(.bn-block-content, .react-renderer) [data-columns]) > .bn-block-group { grid-template-columns: minmax(0, 1fr); }
 }
 
-:is(.studio-graphite, .studio-atelier) .notebook-editor .tableWrapper :is(td, th) { border-color: var(--border); }
-:is(.studio-graphite, .studio-atelier) .notebook-editor .tableWrapper a { color: var(--primary); }
+:is(.studio-graphite, .studio-atelier, .midnight-ink, .paper-coffee, .forest-terminal, .nord-studio) .notebook-editor .tableWrapper :is(td, th) { border-color: var(--border); }
+:is(.studio-graphite, .studio-atelier, .midnight-ink, .paper-coffee, .forest-terminal, .nord-studio) .notebook-editor .tableWrapper a { color: var(--primary); }
 
 
 /* TableHandles UI is absent; keep only native cell-boundary resizing and intrinsic scrolling. */

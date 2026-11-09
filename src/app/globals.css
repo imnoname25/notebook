@@ -16,7 +16,7 @@
 @import "./drag-handles.css";
 @source "../../node_modules/@blocknote/shadcn";
 
-@custom-variant dark (&:is(:is(.dark, .atmospheric, .studio-graphite) *));
+@custom-variant dark (&:is(:is(.dark, .atmospheric, .studio-graphite, .midnight-ink, .forest-terminal) *));
 
 :root {
   color-scheme: light;

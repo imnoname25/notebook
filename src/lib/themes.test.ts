@@ -4,7 +4,7 @@ import { isDarkTheme, nextTheme, themeLabel } from "./themes";
 describe("Notebook themes", () => {
   it("cycles through every supported theme and returns to system", () => {
     expect([nextTheme("system"), nextTheme("light"), nextTheme("dark"), nextTheme("atmospheric"), nextTheme("studio-graphite"), nextTheme("studio-atelier")])
-      .toEqual(["light", "dark", "atmospheric", "studio-graphite", "studio-atelier", "system"]);
+      .toEqual(["light", "dark", "atmospheric", "studio-graphite", "studio-atelier", "midnight-ink"]);
     expect(nextTheme(undefined)).toBe("system");
     expect(nextTheme("invalid")).toBe("system");
   });

@@ -13,8 +13,8 @@ function ratio(foreground: string, background: string) {
   const values = [luminance(foreground), luminance(background)].sort((a, b) => b - a);
   return (values[0]! + 0.05) / (values[1]! + 0.05);
 }
-describe.each(["studio-graphite", "studio-atelier"])("%s semantic palette", (theme) => {
-  const palette = css.match(new RegExp(`:root\\.${theme} \\{([^}]+)`))?.[1] ?? "";
+describe.each(["studio-graphite", "studio-atelier", "midnight-ink", "paper-coffee", "forest-terminal", "nord-studio"])("%s semantic palette", (theme) => {
+  const palette = css.split(`:root.${theme},`)[1]?.split("{")[1]?.split("}")[0] ?? "";
   const tokens = Object.fromEntries([...palette.matchAll(/--studio-([\w-]+):\s*(#[0-9a-f]{6});/g)].map((match) => [match[1], match[2]]));
   it.each([
     ["editor-text", "editor-bg"], ["editor-text", "paper"], ["editor-muted", "paper"],
@@ -30,7 +30,7 @@ describe.each(["studio-graphite", "studio-atelier"])("%s semantic palette", (the
     expect(ratio(tokens["nav-focus"]!, tokens["nav-bg"]!)).toBeGreaterThanOrEqual(3);
   });
   it("keeps subdued syntax comments readable on the code surface", () => {
-    const blend = Number(css.match(/--studio-syntax-blend:\s*(\d+)%/)?.[1]) / 100;
+    const blend = Number(palette.match(/--studio-syntax-blend:\s*(\d+)%/)?.[1] ?? css.match(/--studio-syntax-blend:\s*(\d+)%/)?.[1]) / 100;
     const comment = "#6a737d";
     const text = tokens["editor-text"]!;
     const mixed = "#" + [1, 3, 5].map((offset) => Math.round(parseInt(comment.slice(offset, offset + 2), 16) * (1 - blend) + parseInt(text.slice(offset, offset + 2), 16) * blend).toString(16).padStart(2, "0")).join("");

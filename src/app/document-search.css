@@ -15,12 +15,12 @@
 .notebook-title-search-mirror { position: absolute; inset: 0; white-space: pre; overflow: hidden; pointer-events: none; color: var(--foreground); }
 .notebook-title-search-host[data-highlight="true"]:not(:focus-within) > input.notebook-page-title-input { color: transparent !important; }
 .notebook-title-search-host:focus-within .notebook-title-search-mirror, .notebook-title-search-host[data-highlight="false"] .notebook-title-search-mirror { visibility: hidden; }
-:is(.studio-graphite, .studio-atelier) .notebook-title-search-host { flex-basis: 100%; }
-:is(.studio-graphite, .studio-atelier) .notebook-title-search-mirror { color: var(--studio-editor-text); }
+:is(.studio-graphite, .studio-atelier, .midnight-ink, .paper-coffee, .forest-terminal, .nord-studio) .notebook-title-search-host { flex-basis: 100%; }
+:is(.studio-graphite, .studio-atelier, .midnight-ink, .paper-coffee, .forest-terminal, .nord-studio) .notebook-title-search-mirror { color: var(--studio-editor-text); }
 @media (max-width: 1199px) {
   .document-match-navigator { padding-inline: 12px; }
   .document-match-navigator button { width: 44px; height: 44px; }
-  :is(.studio-graphite, .studio-atelier) .notebook-app-shell .notebook-editor-header .notebook-title-search-host { grid-column: 1; grid-row: 1; }
-  :is(.studio-graphite, .studio-atelier) .notebook-app-shell .notebook-editor-header[data-page-icon]:not([data-page-icon=""]) .notebook-title-search-host { grid-column: 2; }
+  :is(.studio-graphite, .studio-atelier, .midnight-ink, .paper-coffee, .forest-terminal, .nord-studio) .notebook-app-shell .notebook-editor-header .notebook-title-search-host { grid-column: 1; grid-row: 1; }
+  :is(.studio-graphite, .studio-atelier, .midnight-ink, .paper-coffee, .forest-terminal, .nord-studio) .notebook-app-shell .notebook-editor-header[data-page-icon]:not([data-page-icon=""]) .notebook-title-search-host { grid-column: 2; }
 }
 @media print { .notebook-title-search-mirror { display: none; } .notebook-title-search-host > input.notebook-page-title-input { color: inherit !important; } .notebook-search-match, .notebook-search-current { background: none; box-shadow: none; } }

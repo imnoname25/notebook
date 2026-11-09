@@ -2,6 +2,7 @@
 
 import { useSyncExternalStore } from "react";
 import { useTheme } from "next-themes";
+import { isStudioTheme } from "@/lib/themes";
 import { DOCUMENT_ALIGNMENT_KEY, resolveDocumentAlignment, type DocumentAlignment } from "@/lib/document-alignment";
 
 const CHANGE_EVENT = "notebook:document-alignment-changed";
@@ -38,7 +39,7 @@ function setAlignment(value: string) {
 export function DocumentAlignmentSettings() {
   const value = useDocumentAlignment();
   const { resolvedTheme } = useTheme();
-  if (resolvedTheme !== "studio-graphite" && resolvedTheme !== "studio-atelier") return null;
+  if (!isStudioTheme(resolvedTheme)) return null;
   return <label className="block text-sm">
     <span className="mb-1.5 block text-muted-foreground">Выравнивание документа</span>
     <select className="input" value={value} onChange={(event) => setAlignment(event.target.value)}>

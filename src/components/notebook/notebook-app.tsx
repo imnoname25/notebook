@@ -15,7 +15,7 @@ import {
   StickyNote,
 } from "lucide-react";
 import { useTheme } from "next-themes";
-import { nextTheme } from "@/lib/themes";
+import { nextTheme, isStudioTheme } from "@/lib/themes";
 import { useRouter } from "next/navigation";
 import { api, jsonOptions } from "@/lib/client-api";
 import { cn } from "@/lib/utils";
@@ -163,7 +163,7 @@ function NotebookWorkspace({ user, initialLocation }: NotebookAppProps) {
   const mounted = useSyncExternalStore(noClientSubscription, clientMountedSnapshot, serverMountedSnapshot);
   const theme = mounted ? browserTheme : undefined;
   const resolvedTheme = mounted ? browserResolvedTheme : undefined;
-  const studioTheme = resolvedTheme === "studio-graphite" || resolvedTheme === "studio-atelier";
+  const studioTheme = isStudioTheme(resolvedTheme);
   const [notebooks, setNotebooks] = useState<Notebook[]>([]);
   const [notebooksLoading, setNotebooksLoading] = useState(true);
   const [notebooksError, setNotebooksError] = useState("");
@@ -1568,7 +1568,7 @@ function NotebookWorkspace({ user, initialLocation }: NotebookAppProps) {
                 outlineVisible={outlineVisible}
                 onOutlineChange={setOutline}
                 onOutlineToggle={() => {
-                  const studio = resolvedTheme === "studio-graphite" || resolvedTheme === "studio-atelier";
+                  const studio = isStudioTheme(resolvedTheme);
                   if (window.matchMedia(studio ? "(max-width: 1199px)" : "(max-width: 1023px)").matches) setOutlineOpen(true);
                   else setOutlineVisible((value) => !value);
                 }}
