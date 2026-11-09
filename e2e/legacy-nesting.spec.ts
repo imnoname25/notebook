@@ -1,3 +1,4 @@
+import { setTestTheme } from "./theme-fixture";
 import { expect, test } from "@playwright/test";
 import { writeFile } from "node:fs/promises";
 import { z } from "zod";
@@ -19,7 +20,7 @@ for (const theme of ["studio-graphite", "studio-atelier"]) test(`${theme}: legac
   expect((await page.request.patch(`/api/pages/${note.id}`, { data: { expectedRevision: note.revision, content: legacy } })).ok()).toBe(true);
   const saved = await page.request.get(`/api/pages/${note.id}`).then(r => r.json());
   const patches: string[] = [];page.on("request", r => { if (r.method() === "PATCH") patches.push(r.url()); });
-  await page.addInitScript(theme => localStorage.setItem("theme", theme), theme);
+  await setTestTheme(page, theme);
   for (const width of [1440, 360]) {
     await page.setViewportSize({ width, height: 900 });await page.goto(`/pages/${note.id}`);
     const canvas = page.getByTestId("notebook-editor-canvas");await expect(canvas).toContainText("Вложенная строка");

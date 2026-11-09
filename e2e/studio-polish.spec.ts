@@ -1,3 +1,4 @@
+import { setTestTheme } from "./theme-fixture";
 import { expect, test } from "@playwright/test";
 import { z } from "zod";
 
@@ -13,7 +14,7 @@ for (const theme of ["studio-graphite", "studio-atelier"]) {
     expect((await page.request.post("/api/auth/login", { data: isolated })).ok()).toBe(true);
     const { note } = z.object({ note: z.object({ id: z.string() }) }).parse(await page.request.post("/api/quick-notes", { data: { title: "Размер стикера", body: "Текст\n- [ ] Контроль", color: "amber" } }).then(r => r.json()));
     const { note: other } = z.object({ note: z.object({ id: z.string() }) }).parse(await page.request.post("/api/quick-notes", { data: { title: "Независимый размер", body: "Текст", color: "green" } }).then(r => r.json()));
-    await page.addInitScript(value => localStorage.setItem("theme", value), theme);
+    await setTestTheme(page, theme);
     await page.setViewportSize({ width: 1440, height: 900 });
     await page.goto("/app?view=stickers");
     const card = page.locator(`[data-sticker-id="${note.id}"]`);
@@ -75,7 +76,7 @@ for (const theme of ["studio-graphite", "studio-atelier"]) {
     for (const title of ["Первый раздел с очень длинным названием", "Второй раздел"]) {
       const { section } = z.object({ section: entity }).parse(await page.request.post("/api/sections", { data: { notebookId: books[0], title } }).then(r => r.json()));sections.push(section.id);
     }
-    await page.addInitScript(value => localStorage.setItem("theme", value), theme);
+    await setTestTheme(page, theme);
     await page.setViewportSize({ width: 1440, height: 900 });await page.goto("/app");
     const row = page.locator(`[data-notebook-title="${notebookTitle}"]`);
     await row.getByRole("button", { name: notebookTitle, exact: true }).click();

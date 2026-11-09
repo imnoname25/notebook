@@ -1,3 +1,4 @@
+import { setTestTheme } from "./theme-fixture";
 import { expect, test, type Page } from "@playwright/test";
 
 const viewports = [
@@ -17,6 +18,7 @@ async function login(page: Page) {
 
 test("editor canvas stays left-aligned and lets wide blocks use the pane", async ({ page }) => {
   await login(page);
+  await setTestTheme(page, "system");
   expect((await page.request.patch("/api/account/preferences", { data: { editorContentWidth: "normal" } })).ok()).toBe(true);
   const longNotebookTitle = "Рабочий блокнот с очень длинным названием для проверки навигации";
   const notebook = await page.request.post("/api/notebooks", { data: { title: longNotebookTitle } }).then((response) => response.json());

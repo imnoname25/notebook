@@ -1,3 +1,4 @@
+import { setTestTheme } from "./theme-fixture";
 import { test, expect } from "@playwright/test";
 import { z } from "zod";
 import { writeFile } from "node:fs/promises";
@@ -13,7 +14,7 @@ for (const theme of ["studio-graphite", "studio-atelier"]) test(`${theme}: unifi
   const { section } = z.object({ section: entity }).parse(await page.request.post("/api/sections", { data: { notebookId: notebook.id, title: "Controls" } }).then(r => r.json()));
   const { page: note } = z.object({ page: entity.extend({ revision: z.number() }) }).parse(await page.request.post("/api/pages", { data: { sectionId: section.id, title: "Synthetic table #2082" } }).then(r => r.json()));
   expect((await page.request.patch(`/api/pages/${note.id}`, { data: { expectedRevision: note.revision, content: [{ id: "control-table", type: "table", content: { type: "tableContent", columnWidths: [180, 220, 240], rows: [{ cells: [text("Name"), text("Value"), text("Description")] }, { cells: [text("Синтетическое длинное имя"), text("TechnicalValue"), text("https://example.test/long/".repeat(4))] }] } }, { id: "after-table", type: "paragraph", content: text("Обычный текст после таблицы") }] } })).ok()).toBe(true);
-  await page.addInitScript(theme => localStorage.setItem("theme", theme), theme);await page.setViewportSize({ width: 1920, height: 1080 });await page.goto(`/pages/${note.id}`);await expect(page.locator(".bn-editor table")).toBeVisible();
+  await setTestTheme(page, theme);await page.setViewportSize({ width: 1920, height: 1080 });await page.goto(`/pages/${note.id}`);await expect(page.locator(".bn-editor table")).toBeVisible();
   const main = page.locator('[data-id="control-table"]').first(), cell = main.locator("td").first();
   const tableMenu = page.locator(".notebook-table-menu[role=menu]");
   const openTable = async () => { if (!await tableMenu.isVisible()) await page.keyboard.press("Alt+Shift+t");await expect(tableMenu).toBeVisible(); };
@@ -40,7 +41,7 @@ for (const theme of ["studio-graphite", "studio-atelier"]) test(`${theme}: unifi
   await page.locator(".notebook-knowledge summary").click();await page.locator(".notebook-knowledge").getByRole("button", { name: "#2082", exact: true }).click();await expect(page.getByRole("region", { name: "Глобальный поиск", exact: true }).locator(".search-result").filter({ hasText: "Synthetic table #2082" }).first()).toBeVisible();const tagResults = z.object({ results: z.array(entity) }).parse(await page.request.get("/api/search?tag=2082").then(r => r.json()));expect(tagResults.results.some(result => result.id === note.id)).toBe(true);await page.getByRole("button", { name: "Вернуться из поиска", exact: true }).click();await expect(main.locator("table")).toBeVisible();
   await page.reload();await expect(main.locator("table")).toBeVisible();expect((await get()).content).toEqual(saved.content);
   for (const width of [360, 840]) {
-    const context = await browser.newContext({ baseURL: test.info().project.use.baseURL, viewport: { width, height: 900 }, isMobile: true, hasTouch: true });await context.addCookies(await page.context().cookies());const touch = await context.newPage();await touch.addInitScript(theme => localStorage.setItem("theme", theme), theme);
+    const context = await browser.newContext({ baseURL: test.info().project.use.baseURL, viewport: { width, height: 900 }, isMobile: true, hasTouch: true });await context.addCookies(await page.context().cookies());const touch = await context.newPage();await setTestTheme(touch, theme);
     try {
       await touch.goto(`/pages/${note.id}`);await touch.locator('[data-id="control-table"] td').first().tap();await expect(touch.locator(".notebook-table-actions, .bn-table-cell-handle, .bn-extend-button")).toHaveCount(0);const tableCell = touch.locator('[data-id="control-table"] td').first();await tableCell.dispatchEvent("compositionstart");await tableCell.dispatchEvent("keydown", { key: "T", code: "KeyT", altKey: true, shiftKey: true, isComposing: true, keyCode: 229 });await expect(touch.locator(".notebook-table-menu[role=menu]")).toHaveCount(0);await tableCell.dispatchEvent("compositionend");
       if (width === 360) expect(await touch.locator('[data-id="control-table"] .tableWrapper').evaluate(node => node.scrollWidth > node.clientWidth)).toBe(true);

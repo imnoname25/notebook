@@ -1,3 +1,4 @@
+import { setTestTheme } from "./theme-fixture";
 import { expect, test, type Page, type TestInfo } from "@playwright/test";
 import { writeFile } from "node:fs/promises";
 import { z } from "zod";
@@ -18,7 +19,7 @@ async function fixture(page: Page, theme: string, content: unknown[] = []) {
   const { page: note } = schema.parse(await page.request.post("/api/pages", { data: { sectionId: section.id, title: "Controlled document" } }).then(r => r.json()));
   if (content.length) expect((await page.request.patch(`/api/pages/${note.id}`, { data: { expectedRevision: note.revision, content } })).ok()).toBe(true);
   const get = async () => schema.parse(await page.request.get(`/api/pages/${note.id}`).then(r => r.json())).page;
-  await page.addInitScript(t => localStorage.setItem("theme", t), theme);await page.setViewportSize({ width: 1920, height: 1080 });await page.goto(`/pages/${note.id}`);
+  await setTestTheme(page, theme);await page.setViewportSize({ width: 1920, height: 1080 });await page.goto(`/pages/${note.id}`);
   await expect(page.locator(".bn-editor[contenteditable=true]")).toBeVisible();
   return { note, section, get };
 }

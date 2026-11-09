@@ -1,3 +1,4 @@
+import { setTestTheme } from "./theme-fixture";
 import { expect, test } from "@playwright/test";
 import { z } from "zod";
 
@@ -13,7 +14,7 @@ for (const theme of ["studio-graphite", "studio-atelier"]) {
     const { section } = z.object({ section: id }).parse(await page.request.post("/api/sections", { data: { notebookId: notebook.id, title: "Контроль" } }).then(r => r.json()));
     const { page: note } = z.object({ page: id.extend({ revision: z.number() }) }).parse(await page.request.post("/api/pages", { data: { sectionId: section.id, title } }).then(r => r.json()));
     expect((await page.request.patch(`/api/pages/${note.id}`, { data: { expectedRevision: note.revision, content: [{ type: "paragraph", content: [{ type: "text", text: `${needle} резервирование`, styles: {} }] }] } })).ok()).toBe(true);
-    await page.addInitScript(t => localStorage.setItem("theme", t), theme);
+    await setTestTheme(page, theme);
     await page.setViewportSize({ width: 1440, height: 900 });
     await page.goto(`/pages/${note.id}`);
     await expect(page.locator(".bn-editor")).toContainText(needle);

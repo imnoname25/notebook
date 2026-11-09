@@ -1,3 +1,4 @@
+import { setTestTheme } from "./theme-fixture";
 import { expect, test } from "@playwright/test";
 import { z } from "zod";
 import { readFile, writeFile } from "node:fs/promises";
@@ -26,7 +27,7 @@ for (const theme of ["studio-graphite", "studio-atelier"]) {
       { type: "table", content: { type: "tableContent", columnWidths: [220, 220, 220], rows: [{ cells: ["A", "B", "C"] }, { cells: ["D", "E", "F"] }] } },
     ];
     expect((await page.request.patch(`/api/pages/${note.id}`, { data: { expectedRevision: note.revision, content } })).ok()).toBe(true);
-    await page.addInitScript(theme => localStorage.setItem("theme", theme), theme);
+    await setTestTheme(page, theme);
     await page.goto(`/pages/${note.id}`);
     const hidden = page.locator('[data-id="retained-text"]').first();
     await expect(hidden).toBeHidden();

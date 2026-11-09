@@ -1,3 +1,4 @@
+import { setTestTheme } from "./theme-fixture";
 import { expect, test, type Page } from "@playwright/test";
 import { z } from "zod";
 const noteSchema = z.object({ id: z.string(), title: z.string(), revision: z.number(), content: z.array(z.record(z.string(), z.unknown())) });
@@ -22,7 +23,7 @@ async function setup(page: Page) {
 for (const theme of ["studio-graphite", "studio-atelier"]) test(`${theme}: headings, native slash, presets, touch and independent Split commands`, async ({ page, browser }, info) => {
   test.setTimeout(240_000);page.setDefaultTimeout(10_000);
   const { a, b, c, create } = await setup(page);const errors: string[] = [];page.on("pageerror", error => errors.push(error.message));page.on("console", message => { if (message.type() === "error") errors.push(message.text()); });
-  await page.addInitScript(theme => localStorage.setItem("theme", theme), theme);
+  await setTestTheme(page, theme);
   const metrics: unknown[] = [];
   for (const width of [1920, 1440, 1024]) {
     await page.setViewportSize({ width, height: 900 });await page.goto(`/pages/${a.id}`);
@@ -79,7 +80,7 @@ for (const theme of ["studio-graphite", "studio-atelier"]) test(`${theme}: headi
   const linking = await create("Inline guards", [{ id: "code-input", type: "paragraph", content: [{ type: "text", text: "КодовыйТекст", styles: { code: true } }] }, { id: "link-input", type: "paragraph", content: [] }]);await page.goto(`/pages/${linking.id}`);const linkInput = page.locator('[data-id="link-input"] .bn-inline-content');await page.locator('[data-id="code-input"] code').click({ position: { x: 4, y: 8 } });await page.keyboard.type("/цит");await expect(menu).not.toBeVisible();await expect(page.locator('[data-id="code-input"] code')).toContainText("/цит");await linkInput.click();await page.keyboard.type(`[[${c.title}`);await expect(page.getByRole("option").filter({ hasText: c.title })).toBeVisible();await expect(page.locator('[role="listbox"]:visible')).toHaveCount(1);await page.keyboard.press("Escape");await expect(linkInput).toContainText(`[[${c.title}`);
   await page.keyboard.type(" /ссыл");await menu.getByRole("option", { name: "Ссылка на страницу", exact: true }).click();await page.getByLabel("Найти страницу для ссылки", { exact: true }).fill(c.title);await page.getByRole("listitem").filter({ hasText: c.title }).click();await expect(linkInput.locator(".notebook-page-link")).toHaveText(c.title);
   for (const width of [360, 840]) {
-    const context = await browser.newContext({ viewport: { width, height: 900 }, hasTouch: true, isMobile: true, baseURL: test.info().project.use.baseURL });await context.addCookies(await page.context().cookies());const touch = await context.newPage();touch.setDefaultTimeout(10_000);await touch.addInitScript(theme => localStorage.setItem("theme", theme), theme);
+    const context = await browser.newContext({ viewport: { width, height: 900 }, hasTouch: true, isMobile: true, baseURL: test.info().project.use.baseURL });await context.addCookies(await page.context().cookies());const touch = await context.newPage();touch.setDefaultTimeout(10_000);await setTestTheme(touch, theme);
     try {
       await touch.goto(`/pages/${a.id}`);await expect(touch.locator('[data-id="daily-h1"] [data-content-type="heading"]')).toBeVisible();await expect.poll(() => touch.locator('[data-id="daily-h1"] [data-content-type="heading"]').evaluate(node => parseFloat(getComputedStyle(node).fontSize))).toBe(24);
       await touch.screenshot({ path: info.outputPath(`${theme}-touch-headings-${width}.png`), animations: "disabled" });

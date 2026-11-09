@@ -1,3 +1,4 @@
+import { setTestTheme } from "./theme-fixture";
 import { expect, test } from "@playwright/test";
 import { z } from "zod";
 
@@ -10,7 +11,7 @@ for (const theme of ["studio-graphite", "studio-atelier"]) {
     expect((await page.request.post(needsSetup ? "/api/auth/setup" : "/api/auth/login", { data: needsSetup ? { ...credentials, name: "Checklist test" } : credentials })).ok()).toBe(true);
     const body = "Intro\n- [ ] One\n- [x] Two\n\nSecond list\n- [ ] Three";
     const { note } = z.object({ note: z.object({ id: z.string() }) }).parse(await page.request.post("/api/quick-notes", { data: { title: "Checklist E2E", body, color: "amber" } }).then(r => r.json()));
-    await page.addInitScript(theme => localStorage.setItem("theme", theme), theme);
+    await setTestTheme(page, theme);
     await page.setViewportSize({ width: 1440, height: 900 });await page.goto("/app?view=stickers");
     const card = page.locator(`[data-testid="sticker-card"][data-sticker-id="${note.id}"]`);
     await expect(card.getByRole("checkbox")).toHaveCount(3);

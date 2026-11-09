@@ -1,3 +1,4 @@
+import { setTestTheme } from "./theme-fixture";
 import { expect, test, type Page } from "@playwright/test";
 import { z } from "zod";
 import { expectRestoredDocument } from "./workspace-ready";
@@ -19,7 +20,7 @@ for (const theme of ["studio-graphite", "studio-atelier"]) {
     test.setTimeout(120_000);
     const errors: string[] = [];page.on("pageerror", error => errors.push(error.message));
     const notes = await setup(page);const [first,second,third] = notes;
-    await page.addInitScript(theme=>localStorage.setItem("theme",theme),theme);
+    await setTestTheme(page, theme);
     await page.setViewportSize({ width: 1440, height: 900 });await page.goto(`/pages/${first!.id}`);
     const title = page.getByLabel("Название страницы", { exact: true });
     await expectRestoredDocument(page, first!);

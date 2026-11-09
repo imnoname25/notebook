@@ -1,3 +1,4 @@
+import { setTestTheme } from "./theme-fixture";
 import { expect, test } from "@playwright/test";
 import { z } from "zod";
 
@@ -16,7 +17,7 @@ for (const theme of ["studio-graphite", "studio-atelier"]) {
     expect((await page.request.patch(`/api/pages/${note.id}`, { data: { expectedRevision: note.revision, content } })).ok()).toBe(true);
     const before = await page.request.get(`/api/pages/${note.id}`).then(r => r.json());
     const patches: string[] = [];page.on("request", request => { if (request.method() === "PATCH" && new URL(request.url()).pathname === `/api/pages/${note.id}`) patches.push(request.url()); });
-    await page.addInitScript(t => localStorage.setItem("theme", t), theme);
+    await setTestTheme(page, theme);
     await page.setViewportSize({ width: 1440, height: 900 });await page.goto(`/pages/${note.id}`);
     await expect(page.locator(".bn-editor")).toBeVisible();
     const open = async (query: string, advanced = false) => {

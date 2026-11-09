@@ -1,3 +1,4 @@
+import { setTestTheme } from "./theme-fixture";
 import { expect, test, type Page } from "@playwright/test";
 import { z } from "zod";
 
@@ -20,7 +21,7 @@ for (const theme of ["studio-graphite", "studio-atelier"]) {
     const errors: string[] = [];
     page.on("pageerror", error => errors.push(error.message));
     const { notebook, section, note, noteTitle } = await prepare(page, theme);
-    await page.addInitScript(theme => localStorage.setItem("theme", theme), theme);
+    await setTestTheme(page, theme);
     await page.setViewportSize({ width: 1440, height: 900 });
     await page.goto(`/pages/${note.id}`);
     const title = page.getByLabel("Название страницы", { exact: true });

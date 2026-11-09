@@ -1,3 +1,4 @@
+import { setTestTheme } from "./theme-fixture";
 import { expect, test } from "@playwright/test";
 import { z } from "zod";
 import { Client } from "pg";
@@ -46,7 +47,7 @@ for (const theme of ["studio-graphite", "studio-atelier"]) test(`${theme}: real 
     const blockIds = (blocks: Record<string, unknown>[]): string[] => blocks.flatMap(block => [String(block.id), ...blockIds((block.children ?? []) as Record<string, unknown>[])]);
     const all = [...blockIds(created.content), ...blockIds(copy.content)];expect(new Set(all).size).toBe(all.length);expect(all).not.toContain("template-child");
     expect(knowledge.parse(await other.request.get(`/api/pages/${newTarget.pageId}/knowledge`).then(r => r.json())).backlinks.map(b => b.id)).toEqual(expect.arrayContaining([created.id, copy.id]));
-    await other.addInitScript(theme => localStorage.setItem("theme", theme), theme);await other.setViewportSize({ width: 1440, height: 1000 });await other.goto(`/pages/${created.id}`);
+    await setTestTheme(other, theme);await other.setViewportSize({ width: 1440, height: 1000 });await other.goto(`/pages/${created.id}`);
     await expect(other.locator(".notebook-page-link")).toHaveCount(3);await expect(other.locator(".notebook-page-link").first()).toHaveText("Сохранённый alias");
     await expect(other.locator('[data-content-type="codeBlock"]')).toContainText("data: blob: javascript:");expect(await other.evaluate(() => "templateExecuted" in window)).toBe(false);
     await other.screenshot({ path: info.outputPath(`${theme}-restored.png`), animations: "disabled" });

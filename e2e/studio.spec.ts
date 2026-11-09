@@ -1,3 +1,4 @@
+import { setTestTheme } from "./theme-fixture";
 import { expect, test, type Page } from "@playwright/test";
 import { z } from "zod";
 
@@ -28,7 +29,7 @@ for (const theme of ["studio-graphite", "studio-atelier"] as const) {
     };
     const first = await create("Домашний сервер");
     const second = await create("Настройка сети");
-    await page.addInitScript(({ theme }) => { if (!localStorage.getItem("theme")) localStorage.setItem("theme", theme); }, { theme });
+    await setTestTheme(page, theme);
     await page.goto(`/pages/${first.id}`);
     await page.evaluate((value) => localStorage.setItem("theme", value), theme);
     await page.reload();

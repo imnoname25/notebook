@@ -1,3 +1,4 @@
+import { setTestTheme } from "./theme-fixture";
 import { expect, test, type Page } from "@playwright/test";
 import { z } from "zod";
 
@@ -12,20 +13,32 @@ async function login(page: Page) {
 
 test("all themes persist and system follows the device", async ({ page }) => {
   await login(page);
-  await page.evaluate(() => localStorage.setItem("theme", "system"));
+  await setTestTheme(page, "system");
   await page.emulateMedia({ colorScheme: "dark" });
   await page.reload();
   await expect(page.locator("html")).toHaveClass("dark");
   await page.emulateMedia({ colorScheme: "light" });
   await expect(page.locator("html")).toHaveClass("light");
-  for (const theme of ["light", "dark", "atmospheric", "studio-graphite", "studio-atelier", "system"]) {
+ });
+
+const themeCycle = ["system", "light", "dark", "atmospheric", "studio-graphite", "studio-atelier", "midnight-ink", "paper-coffee", "forest-terminal", "nord-studio"];
+for (const [index, previous] of themeCycle.entries()) {
+  const theme = themeCycle[(index + 1) % themeCycle.length]!;
+  test(`theme menu persists ${previous} → ${theme} after reload`, async ({ page }) => {
+    await login(page);
+    await setTestTheme(page, previous);
+    await page.emulateMedia({ colorScheme: "light" });
+    await page.reload();
+    await expect(page.locator("html")).toHaveClass(previous === "system" ? "light" : previous);
     await page.getByTestId("desktop-app-header").getByRole("button", { name: /^Профиль:/ }).click();
+    const saved = page.waitForResponse(response => response.request().method() === "PATCH" && new URL(response.url()).pathname === "/api/account/preferences" && response.request().postDataJSON()?.appearance?.theme === theme);
     await page.getByRole("menuitem", { name: /^Переключить тему/ }).click();
+    expect((await saved).ok()).toBe(true);
     await expect.poll(() => page.evaluate(() => localStorage.getItem("theme"))).toBe(theme);
     await page.reload();
     await expect(page.locator("html")).toHaveClass(theme === "system" ? "light" : theme);
-  }
-});
+  });
+}
 
 test("legacy nested paragraphs keep real parentheses and list markers on desktop and mobile", async ({ page }) => {
   await login(page);

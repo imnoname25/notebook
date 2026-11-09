@@ -30,7 +30,7 @@ test("staging publication cannot write production tags", () => {
   assert.equal(job.needs, "smoke");assert.equal(workflow.jobs.smoke.needs, "validate");
   const commands = job.steps.map(s => s.run ?? "").join("\n");
   assert.ok(commands.includes("docker load") && commands.includes("PRISMA_SCHEMA_ENGINE_BINARY"));
-  assert.ok(commands.includes('for tag in staging-4.4-e "staging-4.4-e-$GITHUB_SHA"'));
+  assert.ok(commands.includes('for tag in staging-4.4-f "staging-4.4-f-$GITHUB_SHA"'));
   assert.ok(!/docker (?:tag|push)[^\n]*(?::main|:edge|:latest)/.test(commands));
   assert.ok(commands.includes("org.opencontainers.image.revision") && commands.includes("linux/amd64"));
 });

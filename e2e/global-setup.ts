@@ -11,11 +11,17 @@ export default async function globalSetup() {
   // Execute the installed CLI through Node: .cmd files cannot be execFileSync'd on Windows.
   const require = createRequire(path.join(process.cwd(), "package.json"));
   const prismaCli = path.join(path.dirname(require.resolve("prisma/package.json")), "build", "index.js");
-  execFileSync(process.execPath, [prismaCli, "migrate", "deploy"], { stdio: "inherit", env: process.env });
   const client = new Client({ connectionString: databaseUrl });
   await client.connect();
-  try { await client.query('TRUNCATE TABLE "User" RESTART IDENTITY CASCADE'); }
-  finally { await client.end(); }
+  try {
+    const sample = "ЁЖИК ТЕЛОКВАРЦ";
+    const result = await client.query<{ folded: string }>("SELECT lower($1::text) AS folded", [sample]);
+    if (result.rows[0]?.folded !== sample.toLowerCase()) {
+      throw new Error("E2E PostgreSQL locale must support Unicode case folding. Use a Unicode-capable locale, for example ICU und; plain Windows libc C does not fold Cyrillic.");
+    }
+    execFileSync(process.execPath, [prismaCli, "migrate", "deploy"], { stdio: "inherit", env: process.env });
+    await client.query('TRUNCATE TABLE "User" RESTART IDENTITY CASCADE');
+  } finally { await client.end(); }
   // Cold compilation is test preparation, not a timed user interaction. The
   // first fresh webpack run spent 23s compiling / before showing the login UI.
   const baseURL = process.env.E2E_BASE_URL ?? "http://127.0.0.1:3100";

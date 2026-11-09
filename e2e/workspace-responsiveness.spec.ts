@@ -1,3 +1,4 @@
+import { setTestTheme } from "./theme-fixture";
 import { test, expect, type Page } from "@playwright/test";
 import { writeFile } from "node:fs/promises";
 import { z } from "zod";
@@ -60,7 +61,7 @@ async function snapshot(page: Page) {
 }
 for (const theme of ["studio-graphite", "studio-atelier"]) test(`${theme}: measured workspace navigation and delayed reads`, async ({ page, context }, info) => {
   test.setTimeout(240_000);const { sections } = await fixture(page);await observe(page);
-  await page.addInitScript(theme => localStorage.setItem("theme", theme), theme);await page.setViewportSize({ width: 1920, height: 1080 });
+  await setTestTheme(page, theme);await page.setViewportSize({ width: 1920, height: 1080 });
   const errors: string[] = [];page.on("pageerror", e => errors.push(e.message));page.on("console", m => { if (m.type() === "error") errors.push(m.text()); });
   const requests: { url: string; method: string; ms: number; status: number }[] = [];const times = new Map<object, number>();
   page.on("request", r => { if (new URL(r.url()).pathname.startsWith("/api/")) times.set(r, performance.now()); });
@@ -101,7 +102,7 @@ for (const theme of ["studio-graphite", "studio-atelier"]) test(`${theme}: measu
 });
 
 for (const theme of ["studio-graphite", "studio-atelier"]) test(`${theme}: reversed lists, errors, 30 rapid selections and pending autosave`, async ({ page }) => {
-  const { sections } = await fixture(page);await observe(page);await page.addInitScript(theme => localStorage.setItem("theme", theme), theme);
+  const { sections } = await fixture(page);await observe(page);await setTestTheme(page, theme);
   const errors: string[] = [];page.on("pageerror", error => errors.push(error.message));
   let releaseTree!: () => void;const treeGate = new Promise<void>(resolve => { releaseTree = resolve; });
   await page.route("**/api/notebooks", async route => { const response = await route.fetch();await treeGate;await route.fulfill({ response }); });

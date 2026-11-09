@@ -1,3 +1,4 @@
+import { setTestTheme } from "./theme-fixture";
 import { expect, test, type Page } from "@playwright/test";
 import { z } from "zod";
 const credentials = { email: "admin@example.test", password: "correct horse battery staple" };
@@ -24,7 +25,7 @@ async function openHistory(page: Page, title: string) {
 for (const theme of ["studio-graphite", "studio-atelier"]) {
   test(`${theme}: structural diff, block recovery, restore and crash draft conflict`, async ({ page, context }, info) => {
     test.setTimeout(180_000);const { a, b, oldVersion } = await setup(page);const errors: string[] = [];page.on("pageerror", error => errors.push(error.message));page.on("dialog", dialog => void dialog.accept());
-    await page.addInitScript(theme => localStorage.setItem("theme", theme), theme);await page.setViewportSize({ width: 1920, height: 1080 });await page.goto(`/pages/${a.id}`);
+    await setTestTheme(page, theme);await page.setViewportSize({ width: 1920, height: 1080 });await page.goto(`/pages/${a.id}`);
     const left = page.locator('.workspace-editor-slot[data-pane="left"]'), right = page.locator('.workspace-editor-slot[data-pane="right"]');await expect(left.locator(".bn-editor")).toBeVisible();
     await left.getByRole("button", { name: "Split View", exact: true }).click();await page.keyboard.press("Control+k");await page.getByRole("combobox", { name: "Быстрый поиск", exact: true }).fill(b.title);await page.getByRole("region", { name: "Быстрый поиск документов" }).getByRole("option").filter({ hasText: b.title }).first().click();await expect(right.getByLabel("Название страницы", { exact: true })).toHaveValue(b.title);
     const patches: string[] = [];page.on("request", request => { if (request.method() === "PATCH") patches.push(request.url()); });

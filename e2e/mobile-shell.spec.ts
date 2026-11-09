@@ -1,3 +1,4 @@
+import { setTestTheme } from "./theme-fixture";
 import { expect, test, type Page } from "@playwright/test";
 
 async function login(page: Page) {
@@ -10,9 +11,10 @@ async function login(page: Page) {
 
 for (const theme of ["light", "studio-graphite", "studio-atelier"]) {
 test(`${theme}: mobile shell keeps a compact safe-area-aware header`, async ({ page }, info) => {
-  await page.addInitScript(value => localStorage.setItem("theme", value), theme);
   await page.setViewportSize({ width: 360, height: 800 });
   await login(page);
+  await setTestTheme(page, theme);
+  await page.reload();
 
   for (const [width, height] of [[360, 800], [390, 844], [412, 915], [430, 932]] as const) {
     await test.step(`${width}x${height}`, async () => {
@@ -56,9 +58,10 @@ test(`${theme}: mobile shell keeps a compact safe-area-aware header`, async ({ p
 }
 
 test("mobile Back follows editor, pages, notebooks and overlay levels", async ({ page }) => {
-  await page.addInitScript(() => localStorage.setItem("theme", "studio-graphite"));
   await page.setViewportSize({ width: 390, height: 844 });
   await login(page);
+  await setTestTheme(page, "studio-graphite");
+  await page.reload();
   const suffix = Date.now();
   const notebook = await page.request.post("/api/notebooks", { data: { title: `Mobile ${suffix}` } }).then((response) => response.json());
   const section = await page.request.post("/api/sections", { data: { notebookId: notebook.notebook.id, parentId: null, title: `Section ${suffix}` } }).then((response) => response.json());

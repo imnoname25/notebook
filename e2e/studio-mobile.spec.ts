@@ -1,3 +1,4 @@
+import { setTestTheme } from "./theme-fixture";
 import { expect, test, type Page } from "@playwright/test";
 import { z } from "zod";
 
@@ -27,7 +28,7 @@ for (const theme of ["studio-graphite", "studio-atelier"]) {
   test(`${theme}: compact drawer, readable tables, stable editor and focus`, async ({ page }, info) => {
     test.setTimeout(90_000);
     const id = await createFixture(page);
-    await page.addInitScript(theme => localStorage.setItem("theme", theme), theme);
+    await setTestTheme(page, theme);
     await page.setViewportSize({ width: 393, height: 873 });
     await page.goto(`/pages/${id}`);
     const editor = page.locator('.bn-editor[contenteditable="true"]');

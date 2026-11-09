@@ -1,3 +1,4 @@
+import { setTestTheme } from "./theme-fixture";
 import { expect, test, type Page } from "@playwright/test";
 import { z } from "zod";
 
@@ -37,7 +38,7 @@ for (const theme of ["studio-graphite", "studio-atelier"]) {
     for (const title of ["Первая карточка", "Вторая карточка"]) {
       const { note } = z.object({ note: z.object({ id: z.string() }) }).parse(await page.request.post("/api/quick-notes", { data: { title, body: `Текст\n- [ ] ${"ДлиннаяРусскаяСтрока".repeat(30)}\n- [ ] https://example.test/${"longvalue".repeat(30)}`, color: "amber" } }).then(r => r.json()));ids.push(note.id);
     }
-    await page.addInitScript(t => localStorage.setItem("theme", t), theme);
+    await setTestTheme(page, theme);
     await page.setViewportSize({ width: 1440, height: 900 });await page.goto("/app?view=stickers");
     const first = page.locator(`[data-testid="sticker-card"][data-sticker-id="${ids[0]}"]`), second = page.locator(`[data-testid="sticker-card"][data-sticker-id="${ids[1]}"]`);
     await expect(page.locator('.sticker-freeform-canvas[data-ready="true"]')).toBeVisible();

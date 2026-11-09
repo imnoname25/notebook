@@ -1,3 +1,4 @@
+import { setTestTheme } from "./theme-fixture";
 import { expect, test, type Page } from "@playwright/test";
 import { openDataSettings } from "./ui-actions";
 
@@ -25,8 +26,7 @@ test("internal page link navigates by stable page ID and browser Back returns", 
 });
 
 test("mobile sequential navigation, search and Back remain usable", async ({ page }) => {
-  await page.addInitScript(() => localStorage.setItem("theme", "studio-graphite"));
-  await page.setViewportSize({ width: 390, height: 844 });await login(page);
+  await page.setViewportSize({ width: 390, height: 844 });await login(page);await setTestTheme(page, "studio-graphite");
   const notebook = await page.request.post("/api/notebooks", { data: { title: "Mobile portable fixture" } }).then(r => r.json());
   const section = await page.request.post("/api/sections", { data: { notebookId: notebook.notebook.id, title: "Mobile portable section" } }).then(r => r.json());
   await page.request.post("/api/pages", { data: { sectionId: section.section.id, title: "Existing mobile document" } });

@@ -1,3 +1,4 @@
+import { setTestTheme } from "./theme-fixture";
 import { expect, test, type Page } from "@playwright/test";
 import { z } from "zod";
 
@@ -25,7 +26,7 @@ for (const theme of ["studio-graphite", "studio-atelier"]) {
   test(`${theme}: independent writers, failed close, pane transfer and responsive restoration`, async ({ page }, info) => {
     test.setTimeout(120_000);
     const [a, b, c] = await setup(page);const errors: string[] = [];page.on("pageerror", error => errors.push(error.message));
-    await page.addInitScript(theme => localStorage.setItem("theme", theme), theme);
+    await setTestTheme(page, theme);
     await page.setViewportSize({ width: 1920, height: 1080 });await page.goto(`/pages/${a!.id}`);
     const left = page.locator('.workspace-editor-slot[data-pane="left"]');const right = page.locator('.workspace-editor-slot[data-pane="right"]');
     const title = (pane: typeof left) => pane.getByLabel("Название страницы", { exact: true });

@@ -1,3 +1,4 @@
+import { setTestTheme } from "./theme-fixture";
 import { expect, test } from "@playwright/test";
 import { z } from "zod";
 for (const theme of ["studio-graphite", "studio-atelier"]) {
@@ -12,7 +13,7 @@ for (const theme of ["studio-graphite", "studio-atelier"]) {
     const notes = await Promise.all(["Источник", "РусскаяЦель"].map(async label => z.object({ page: id.extend({ title: z.string(), revision: z.number() }) }).parse(await page.request.post("/api/pages", { data: { sectionId: section.id, title: `${label}${Date.now()}` } }).then(r => r.json())).page));
     const a = notes[0]!;const b = notes[1]!;
     expect((await page.request.patch(`/api/pages/${a.id}`, { data: { expectedRevision: a.revision, content: [{ type: "paragraph", content: [{ type: "text", text: "Synthetic source ", styles: {} }] }] } })).ok()).toBe(true);
-    await page.addInitScript(theme => localStorage.setItem("theme", theme), theme);await page.setViewportSize({ width: 1920, height: 1080 });await page.goto(`/pages/${a.id}`);
+    await setTestTheme(page, theme);await page.setViewportSize({ width: 1920, height: 1080 });await page.goto(`/pages/${a.id}`);
     const left = page.locator('.workspace-editor-slot[data-pane="left"]');const right = page.locator('.workspace-editor-slot[data-pane="right"]');
     const errors: string[] = [];page.on("pageerror", error => errors.push(error.message));
     await left.locator(".bn-inline-content").first().click({ position: { x: 2, y: 8 } });await page.keyboard.press("End");await page.keyboard.type(`[[${b.title}`);
