@@ -1,0 +1,100 @@
+{
+  "runs": [
+    {
+      "id": 42626817113,
+      "url": "https://github.com/imnoname25/notebook/actions/runs/42626817113",
+      "name": "Docker image",
+      "branch": "staging/studio-4.4-e",
+      "revision": "447122a68315e1ea677616d047f73e170eb9e874",
+      "status": "completed",
+      "conclusion": "success",
+      "jobs": [
+        {
+          "id": 129192600490,
+          "name": "validate",
+          "status": "completed",
+          "conclusion": "success"
+        },
+        {
+          "id": 129194185515,
+          "name": "smoke",
+          "status": "completed",
+          "conclusion": "success"
+        },
+        {
+          "id": 129198708702,
+          "name": "publish-staging",
+          "status": "completed",
+          "conclusion": "success"
+        },
+        {
+          "id": 129198710868,
+          "name": "publish",
+          "status": "completed",
+          "conclusion": "skipped"
+        }
+      ]
+    },
+    {
+      "id": 42626763453,
+      "url": "https://github.com/imnoname25/notebook/actions/runs/42626763453",
+      "name": "Docker image",
+      "branch": "main",
+      "revision": "447122a68315e1ea677616d047f73e170eb9e874",
+      "status": "completed",
+      "conclusion": "success",
+      "jobs": [
+        {
+          "id": 129192424995,
+          "name": "validate",
+          "status": "completed",
+          "conclusion": "success"
+        },
+        {
+          "id": 129194070747,
+          "name": "smoke",
+          "status": "completed",
+          "conclusion": "success"
+        },
+        {
+          "id": 129198525126,
+          "name": "publish-staging",
+          "status": "completed",
+          "conclusion": "skipped"
+        },
+        {
+          "id": 129198525505,
+          "name": "publish",
+          "status": "completed",
+          "conclusion": "skipped"
+        }
+      ]
+    },
+    {
+      "id": 42626763304,
+      "url": "https://github.com/imnoname25/notebook/actions/runs/42626763304",
+      "name": "Android client",
+      "branch": "main",
+      "revision": "447122a68315e1ea677616d047f73e170eb9e874",
+      "status": "completed",
+      "conclusion": "success",
+      "jobs": [
+        {
+          "id": 129192423003,
+          "name": "checks",
+          "status": "completed",
+          "conclusion": "success"
+        },
+        {
+          "id": 129194097926,
+          "name": "release",
+          "status": "completed",
+          "conclusion": "skipped"
+        }
+      ]
+    }
+  ],
+  "productionDeployment": "not performed",
+  "dockerRuntime": "PG17 startup smoke passed",
+  "physicalFold": "pending user acceptance"
+}

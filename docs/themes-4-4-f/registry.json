@@ -1,0 +1,20 @@
+{
+  "image": "ghcr.io/imnoname25/notebook@sha256:d35be34efce3ef777600531c189bef6d34416bb8f3f3410faf3f87298ab6747a",
+  "revision": "447122a68315e1ea677616d047f73e170eb9e874",
+  "platform": "linux/amd64",
+  "tags": [
+    "staging-4.4-f",
+    "staging-4.4-f-447122a68315e1ea677616d047f73e170eb9e874"
+  ],
+  "configDigest": "sha256:2d07b2eb492bb983d75f0721737f8ae50d54bc93e1169169b21ef05a852f2dc4",
+  "packagedEngineEnvironment": "/app/prisma/schema-engine",
+  "productionTagsBefore": {
+    "main": "sha256:35c58de7ecaf31551b02451cb6b9bc6fca1de422c24fecdb895c826708d7732e",
+    "edge": "sha256:35c58de7ecaf31551b02451cb6b9bc6fca1de422c24fecdb895c826708d7732e"
+  },
+  "productionTagsAfter": {
+    "main": "sha256:35c58de7ecaf31551b02451cb6b9bc6fca1de422c24fecdb895c826708d7732e",
+    "edge": "sha256:35c58de7ecaf31551b02451cb6b9bc6fca1de422c24fecdb895c826708d7732e"
+  },
+  "productionTagsUnchanged": true
+}

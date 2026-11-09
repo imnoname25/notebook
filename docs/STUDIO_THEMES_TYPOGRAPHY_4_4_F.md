@@ -12,8 +12,8 @@ Push в main выполняет проверки, но публикация prod
 
 | Тема | Фон | Редактор | Текст | Акцент | Типографика по умолчанию |
 |---|---|---|---|---|---|
-| Studio Graphite | прежняя палитра | прежняя палитра | прежняя палитра | прежний стальной | прежний системный sans |
-| Studio Atelier | прежняя палитра | прежняя палитра | прежняя палитра | прежняя латунь | прежний sans, Georgia для заголовка |
+| Studio Graphite | #14181C | #181D22 | #E5E7E9 | #A4BAC9 | прежний системный sans |
+| Studio Atelier | #F3EEE4 | #F8F4EB | #292820 | #786137 | прежний sans, Georgia для заголовка |
 | Midnight Ink | #101A28 | #152133 | #DCE8F7 | #78A9E5 | IBM Plex Sans |
 | Paper & Coffee | #F1E9DA | #FFF9ED | #40372E | #835734 | Source Sans 3 / Literata |
 | Forest Terminal | #0F211C | #142B23 | #E1EBDD | #83B99D | Geist / Inter |
@@ -153,4 +153,26 @@ docker exec notebook-staging node -e 'fetch("http://127.0.0.1:3000/api/health").
 
 ## Вердикт
 
-CONDITIONAL GO для ручной проверки staging после успешного Docker CI. Полная приёмка физического Fold и Android IME остаётся за пользователем. Production release требует отдельного решения, backup и production acceptance. Digest и фактические CI ссылки фиксируются после сборки образа.
+CONDITIONAL GO для ручной проверки staging. Docker CI, реальный startup smoke PostgreSQL 17 и публикация staging успешно завершены. Полная приёмка физического Fold и Android IME остаётся за пользователем. Production release требует отдельного решения, backup и production acceptance. Digest и фактические CI ссылки приведены ниже и в JSON evidence.
+
+## Опубликованная сборка и CI
+
+Код и staging build revision `447122a68315e1ea677616d047f73e170eb9e874`. Четыре логических коммита — `de92bcc` интеграция, `ef90a3b` темы, `273cace` типографика, `447122a` тесты и документация. Последующий docs-only коммит фиксирует уже полученные CI/registry evidence, Docker image остаётся привязанным к build revision.
+
+- [Staging Docker CI](https://github.com/imnoname25/notebook/actions/runs/42626817113) — SUCCESS, validate/smoke/publish-staging успешны.
+- [Main Docker CI](https://github.com/imnoname25/notebook/actions/runs/42626763453) — SUCCESS, production publish пропущен согласно ручному promotion guard.
+- [Android CI](https://github.com/imnoname25/notebook/actions/runs/42626763304) — SUCCESS, release job пропущен. Исходники APK этим этапом не изменялись.
+
+CI подтвердил Linux amd64 build, runtime dependencies/permissions, offline Prisma CLI, пустую PostgreSQL 17 БД, current schema/restart, legacy upgrade с сохранением content/hash/backlinks и UserSettings, unavailable DB, hung/failed CLI, missing engine и health. Compose validation выполнялась на синтетических значениях без подключения к Unraid.
+
+Проверенный образ для .env.staging
+
+```dotenv
+STAGING_IMAGE=ghcr.io/imnoname25/notebook@sha256:d35be34efce3ef777600531c189bef6d34416bb8f3f3410faf3f87298ab6747a
+```
+
+Теги `staging-4.4-f` и `staging-4.4-f-447122a68315e1ea677616d047f73e170eb9e874` разрешились в тот же digest. OCI revision и config проверены чтением GHCR manifests/blobs, platform linux/amd64, PRISMA_SCHEMA_ENGINE_BINARY=/app/prisma/schema-engine, NOTEBOOK_CHANNEL=staging.
+
+Production main и edge до/после публикации сохранили digest `sha256:35c58de7ecaf31551b02451cb6b9bc6fca1de422c24fecdb895c826708d7732e`. Main/staging push не запускал production deployment. Фактические run/job результаты сохранены в `themes-4-4-f/ci.json`, registry verification — в `themes-4-4-f/registry.json`.
+
+Для обновления staging использовать приведённый выше runbook с этим pinned image. Выполнить пользовательскую проверку Windows/Fold до решения о production release.
