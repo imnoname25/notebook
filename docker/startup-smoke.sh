@@ -38,10 +38,10 @@ printf 'missing engine fixture\n' >"$fixture/missing-engine"
 chmod 0644 "$fixture/missing-engine"
 expect_failure 1 'Schema Engine is missing' -v "$fixture/missing-engine:/app/prisma/schema-engine:ro" "$image" sh -c 'echo SERVER_SHOULD_NOT_START'
 
-# Build a genuine previous migration state (all except the existing final backfill).
+# Build the pre-backfill/pre-appearance migration state for a genuine upgrade.
 docker create --name notebook-startup-files --entrypoint sh "$image" >/dev/null
 docker cp notebook-startup-files:/app/prisma/migrations "$fixture/migrations"
-rm -rf -- "$fixture/migrations/202610270001_internal_links_backfill"
+rm -rf -- "$fixture/migrations/202610270001_internal_links_backfill" "$fixture/migrations/202611090001_user_appearance"
 cat >"$fixture/prisma.config.ts" <<'CONFIG'
 import { defineConfig } from "prisma/config";
 export default defineConfig({schema:"/app/prisma/schema.prisma",migrations:{path:"/fixture/migrations"},datasource:{url:process.env.DATABASE_URL!}});
@@ -57,6 +57,9 @@ INSERT INTO "Page" (id,"sectionId",title,content,"updatedAt") VALUES
 ('startup-target','startup-section','Synthetic target','[]',NOW()),
 ('startup-source','startup-section','Synthetic source','[{"type":"paragraph","content":[{"type":"pageLink","props":{"pageId":"startup-target","text":"Alias","alias":true}}]}]',NOW());
 SQL
+docker exec -i notebook-smoke-postgres psql -U notebook -d notebook_startup_upgrade -v ON_ERROR_STOP=1 <<'SQL'
+INSERT INTO "UserSettings" ("userId","editorContentWidth","updatedAt") VALUES ('startup-user','wide',NOW());
+SQL
 before=$(docker exec notebook-smoke-postgres psql -U notebook -d notebook_startup_upgrade -Atc 'SELECT md5(content::text) FROM "Page" WHERE id = '\''startup-source'\''')
 docker run -d --name notebook-startup-upgrade --network notebook-smoke -e "DATABASE_URL=$upgrade" -e APP_ORIGIN=http://127.0.0.1:3000 --tmpfs /data/uploads --tmpfs /data/backups "$image" >/dev/null
 for attempt in $(seq 1 60); do
@@ -68,4 +71,6 @@ after=$(docker exec notebook-smoke-postgres psql -U notebook -d notebook_startup
 [ "$before" = "$after" ]
 [ "$(docker exec notebook-smoke-postgres psql -U notebook -d notebook_startup_upgrade -Atc 'SELECT count(*) FROM "PageLink" WHERE "sourcePageId" = '\''startup-source'\'' AND "targetPageId" = '\''startup-target'\''')" = 1 ]
 [ "$(docker logs notebook-smoke-app 2>&1 | grep -c 'Migrations complete')" -ge 2 ]
+[ "$(docker exec notebook-smoke-postgres psql -U notebook -d notebook_startup_upgrade -Atc 'SELECT "appearance"::text FROM "UserSettings"')" = '{}' ]
+[ "$(docker exec notebook-smoke-postgres psql -U notebook -d notebook_startup_upgrade -Atc 'SELECT "editorContentWidth" FROM "UserSettings"')" = wide ]
 echo 'Startup recovery gate passed: offline CLI, empty database, current schema, restart, legacy upgrade/content/backlinks, failed DB, hung/failed CLI, missing engine and health.'

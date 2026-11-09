@@ -1,0 +1,51 @@
+{
+  "inter": {
+    "sourceCommit": "5bb28733cec313b63fbd415b574b5ae35c8aa8b8",
+    "source": "https://raw.githubusercontent.com/google/fonts/5bb28733cec313b63fbd415b574b5ae35c8aa8b8/ofl/inter/Inter%5Bopsz%2Cwght%5D.ttf",
+    "license": "SIL Open Font License 1.1",
+    "cyrillic": true,
+    "sha256": "ebcb786cbfc3df2adbf3cea418c8cf974e06175367e47c33eeda1d8cf13db5aa"
+  },
+  "geist": {
+    "sourceCommit": "5bb28733cec313b63fbd415b574b5ae35c8aa8b8",
+    "source": "https://raw.githubusercontent.com/google/fonts/5bb28733cec313b63fbd415b574b5ae35c8aa8b8/ofl/geist/Geist%5Bwght%5D.ttf",
+    "license": "SIL Open Font License 1.1",
+    "cyrillic": true,
+    "sha256": "5819f72e63964d116a225ca6479a81357f573f9c95c8a70e3cb02ad9762a3423"
+  },
+  "ibmplexsans": {
+    "sourceCommit": "5bb28733cec313b63fbd415b574b5ae35c8aa8b8",
+    "source": "https://raw.githubusercontent.com/google/fonts/5bb28733cec313b63fbd415b574b5ae35c8aa8b8/ofl/ibmplexsans/IBMPlexSans%5Bwdth%2Cwght%5D.ttf",
+    "license": "SIL Open Font License 1.1",
+    "cyrillic": true,
+    "sha256": "1b29e43bccac36b3228eed71c9e5555533f1a1a4e5285408b9f3fa45a76c473e"
+  },
+  "manrope": {
+    "sourceCommit": "5bb28733cec313b63fbd415b574b5ae35c8aa8b8",
+    "source": "https://raw.githubusercontent.com/google/fonts/5bb28733cec313b63fbd415b574b5ae35c8aa8b8/ofl/manrope/Manrope%5Bwght%5D.ttf",
+    "license": "SIL Open Font License 1.1",
+    "cyrillic": true,
+    "sha256": "7b8a8fdc4a9e3baee6bc5e44c222c1b5ed17b439ecd2b6e4d26369d6743affd5"
+  },
+  "sourcesans3": {
+    "sourceCommit": "5bb28733cec313b63fbd415b574b5ae35c8aa8b8",
+    "source": "https://raw.githubusercontent.com/google/fonts/5bb28733cec313b63fbd415b574b5ae35c8aa8b8/ofl/sourcesans3/SourceSans3%5Bwght%5D.ttf",
+    "license": "SIL Open Font License 1.1",
+    "cyrillic": true,
+    "sha256": "1cc0027203f1eac6d0a9eba63ec8d06e103079bd2deaddefab8f9848b8b8c69a"
+  },
+  "literata": {
+    "sourceCommit": "5bb28733cec313b63fbd415b574b5ae35c8aa8b8",
+    "source": "https://raw.githubusercontent.com/google/fonts/5bb28733cec313b63fbd415b574b5ae35c8aa8b8/ofl/literata/Literata%5Bopsz%2Cwght%5D.ttf",
+    "license": "SIL Open Font License 1.1",
+    "cyrillic": true,
+    "sha256": "a25b6eaf10ba77e19cccb321e10cf2d118d42d64b95c2f3a32de0ffca4f759b6"
+  },
+  "jetbrainsmono": {
+    "sourceCommit": "5bb28733cec313b63fbd415b574b5ae35c8aa8b8",
+    "source": "https://raw.githubusercontent.com/google/fonts/5bb28733cec313b63fbd415b574b5ae35c8aa8b8/ofl/jetbrainsmono/JetBrainsMono%5Bwght%5D.ttf",
+    "license": "SIL Open Font License 1.1",
+    "cyrillic": true,
+    "sha256": "60db46de965f9bb9bc0c4a162b38b5ceb6f4167eec70b4b95383f4961789fe50"
+  }
+}

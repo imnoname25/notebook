@@ -14,7 +14,7 @@ import {
   Link2,
   StickyNote,
 } from "lucide-react";
-import { useTheme } from "next-themes";
+import { AppearanceProvider, useNotebookTheme } from "./appearance-provider";
 import { nextTheme, isStudioTheme } from "@/lib/themes";
 import { useRouter } from "next/navigation";
 import { api, jsonOptions } from "@/lib/client-api";
@@ -154,12 +154,12 @@ type NotebookAppProps = {
   };
   initialLocation?: InitialLocation;
 };
-export function NotebookApp(props: NotebookAppProps) { return <StickerSaveProvider key={props.user.id}><NotebookWorkspace {...props}/></StickerSaveProvider>; }
+export function NotebookApp(props: NotebookAppProps) { return <AppearanceProvider key={props.user.id} userId={props.user.id}><StickerSaveProvider><NotebookWorkspace {...props}/></StickerSaveProvider></AppearanceProvider>; }
 function NotebookWorkspace({ user, initialLocation }: NotebookAppProps) {
   useEffect(() => { activateDraftUser(user.id);void pruneDrafts(user.id).catch(() => undefined);const timer = setInterval(() => void pruneDrafts(user.id).catch(() => undefined), 60 * 60 * 1000);return () => clearInterval(timer); }, [user.id]);
   const router = useRouter();
   const stickerSaves = useStickerSaves();
-  const { theme: browserTheme, resolvedTheme: browserResolvedTheme, setTheme } = useTheme();
+  const { theme: browserTheme, resolvedTheme: browserResolvedTheme, setTheme } = useNotebookTheme();
   const mounted = useSyncExternalStore(noClientSubscription, clientMountedSnapshot, serverMountedSnapshot);
   const theme = mounted ? browserTheme : undefined;
   const resolvedTheme = mounted ? browserResolvedTheme : undefined;

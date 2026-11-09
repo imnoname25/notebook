@@ -250,9 +250,9 @@
 :is(.studio-graphite, .studio-atelier, .midnight-ink, .paper-coffee, .forest-terminal, .nord-studio) .notebook-editor [data-content-type="heading"][data-level="2"] { --level: 1.25rem; }
 :is(.studio-graphite, .studio-atelier, .midnight-ink, .paper-coffee, .forest-terminal, .nord-studio) .notebook-editor [data-content-type="heading"][data-level="3"] { --level: 1.0625rem; }
 :is(.studio-graphite, .studio-atelier, .midnight-ink, .paper-coffee, .forest-terminal, .nord-studio) .notebook-page-title-input:focus-visible { outline: 1px solid var(--studio-accent); outline-offset: 5px; border-radius: 2px; }
-:is(.studio-graphite, .studio-atelier, .midnight-ink, .paper-coffee, .forest-terminal, .nord-studio) .notebook-editor [data-content-type="codeBlock"] { background: var(--studio-editor-muted-bg); border: 1px solid var(--studio-divider); border-radius: 0.375rem; }
-.studio-atelier .notebook-editor .shiki { color: color-mix(in srgb, var(--shiki-light, var(--studio-editor-text)), var(--studio-editor-text) var(--studio-syntax-blend)); }
-.studio-graphite .notebook-editor .shiki { color: color-mix(in srgb, var(--shiki-dark, var(--studio-editor-text)), var(--studio-editor-text) var(--studio-syntax-blend)); }
+:is(.studio-graphite, .studio-atelier, .midnight-ink, .paper-coffee, .forest-terminal, .nord-studio) .notebook-editor [data-content-type="codeBlock"] { color: var(--studio-editor-text); background: var(--studio-editor-muted-bg); border: 1px solid var(--studio-divider); border-radius: 0.375rem; }
+:is(.studio-atelier, .paper-coffee, .nord-studio) .notebook-editor .shiki { color: color-mix(in srgb, var(--shiki-light, var(--studio-editor-text)), var(--studio-editor-text) var(--studio-syntax-blend)); }
+:is(.studio-graphite, .midnight-ink, .forest-terminal) .notebook-editor .shiki { color: color-mix(in srgb, var(--shiki-dark, var(--studio-editor-text)), var(--studio-editor-text) var(--studio-syntax-blend)); }
 :is(.studio-graphite, .studio-atelier, .midnight-ink, .paper-coffee, .forest-terminal, .nord-studio) .notebook-document-context { width: var(--studio-context-width); border-color: var(--studio-divider); background: var(--studio-editor-bg); padding: 1rem 0.75rem; }
 :is(.studio-graphite, .studio-atelier, .midnight-ink, .paper-coffee, .forest-terminal, .nord-studio) .notebook-document-context nav button { min-height: 1.875rem; font-size: var(--studio-font-preview); }
 :is(.studio-graphite, .studio-atelier, .midnight-ink, .paper-coffee, .forest-terminal, .nord-studio) :is(.notebook-surface, .quick-note-card) { box-shadow: none; }

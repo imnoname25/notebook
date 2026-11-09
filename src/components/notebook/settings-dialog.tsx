@@ -18,7 +18,7 @@ import {
   UploadCloud,
   X,
 } from "lucide-react";
-import { useTheme } from "next-themes";
+import { useNotebookTheme } from "./appearance-provider";
 import { ThemeSettings } from "./theme-settings";
 import { AndroidAppInfo } from "./android-app-info";
 import { DesktopLayoutSettings } from "./desktop-layout-settings";
@@ -201,7 +201,7 @@ export function SettingsDialog({
     androidClientSnapshot,
     () => null,
   );
-  const { setTheme } = useTheme();
+  const { setTheme } = useNotebookTheme();
   const router = useRouter();
   const [tab, setTab] = useState<Tab>("profile");
   const [settings, setSettings] = useState<SettingsData | null>(null);

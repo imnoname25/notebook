@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { appearancePatchSchema } from "./appearance-preferences";
 import { workspaceSearchSchema } from "@/lib/workspace-search";
 import { NOTEBOOK_COLORS, NOTEBOOK_ICONS } from "@/lib/notebook-appearance";
 import { ACCENT_COLORS, isPageIcon, PAGE_APPEARANCE_PRESETS, PAGE_BACKGROUND_OVERLAYS, PAGE_BACKGROUND_POSITIONS, PAGE_BACKGROUND_TYPES, PAGE_GRADIENTS, PAGE_LIST_VIEWS, PAGE_PATTERNS, SECTION_ACCENT_INTENSITIES } from "@/lib/content-appearance";
@@ -79,6 +80,7 @@ export const accountProfileSchema = z.object({
 }).strict();
 
 export const accountPreferencesSchema = z.object({
+  appearance: appearancePatchSchema.optional(),
   interfaceDensity: z.enum(["comfortable", "compact"]).optional(),
   editorSpellcheck: z.boolean().optional(),
   editorCodeLineNumbers: z.boolean().optional(),

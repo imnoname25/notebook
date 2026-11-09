@@ -2,6 +2,7 @@ import type { Metadata, Viewport } from "next";
 import { ThemeProvider } from "@/components/theme-provider";
 import { PwaClient } from "@/components/pwa-client";
 import "./globals.css";
+import { fontVariables } from "./fonts";
 
 export const metadata: Metadata = {
   title: { default: "Notebook", template: "%s · Notebook" },
@@ -14,5 +15,5 @@ export const metadata: Metadata = {
 export const viewport: Viewport = { width: "device-width", initialScale: 1, viewportFit: "cover", interactiveWidget: "resizes-content", themeColor: [{ media: "(prefers-color-scheme: light)", color: "#fafafa" }, { media: "(prefers-color-scheme: dark)", color: "#18181b" }] };
 
 export default function RootLayout({ children }: Readonly<{ children: React.ReactNode }>) {
-  return <html lang="ru" suppressHydrationWarning><body><ThemeProvider attribute="class" defaultTheme="system" enableSystem>{children}<PwaClient/></ThemeProvider></body></html>;
+  return <html lang="ru" suppressHydrationWarning><body className={fontVariables}><ThemeProvider attribute="class" defaultTheme="system" enableSystem>{children}<PwaClient/></ThemeProvider></body></html>;
 }

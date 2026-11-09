@@ -48,6 +48,7 @@ model User {
 }
 
 model UserSettings {
+  appearance             Json     @default("{}")
   userId                 String   @id
   interfaceDensity       String   @default("comfortable")
   sectionAccentIntensity String   @default("moderate")

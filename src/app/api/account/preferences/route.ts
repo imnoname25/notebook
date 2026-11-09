@@ -2,10 +2,12 @@ import { NextRequest, NextResponse } from "next/server";
 import { apiError, readJson, requireAccountUser, validateRequestOrigin } from "@/lib/api";
 import { db } from "@/lib/db";
 import { getApplicationSettings } from "@/lib/services/settings-service";
+import { updateAccountPreferences } from "@/lib/services/account-preferences";
+import { normalizeAppearance } from "@/lib/appearance-preferences";
 import { accountPreferencesSchema } from "@/lib/validation";
 
-function publicPreferences(settings: { interfaceDensity: string; sectionAccentIntensity: string; pageListView: string; defaultPagePreset: string; startScreen: string; editorSpellcheck: boolean; editorCodeLineNumbers: boolean; editorCompactMode: boolean; editorContentWidth: string }, autosaveDelayMs: number) {
-  return { ...settings, autosaveDelayMs };
+function publicPreferences(settings: { interfaceDensity: string; sectionAccentIntensity: string; pageListView: string; defaultPagePreset: string; startScreen: string; editorSpellcheck: boolean; editorCodeLineNumbers: boolean; editorCompactMode: boolean; editorContentWidth: string; appearance?: unknown }, autosaveDelayMs: number) {
+  return { ...settings, appearance: normalizeAppearance(settings.appearance), appearanceConfigured: Boolean(settings.appearance && typeof settings.appearance === "object" && Object.keys(settings.appearance).length), autosaveDelayMs };
 }
 
 export async function GET() {
@@ -24,7 +26,7 @@ export async function PATCH(request: NextRequest) {
     validateRequestOrigin(request);
     const user = await requireUserForPreferences();
     const input = accountPreferencesSchema.parse(await readJson(request));
-    const settings = await db.userSettings.upsert({ where: { userId: user.id }, create: { userId: user.id, ...input }, update: input });
+    const settings = await updateAccountPreferences(user.id, input);
     const application = await getApplicationSettings();
     return NextResponse.json({ settings: publicPreferences(settings, application.autosaveDelayMs) });
   } catch (error) { return apiError(error); }
