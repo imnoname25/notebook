@@ -1,0 +1,33 @@
+{
+  "lint": "PASS",
+  "typecheck": "PASS",
+  "productionBuild": "PASS",
+  "unit": {
+    "passed": 524,
+    "conditionalSkipped": 74
+  },
+  "postgresIntegration": {
+    "passed": 73,
+    "files": 19,
+    "version": "18.6",
+    "isolated": true
+  },
+  "http": {
+    "passed": 113,
+    "skipped": 0,
+    "flaky": 0,
+    "retries": 0
+  },
+  "themeHttp": {
+    "passed": 10,
+    "retries": 0
+  },
+  "stagingGuards": 13,
+  "unraidPython": 42,
+  "windowsSafeguards": 58,
+  "dockerPackaging": "PASS",
+  "unraidTemplates": "PASS",
+  "physicalFold": "not tested",
+  "protectedFilesUnchanged": 139,
+  "newMigrations": 0
+}

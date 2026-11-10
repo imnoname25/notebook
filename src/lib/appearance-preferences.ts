@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { THEMES } from "./themes";
+import { THEMES, THEME_REGISTRY } from "./themes";
 
 export const UI_FONTS = ["theme", "inter", "geist", "ibm-plex-sans", "manrope", "source-sans-3"] as const;
 export const EDITOR_FONTS = ["theme", "inter", "literata", "ibm-plex-sans", "source-sans-3", "jetbrains-mono"] as const;
@@ -25,12 +25,13 @@ export const appearanceSchema = z.object({
 export const appearancePatchSchema = z.object(fields).partial().strict();
 export type AppearancePreferences = z.infer<typeof appearanceSchema>;
 export const DEFAULT_APPEARANCE = appearanceSchema.parse({});
-export const THEME_FONTS: Record<string, { ui: string; editor: string }> = {
-  "midnight-ink": { ui: "ibm-plex-sans", editor: "ibm-plex-sans" },
-  "paper-coffee": { ui: "source-sans-3", editor: "literata" },
-  "forest-terminal": { ui: "geist", editor: "inter" },
-  "nord-studio": { ui: "manrope", editor: "inter" },
-};
+export const THEME_FONTS: Record<string, { ui: string; editor: string }> = Object.fromEntries(
+  THEMES.flatMap(theme => {
+    const fonts = THEME_REGISTRY[theme].fonts;
+    return fonts ? [[theme, { ui: fonts.ui, editor: fonts.editor }]] : [];
+  }),
+);
+
 export function normalizeAppearance(input: unknown): AppearancePreferences {
   const value = input && typeof input === "object" ? input as Record<string, unknown> : {};
   return {

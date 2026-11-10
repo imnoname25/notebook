@@ -1,6 +1,6 @@
 import { test, expect, type Page } from "@playwright/test";
 import { z } from "zod";
-import { STUDIO_THEMES } from "../src/lib/themes";
+import { STUDIO_THEMES, THEME_REGISTRY } from "../src/lib/themes";
 import { setTestTheme } from "./theme-fixture";
 import { openSettings } from "./ui-actions";
 
@@ -24,7 +24,7 @@ async function fixture(page: Page, suffix: string) {
     { id: "theme-quote", type: "quote", content: inline("Текст цитаты сохраняет структуру и форматирование.") },
     { id: "theme-list", type: "bulletListItem", content: inline("Вложенные данные"), children: [{ id: "theme-nested", type: "bulletListItem", content: inline("Дочерний пункт") }] },
     { id: "theme-code", type: "codeBlock", props: { language: "javascript" }, content: inline("const example = 'Кириллица';\nconsole.log(example);") },
-    { id: "theme-table", type: "table", content: { type: "tableContent", columnWidths: [260, 280, 320], rows: [{ cells: [inline("Название"), inline("Значение"), inline("Описание")] }, { cells: [inline("Длинное тестовое название"), inline("Synthetic value"), inline("https://example.test/long/technical/path")] }] } },
+    { id: "theme-table", type: "table", content: { type: "tableContent", columnWidths: [260, 280, 320], headerRows: 1, rows: [{ cells: [inline("Название"), inline("Значение"), inline("Описание")] }, { cells: [inline("Длинное тестовое название"), inline("Synthetic value"), inline("https://example.test/long/technical/path")] }] } },
   ];
   expect((await page.request.patch(`/api/pages/${created.id}`, { data: { expectedRevision: created.revision, content } })).ok()).toBe(true);
   const { page: second } = z.object({ page: documentSchema }).parse(await page.request.post("/api/pages", { data: { sectionId: section.id, title: "Соседняя заметка" } }).then(r => r.json()));
@@ -47,7 +47,7 @@ async function noOverflow(page: Page) {
   expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual((await page.viewportSize())!.width);
 }
 
-for (const theme of STUDIO_THEMES) test(`${theme}: real workspace palettes, fonts, Single/Split and adaptive views`, async ({ page }, info) => {
+for (const theme of STUDIO_THEMES) test(`${theme}: real workspace palettes, fonts, Single/Split and adaptive views`, async ({ page, browser }, info) => {
   test.setTimeout(180_000);
   const { note, second, get } = await fixture(page, theme);
   await setTestTheme(page, theme);
@@ -62,8 +62,31 @@ for (const theme of STUDIO_THEMES) test(`${theme}: real workspace palettes, font
   await expect(page.locator("html")).toHaveClass(theme);
   await page.evaluate(() => document.fonts.ready);
   await expect(page.locator(".notebook-editor .shiki").first()).toBeAttached();
-  const documentColor = await page.locator(".bn-editor").evaluate(node => getComputedStyle(node).color);
+  const documentColor = await page.locator(".bn-editor").evaluate(node => {
+    const style = getComputedStyle(node);
+    const value = style.getPropertyValue("--studio-code-text").trim();
+    if (!value) return style.color;
+    const canvas = document.createElement("canvas").getContext("2d")!;
+    canvas.fillStyle = value;
+    const hex = canvas.fillStyle;
+    return `rgb(${[1, 3, 5].map(offset => parseInt(hex.slice(offset, offset + 2), 16)).join(", ")})`;
+  });
   await expect(page.locator('[data-content-type="codeBlock"]')).toHaveCSS("color", documentColor);
+  if (THEME_REGISTRY[theme].identity) {
+    const title = page.locator(".notebook-page-title-input");
+    const sizes: Partial<Record<typeof theme, string>> = { "midnight-ink": "32px", "paper-coffee": "43px", "forest-terminal": "50px", "nord-studio": "36px" };
+    const expected = sizes[theme];
+    await expect(title).toHaveCSS("font-size", expected!);
+    await expect(page.locator("html")).not.toHaveAttribute("data-studio-prototype");
+    const cell = page.locator('[data-id="theme-table"] th').first();
+    await expect(cell).toBeVisible();
+    if (theme === "forest-terminal") {
+      await expect(cell).toHaveCSS("background-color", "rgb(25, 61, 197)");
+      await expect(cell).toHaveCSS("color", "rgb(255, 255, 255)");
+      await expect(page.locator(".notebook-page-list")).toHaveCSS("color", "rgb(25, 25, 25)");
+    }
+    if (theme === "nord-studio") await expect(cell).toHaveCSS("background-color", "rgb(23, 105, 93)");
+  }
   await noOverflow(page);
   await page.screenshot({ path: info.outputPath(`${theme}-single-1440.png`), animations: "disabled" });
   await page.locator(`[data-page-title="${note.title}"]`).getByRole("button", { name: `Действия страницы ${note.title}`, exact: true }).click();
@@ -89,6 +112,36 @@ for (const theme of STUDIO_THEMES) test(`${theme}: real workspace palettes, font
     await expect(page.locator('.workspace-editor-slot[data-active="true"] .bn-editor')).toBeVisible();
     await noOverflow(page);
     await page.screenshot({ path: info.outputPath(`${theme}-${label}.png`), animations: "disabled" });
+  }
+  for (const width of [360, 840]) {
+    const context = await browser.newContext({ baseURL: test.info().project.use.baseURL, viewport: { width, height: 960 }, hasTouch: true, isMobile: true });
+    try {
+      await context.addCookies(await page.context().cookies());
+      const touch = await context.newPage();
+      touch.on("pageerror", error => errors.push(error.message));
+      touch.on("request", request => {
+        if (request.method() === "PATCH" && /\/api\/pages\/[^/]+$/.test(new URL(request.url()).pathname)) writes.push(request.url());
+      });
+      await openDocument(touch, note.id);
+      await expect(touch.locator("html")).toHaveClass(theme);
+      await touch.getByRole("button", { name: "Открыть навигацию", exact: true }).tap();
+      const drawer = touch.getByRole("dialog", { name: "Навигация", exact: true });
+      await expect(drawer).toBeVisible();
+      await touch.screenshot({ path: info.outputPath(`${theme}-touch-drawer-${width}.png`), animations: "disabled" });
+      await drawer.locator('[data-nav-row="section"] button[title="Кириллица и документы"]').tap();
+      await expect(drawer).toBeHidden();
+      await touch.locator(`[data-page-title="${note.title}"] [data-page-select]`).tap();
+      const scroller = touch.locator('[data-id="theme-table"] .tableWrapper');
+      await scroller.scrollIntoViewIfNeeded();
+      const table = await scroller.evaluate(node => {
+        node.scrollLeft = node.scrollWidth;
+        return { width: node.clientWidth, content: node.scrollWidth, left: node.scrollLeft };
+      });
+      expect(table.content).toBeGreaterThan(table.width);
+      expect(table.left).toBeGreaterThan(0);
+      await noOverflow(touch);
+      await touch.screenshot({ path: info.outputPath(`${theme}-touch-table-${width}.png`), animations: "disabled" });
+    } finally { await context.close(); }
   }
   const dialog = await appearance(page);
   await expect(dialog.locator('[data-theme-choice]')).toHaveCount(10);
@@ -138,7 +191,7 @@ test("independent typography persists, synchronizes, retries and preserves docum
     if (route.request().method() === "PATCH") await themeWriteGate;
     await route.continue();
   });
-  await dialog.getByRole("button", { name: "Midnight Ink", exact: true }).click();
+  await dialog.getByRole("button", { name: "Cyberdeck", exact: true }).click();
   await expect(page.locator("html")).toHaveClass("midnight-ink");
   await expect(dialog.getByText("Сохранение оформления…", { exact: true })).toBeVisible();
   releaseThemeWrite();
@@ -185,4 +238,32 @@ test("unknown browser theme falls back to system", async ({ page }) => {
   await page.goto("/login");
   await expect(page.locator("html")).toHaveClass("light");
   await expect.poll(() => page.evaluate(() => localStorage.getItem("theme"))).toBe("system");
+});
+
+
+test("approved identities switch through settings and survive reload without Page writes", async ({ page }) => {
+  test.setTimeout(180_000);
+  const { note, get } = await fixture(page, "identities");
+  await page.setViewportSize({ width: 1440, height: 900 });
+  await openDocument(page, note.id);
+  const writes: string[] = [];
+  page.on("request", request => {
+    if (request.method() === "PATCH" && /\/api\/pages\/[^/]+$/.test(new URL(request.url()).pathname)) writes.push(request.url());
+  });
+  for (const theme of STUDIO_THEMES) {
+    const settings = await appearance(page);
+    await settings.getByRole("button", { name: THEME_REGISTRY[theme].label, exact: true }).click();
+    await expect(page.locator("html")).toHaveClass(theme);
+    await expect(settings.getByText("Оформление сохранено в аккаунте", { exact: true })).toBeVisible();
+    await settings.getByRole("button", { name: "Закрыть", exact: true }).click();
+    await page.reload();
+    await expect(page.locator("html")).toHaveClass(theme);
+    await expect(page.locator(".bn-editor")).toHaveAttribute("contenteditable", "true");
+    const preferences = await page.request.get("/api/account/preferences").then(response => response.json());
+    expect(preferences.settings.appearance.theme).toBe(theme);
+    await expect(page.locator(".bn-editor")).toHaveCSS("font-size", "15px");
+    await noOverflow(page);
+  }
+  expect(await get()).toEqual(note);
+  expect(writes).toEqual([]);
 });

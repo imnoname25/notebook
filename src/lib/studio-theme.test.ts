@@ -18,22 +18,41 @@ describe.each(["studio-graphite", "studio-atelier", "midnight-ink", "paper-coffe
   const tokens = Object.fromEntries([...palette.matchAll(/--studio-([\w-]+):\s*(#[0-9a-f]{6});/g)].map((match) => [match[1], match[2]]));
   it.each([
     ["editor-text", "editor-bg"], ["editor-text", "paper"], ["editor-muted", "paper"],
-    ["nav-text", "nav-bg"], ["nav-text", "list-bg"], ["nav-muted", "list-bg"],
+    ["nav-text", "nav-bg"], ["list-text", "list-bg"], ["list-muted", "list-bg"],
     ["nav-selected-text", "nav-selected"], ["on-accent", "accent"], ["tag-text", "tag-bg"],
   ])("keeps %s on %s at WCAG AA", (foreground, background) => {
-    expect(tokens[foreground]).toBeDefined();
+    const value = tokens[foreground] ?? tokens[foreground.replace("list-", "nav-")];
+    expect(value).toBeDefined();
     expect(tokens[background]).toBeDefined();
-    expect(ratio(tokens[foreground]!, tokens[background]!)).toBeGreaterThanOrEqual(4.5);
+    expect(ratio(value!, tokens[background]!)).toBeGreaterThanOrEqual(4.5);
   });
   it("keeps focus rings distinguishable from their surfaces", () => {
     expect(ratio(tokens.accent!, tokens.paper!)).toBeGreaterThanOrEqual(3);
     expect(ratio(tokens["nav-focus"]!, tokens["nav-bg"]!)).toBeGreaterThanOrEqual(3);
   });
   it("keeps subdued syntax comments readable on the code surface", () => {
-    const blend = Number(palette.match(/--studio-syntax-blend:\s*(\d+)%/)?.[1] ?? css.match(/--studio-syntax-blend:\s*(\d+)%/)?.[1]) / 100;
+    const blend = Number(palette.match(/--studio-code-syntax-blend:\s*(\d+)%/)?.[1] ?? palette.match(/--studio-syntax-blend:\s*(\d+)%/)?.[1] ?? css.match(/--studio-syntax-blend:\s*(\d+)%/)?.[1]) / 100;
     const comment = "#6a737d";
-    const text = tokens["editor-text"]!;
+    const text = tokens["code-text"] ?? tokens["editor-text"]!;
     const mixed = "#" + [1, 3, 5].map((offset) => Math.round(parseInt(comment.slice(offset, offset + 2), 16) * (1 - blend) + parseInt(text.slice(offset, offset + 2), 16) * blend).toString(16).padStart(2, "0")).join("");
-    expect(ratio(mixed, tokens["editor-muted-bg"]!)).toBeGreaterThanOrEqual(4.5);
+    expect(ratio(mixed, tokens["code-bg"] ?? tokens["editor-muted-bg"]!)).toBeGreaterThanOrEqual(4.5);
+  });
+});
+
+
+describe("production identity tokens", () => {
+  const identities = readFileSync("src/app/studio-identities.css", "utf8");
+  it("uses persisted root themes and local component tokens without review overlays", () => {
+    expect(identities).not.toContain("data-studio-prototype");
+    expect(identities).not.toContain("data-prototype");
+    expect(identities).not.toMatch(/\b(?:zoom|transform):/);
+    expect(readFileSync("src/app/globals.css", "utf8")).toContain('@import "./studio-identities.css"');
+  });
+  it.each([
+    ["#eef6ff", "#173b64"], ["#eef6ff", "#1c3754"], ["#342d26", "#f7f3ea"],
+    ["#ffffff", "#193dc5"], ["#ffffff", "#191919"], ["#ffffff", "#b73127"],
+    ["#ffffff", "#62418f"], ["#302c43", "#f0eaf7"], ["#ffffff", "#17695d"],
+  ])("keeps active text and table headers readable %s / %s", (foreground, background) => {
+    expect(ratio(foreground, background)).toBeGreaterThanOrEqual(4.5);
   });
 });

@@ -5,7 +5,7 @@ import { useTheme } from "next-themes";
 import { fontFamilies } from "@/app/fonts";
 import { api, jsonOptions } from "@/lib/client-api";
 import { DEFAULT_APPEARANCE, normalizeAppearance, THEME_FONTS, type AppearancePreferences } from "@/lib/appearance-preferences";
-import { THEMES, type NotebookTheme } from "@/lib/themes";
+import { THEMES, themeDefinition, type NotebookTheme } from "@/lib/themes";
 
 type AppearanceContextValue = {
   preferences: AppearancePreferences;
@@ -127,7 +127,8 @@ export function AppearanceProvider({ userId, children }: { userId: string; child
     const editor = preferences.editorFont === "theme" ? defaults?.editor : preferences.editorFont;
     const uiFamily = ui ? fontFamilies[ui] : legacySans;
     const editorFamily = editor ? fontFamilies[editor] : legacySans;
-    const titleFamily = preferences.editorFont === "theme" && resolved === "studio-atelier" ? 'Georgia, Cambria, "Times New Roman", serif' : editorFamily;
+    const displayFont = preferences.editorFont === "theme" ? themeDefinition(resolved).fonts?.title : undefined;
+    const titleFamily = displayFont ? fontFamilies[displayFont] : preferences.editorFont === "theme" && resolved === "studio-atelier" ? 'Georgia, Cambria, "Times New Roman", serif' : editorFamily;
     const styles: Record<string, string> = {
       "--notebook-ui-font": uiFamily,
       "--notebook-editor-font": editorFamily,

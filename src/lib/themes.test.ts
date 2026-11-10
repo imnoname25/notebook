@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { isDarkTheme, nextTheme, themeLabel } from "./themes";
+import { isDarkTheme, nextTheme, themeLabel, THEME_REGISTRY, THEMES, themeDefinition } from "./themes";
 
 describe("Notebook themes", () => {
   it("cycles through every supported theme and returns to system", () => {
@@ -20,5 +20,20 @@ describe("Notebook themes", () => {
     expect(isDarkTheme("studio-atelier")).toBe(false);
     expect(themeLabel("studio-graphite")).toBe("Studio Graphite");
     expect(themeLabel("studio-atelier")).toBe("Studio Atelier");
+  });
+});
+
+
+describe("approved visual identity registry", () => {
+  it("retains every persisted identifier and centralizes labels and light/dark mode", () => {
+    expect(Object.keys(THEME_REGISTRY)).toEqual([...THEMES]);
+    expect(["midnight-ink", "paper-coffee", "forest-terminal", "nord-studio"].map(themeLabel)).toEqual(["Cyberdeck", "Writer", "Signal", "Creative"]);
+    expect(isDarkTheme("forest-terminal")).toBe(false);
+    expect(isDarkTheme("midnight-ink")).toBe(true);
+    expect(themeDefinition("retired")).toBe(THEME_REGISTRY.system);
+  });
+  it("keeps independent display fonts within the installed font allowlist", () => {
+    expect(THEME_REGISTRY["forest-terminal"].fonts).toEqual({ ui: "geist", editor: "source-sans-3", title: "manrope" });
+    expect(THEME_REGISTRY["paper-coffee"].fonts?.title).toBe("literata");
   });
 });

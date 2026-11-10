@@ -1,0 +1,1633 @@
+{
+  "themes": {
+    "stats": {
+      "startTime": "2026-11-10T03:44:21.616Z",
+      "duration": 205600.54,
+      "expected": 10,
+      "skipped": 0,
+      "unexpected": 0,
+      "flaky": 0
+    },
+    "browser": "installed Chrome",
+    "server": "real Next.js HTTP",
+    "database": "isolated localhost PostgreSQL 18.6, ICU und",
+    "retries": 0,
+    "tests": [
+      {
+        "file": "auth.setup.ts",
+        "title": "first administrator can complete setup through the real login UI",
+        "project": "setup",
+        "status": "expected",
+        "results": [
+          {
+            "status": "passed",
+            "retry": 0,
+            "durationMs": 6776
+          }
+        ]
+      },
+      {
+        "file": "themes-typography.spec.ts",
+        "title": "studio-graphite: real workspace palettes, fonts, Single/Split and adaptive views",
+        "project": "chromium",
+        "status": "expected",
+        "results": [
+          {
+            "status": "passed",
+            "retry": 0,
+            "durationMs": 24158
+          }
+        ]
+      },
+      {
+        "file": "themes-typography.spec.ts",
+        "title": "studio-atelier: real workspace palettes, fonts, Single/Split and adaptive views",
+        "project": "chromium",
+        "status": "expected",
+        "results": [
+          {
+            "status": "passed",
+            "retry": 0,
+            "durationMs": 17984
+          }
+        ]
+      },
+      {
+        "file": "themes-typography.spec.ts",
+        "title": "midnight-ink: real workspace palettes, fonts, Single/Split and adaptive views",
+        "project": "chromium",
+        "status": "expected",
+        "results": [
+          {
+            "status": "passed",
+            "retry": 0,
+            "durationMs": 18731
+          }
+        ]
+      },
+      {
+        "file": "themes-typography.spec.ts",
+        "title": "paper-coffee: real workspace palettes, fonts, Single/Split and adaptive views",
+        "project": "chromium",
+        "status": "expected",
+        "results": [
+          {
+            "status": "passed",
+            "retry": 0,
+            "durationMs": 17995
+          }
+        ]
+      },
+      {
+        "file": "themes-typography.spec.ts",
+        "title": "forest-terminal: real workspace palettes, fonts, Single/Split and adaptive views",
+        "project": "chromium",
+        "status": "expected",
+        "results": [
+          {
+            "status": "passed",
+            "retry": 0,
+            "durationMs": 18487
+          }
+        ]
+      },
+      {
+        "file": "themes-typography.spec.ts",
+        "title": "nord-studio: real workspace palettes, fonts, Single/Split and adaptive views",
+        "project": "chromium",
+        "status": "expected",
+        "results": [
+          {
+            "status": "passed",
+            "retry": 0,
+            "durationMs": 18016
+          }
+        ]
+      },
+      {
+        "file": "themes-typography.spec.ts",
+        "title": "independent typography persists, synchronizes, retries and preserves document selection",
+        "project": "chromium",
+        "status": "expected",
+        "results": [
+          {
+            "status": "passed",
+            "retry": 0,
+            "durationMs": 13647
+          }
+        ]
+      },
+      {
+        "file": "themes-typography.spec.ts",
+        "title": "unknown browser theme falls back to system",
+        "project": "chromium",
+        "status": "expected",
+        "results": [
+          {
+            "status": "passed",
+            "retry": 0,
+            "durationMs": 838
+          }
+        ]
+      },
+      {
+        "file": "themes-typography.spec.ts",
+        "title": "approved identities switch through settings and survive reload without Page writes",
+        "project": "chromium",
+        "status": "expected",
+        "results": [
+          {
+            "status": "passed",
+            "retry": 0,
+            "durationMs": 22365
+          }
+        ]
+      }
+    ]
+  },
+  "full": {
+    "stats": {
+      "startTime": "2026-11-10T03:47:57.339Z",
+      "duration": 1706421.9170000001,
+      "expected": 113,
+      "skipped": 0,
+      "unexpected": 0,
+      "flaky": 0
+    },
+    "browser": "installed Chrome",
+    "server": "real Next.js HTTP",
+    "database": "isolated localhost PostgreSQL 18.6, ICU und",
+    "retries": 0,
+    "tests": [
+      {
+        "file": "auth.setup.ts",
+        "title": "first administrator can complete setup through the real login UI",
+        "project": "setup",
+        "status": "expected",
+        "results": [
+          {
+            "status": "passed",
+            "retry": 0,
+            "durationMs": 3975
+          }
+        ]
+      },
+      {
+        "file": "appearance.spec.ts",
+        "title": "appearance stays readable, bounded and participates in mobile Back",
+        "project": "chromium",
+        "status": "expected",
+        "results": [
+          {
+            "status": "passed",
+            "retry": 0,
+            "durationMs": 10455
+          }
+        ]
+      },
+      {
+        "file": "daily-editing.spec.ts",
+        "title": "studio-graphite: headings, native slash, presets, touch and independent Split commands",
+        "project": "chromium",
+        "status": "expected",
+        "results": [
+          {
+            "status": "passed",
+            "retry": 0,
+            "durationMs": 52882
+          }
+        ]
+      },
+      {
+        "file": "daily-editing.spec.ts",
+        "title": "studio-atelier: headings, native slash, presets, touch and independent Split commands",
+        "project": "chromium",
+        "status": "expected",
+        "results": [
+          {
+            "status": "passed",
+            "retry": 0,
+            "durationMs": 47848
+          }
+        ]
+      },
+      {
+        "file": "daily-workflow.spec.ts",
+        "title": "quick capture converts to a tagged page and mobile Back closes its sheet",
+        "project": "chromium",
+        "status": "expected",
+        "results": [
+          {
+            "status": "passed",
+            "retry": 0,
+            "durationMs": 8008
+          }
+        ]
+      },
+      {
+        "file": "document-tabs.spec.ts",
+        "title": "studio-graphite: pending save, failed close, session and responsive tabs",
+        "project": "chromium",
+        "status": "expected",
+        "results": [
+          {
+            "status": "passed",
+            "retry": 0,
+            "durationMs": 13950
+          }
+        ]
+      },
+      {
+        "file": "document-tabs.spec.ts",
+        "title": "studio-atelier: pending save, failed close, session and responsive tabs",
+        "project": "chromium",
+        "status": "expected",
+        "results": [
+          {
+            "status": "passed",
+            "retry": 0,
+            "durationMs": 13315
+          }
+        ]
+      },
+      {
+        "file": "drag-handles.spec.ts",
+        "title": "studio-graphite: page rows drag without handles, accidental navigation or action conflicts",
+        "project": "chromium",
+        "status": "expected",
+        "results": [
+          {
+            "status": "passed",
+            "retry": 0,
+            "durationMs": 20117
+          }
+        ]
+      },
+      {
+        "file": "drag-handles.spec.ts",
+        "title": "studio-graphite: native block handle, insert, drag, text selection, template and touch menus",
+        "project": "chromium",
+        "status": "expected",
+        "results": [
+          {
+            "status": "passed",
+            "retry": 0,
+            "durationMs": 38083
+          }
+        ]
+      },
+      {
+        "file": "drag-handles.spec.ts",
+        "title": "studio-atelier: page rows drag without handles, accidental navigation or action conflicts",
+        "project": "chromium",
+        "status": "expected",
+        "results": [
+          {
+            "status": "passed",
+            "retry": 0,
+            "durationMs": 19482
+          }
+        ]
+      },
+      {
+        "file": "drag-handles.spec.ts",
+        "title": "studio-atelier: native block handle, insert, drag, text selection, template and touch menus",
+        "project": "chromium",
+        "status": "expected",
+        "results": [
+          {
+            "status": "passed",
+            "retry": 0,
+            "durationMs": 38335
+          }
+        ]
+      },
+      {
+        "file": "editor-advanced.spec.ts",
+        "title": "studio-graphite: native toggle keyboard, nested outline, export and unknown block protection",
+        "project": "chromium",
+        "status": "expected",
+        "results": [
+          {
+            "status": "passed",
+            "retry": 0,
+            "durationMs": 10077
+          }
+        ]
+      },
+      {
+        "file": "editor-advanced.spec.ts",
+        "title": "studio-atelier: native toggle keyboard, nested outline, export and unknown block protection",
+        "project": "chromium",
+        "status": "expected",
+        "results": [
+          {
+            "status": "passed",
+            "retry": 0,
+            "durationMs": 10117
+          }
+        ]
+      },
+      {
+        "file": "editor-fundamentals.spec.ts",
+        "title": "studio-graphite: plain text lines and blank lines are independent blocks",
+        "project": "chromium",
+        "status": "expected",
+        "results": [
+          {
+            "status": "passed",
+            "retry": 0,
+            "durationMs": 4455
+          }
+        ]
+      },
+      {
+        "file": "editor-fundamentals.spec.ts",
+        "title": "studio-graphite: native selection transforms each independent block",
+        "project": "chromium",
+        "status": "expected",
+        "results": [
+          {
+            "status": "passed",
+            "retry": 0,
+            "durationMs": 19564
+          }
+        ]
+      },
+      {
+        "file": "editor-fundamentals.spec.ts",
+        "title": "studio-graphite: imported transparent background is not a decorative brace",
+        "project": "chromium",
+        "status": "expected",
+        "results": [
+          {
+            "status": "passed",
+            "retry": 0,
+            "durationMs": 6035
+          }
+        ]
+      },
+      {
+        "file": "editor-fundamentals.spec.ts",
+        "title": "studio-graphite: single editor uses pane width for wide blocks",
+        "project": "chromium",
+        "status": "expected",
+        "results": [
+          {
+            "status": "passed",
+            "retry": 0,
+            "durationMs": 7538
+          }
+        ]
+      },
+      {
+        "file": "editor-fundamentals.spec.ts",
+        "title": "studio-graphite: paste preserves context, literal characters, rich HTML, code and Enter semantics",
+        "project": "chromium",
+        "status": "expected",
+        "results": [
+          {
+            "status": "passed",
+            "retry": 0,
+            "durationMs": 37442
+          }
+        ]
+      },
+      {
+        "file": "editor-fundamentals.spec.ts",
+        "title": "studio-graphite: insert above and below focuses editable siblings without losing nested blocks",
+        "project": "chromium",
+        "status": "expected",
+        "results": [
+          {
+            "status": "passed",
+            "retry": 0,
+            "durationMs": 10743
+          }
+        ]
+      },
+      {
+        "file": "editor-fundamentals.spec.ts",
+        "title": "studio-graphite: template editor shares paste and independent transformations",
+        "project": "chromium",
+        "status": "expected",
+        "results": [
+          {
+            "status": "passed",
+            "retry": 0,
+            "durationMs": 4548
+          }
+        ]
+      },
+      {
+        "file": "editor-fundamentals.spec.ts",
+        "title": "studio-atelier: plain text lines and blank lines are independent blocks",
+        "project": "chromium",
+        "status": "expected",
+        "results": [
+          {
+            "status": "passed",
+            "retry": 0,
+            "durationMs": 4530
+          }
+        ]
+      },
+      {
+        "file": "editor-fundamentals.spec.ts",
+        "title": "studio-atelier: native selection transforms each independent block",
+        "project": "chromium",
+        "status": "expected",
+        "results": [
+          {
+            "status": "passed",
+            "retry": 0,
+            "durationMs": 19358
+          }
+        ]
+      },
+      {
+        "file": "editor-fundamentals.spec.ts",
+        "title": "studio-atelier: imported transparent background is not a decorative brace",
+        "project": "chromium",
+        "status": "expected",
+        "results": [
+          {
+            "status": "passed",
+            "retry": 0,
+            "durationMs": 6588
+          }
+        ]
+      },
+      {
+        "file": "editor-fundamentals.spec.ts",
+        "title": "studio-atelier: single editor uses pane width for wide blocks",
+        "project": "chromium",
+        "status": "expected",
+        "results": [
+          {
+            "status": "passed",
+            "retry": 0,
+            "durationMs": 7548
+          }
+        ]
+      },
+      {
+        "file": "editor-fundamentals.spec.ts",
+        "title": "studio-atelier: paste preserves context, literal characters, rich HTML, code and Enter semantics",
+        "project": "chromium",
+        "status": "expected",
+        "results": [
+          {
+            "status": "passed",
+            "retry": 0,
+            "durationMs": 38226
+          }
+        ]
+      },
+      {
+        "file": "editor-fundamentals.spec.ts",
+        "title": "studio-atelier: insert above and below focuses editable siblings without losing nested blocks",
+        "project": "chromium",
+        "status": "expected",
+        "results": [
+          {
+            "status": "passed",
+            "retry": 0,
+            "durationMs": 10528
+          }
+        ]
+      },
+      {
+        "file": "editor-fundamentals.spec.ts",
+        "title": "studio-atelier: template editor shares paste and independent transformations",
+        "project": "chromium",
+        "status": "expected",
+        "results": [
+          {
+            "status": "passed",
+            "retry": 0,
+            "durationMs": 4945
+          }
+        ]
+      },
+      {
+        "file": "editor-layout.spec.ts",
+        "title": "editor canvas stays left-aligned and lets wide blocks use the pane",
+        "project": "chromium",
+        "status": "expected",
+        "results": [
+          {
+            "status": "passed",
+            "retry": 0,
+            "durationMs": 22215
+          }
+        ]
+      },
+      {
+        "file": "exact-search.spec.ts",
+        "title": "studio-graphite: search result scrolls to its snippet without saving highlights",
+        "project": "chromium",
+        "status": "expected",
+        "results": [
+          {
+            "status": "passed",
+            "retry": 0,
+            "durationMs": 5906
+          }
+        ]
+      },
+      {
+        "file": "exact-search.spec.ts",
+        "title": "studio-atelier: search result scrolls to its snippet without saving highlights",
+        "project": "chromium",
+        "status": "expected",
+        "results": [
+          {
+            "status": "passed",
+            "retry": 0,
+            "durationMs": 5988
+          }
+        ]
+      },
+      {
+        "file": "history-recovery.spec.ts",
+        "title": "studio-graphite: structural diff, block recovery, restore and crash draft conflict",
+        "project": "chromium",
+        "status": "expected",
+        "results": [
+          {
+            "status": "passed",
+            "retry": 0,
+            "durationMs": 24770
+          }
+        ]
+      },
+      {
+        "file": "history-recovery.spec.ts",
+        "title": "studio-atelier: structural diff, block recovery, restore and crash draft conflict",
+        "project": "chromium",
+        "status": "expected",
+        "results": [
+          {
+            "status": "passed",
+            "retry": 0,
+            "durationMs": 22614
+          }
+        ]
+      },
+      {
+        "file": "history-recovery.spec.ts",
+        "title": "real renderer crash preserves a draft; explicit discard does not repeat",
+        "project": "chromium",
+        "status": "expected",
+        "results": [
+          {
+            "status": "passed",
+            "retry": 0,
+            "durationMs": 10872
+          }
+        ]
+      },
+      {
+        "file": "history-recovery.spec.ts",
+        "title": "history pagination, stale HTTP writers, foreign account and unchanged export format",
+        "project": "chromium",
+        "status": "expected",
+        "results": [
+          {
+            "status": "passed",
+            "retry": 0,
+            "durationMs": 2495
+          }
+        ]
+      },
+      {
+        "file": "internal-links.spec.ts",
+        "title": "studio-graphite: inline links, alias, adjacent pane and live backlinks",
+        "project": "chromium",
+        "status": "expected",
+        "results": [
+          {
+            "status": "passed",
+            "retry": 0,
+            "durationMs": 16928
+          }
+        ]
+      },
+      {
+        "file": "internal-links.spec.ts",
+        "title": "studio-atelier: inline links, alias, adjacent pane and live backlinks",
+        "project": "chromium",
+        "status": "expected",
+        "results": [
+          {
+            "status": "passed",
+            "retry": 0,
+            "durationMs": 17086
+          }
+        ]
+      },
+      {
+        "file": "legacy-nesting.spec.ts",
+        "title": "studio-graphite: legacy paragraph nesting keeps data and functional markers",
+        "project": "chromium",
+        "status": "expected",
+        "results": [
+          {
+            "status": "passed",
+            "retry": 0,
+            "durationMs": 6029
+          }
+        ]
+      },
+      {
+        "file": "legacy-nesting.spec.ts",
+        "title": "studio-atelier: legacy paragraph nesting keeps data and functional markers",
+        "project": "chromium",
+        "status": "expected",
+        "results": [
+          {
+            "status": "passed",
+            "retry": 0,
+            "durationMs": 6002
+          }
+        ]
+      },
+      {
+        "file": "mobile-shell.spec.ts",
+        "title": "light: mobile shell keeps a compact safe-area-aware header",
+        "project": "chromium",
+        "status": "expected",
+        "results": [
+          {
+            "status": "passed",
+            "retry": 0,
+            "durationMs": 5608
+          }
+        ]
+      },
+      {
+        "file": "mobile-shell.spec.ts",
+        "title": "studio-graphite: mobile shell keeps a compact safe-area-aware header",
+        "project": "chromium",
+        "status": "expected",
+        "results": [
+          {
+            "status": "passed",
+            "retry": 0,
+            "durationMs": 5197
+          }
+        ]
+      },
+      {
+        "file": "mobile-shell.spec.ts",
+        "title": "studio-atelier: mobile shell keeps a compact safe-area-aware header",
+        "project": "chromium",
+        "status": "expected",
+        "results": [
+          {
+            "status": "passed",
+            "retry": 0,
+            "durationMs": 5218
+          }
+        ]
+      },
+      {
+        "file": "mobile-shell.spec.ts",
+        "title": "mobile Back follows editor, pages, notebooks and overlay levels",
+        "project": "chromium",
+        "status": "expected",
+        "results": [
+          {
+            "status": "passed",
+            "retry": 0,
+            "durationMs": 8067
+          }
+        ]
+      },
+      {
+        "file": "notebook.spec.ts",
+        "title": "user can write, search, restore and reorder notes",
+        "project": "chromium",
+        "status": "expected",
+        "results": [
+          {
+            "status": "passed",
+            "retry": 0,
+            "durationMs": 14299
+          }
+        ]
+      },
+      {
+        "file": "notebook.spec.ts",
+        "title": "page version can be previewed and restored without a stale autosave overwrite",
+        "project": "chromium",
+        "status": "expected",
+        "results": [
+          {
+            "status": "passed",
+            "retry": 0,
+            "durationMs": 10168
+          }
+        ]
+      },
+      {
+        "file": "notebook.spec.ts",
+        "title": "page move updates breadcrumbs and persists its destination",
+        "project": "chromium",
+        "status": "expected",
+        "results": [
+          {
+            "status": "passed",
+            "retry": 0,
+            "durationMs": 10006
+          }
+        ]
+      },
+      {
+        "file": "notebook.spec.ts",
+        "title": "notebook appearance survives reload",
+        "project": "chromium",
+        "status": "expected",
+        "results": [
+          {
+            "status": "passed",
+            "retry": 0,
+            "durationMs": 7586
+          }
+        ]
+      },
+      {
+        "file": "notebook.spec.ts",
+        "title": "overview, recent, outline, quick switcher and undo form one workflow",
+        "project": "chromium",
+        "status": "expected",
+        "results": [
+          {
+            "status": "passed",
+            "retry": 0,
+            "durationMs": 8548
+          }
+        ]
+      },
+      {
+        "file": "quick-search.spec.ts",
+        "title": "studio-graphite: quick search uses real content results without leaving the editor",
+        "project": "chromium",
+        "status": "expected",
+        "results": [
+          {
+            "status": "passed",
+            "retry": 0,
+            "durationMs": 6808
+          }
+        ]
+      },
+      {
+        "file": "quick-search.spec.ts",
+        "title": "studio-atelier: quick search uses real content results without leaving the editor",
+        "project": "chromium",
+        "status": "expected",
+        "results": [
+          {
+            "status": "passed",
+            "retry": 0,
+            "durationMs": 6908
+          }
+        ]
+      },
+      {
+        "file": "security.spec.ts",
+        "title": "new sensitive APIs require authentication",
+        "project": "chromium",
+        "status": "expected",
+        "results": [
+          {
+            "status": "passed",
+            "retry": 0,
+            "durationMs": 8672
+          }
+        ]
+      },
+      {
+        "file": "split-workspace.spec.ts",
+        "title": "studio-graphite: independent writers, failed close, pane transfer and responsive restoration",
+        "project": "chromium",
+        "status": "expected",
+        "results": [
+          {
+            "status": "passed",
+            "retry": 0,
+            "durationMs": 20549
+          }
+        ]
+      },
+      {
+        "file": "split-workspace.spec.ts",
+        "title": "studio-atelier: independent writers, failed close, pane transfer and responsive restoration",
+        "project": "chromium",
+        "status": "expected",
+        "results": [
+          {
+            "status": "passed",
+            "retry": 0,
+            "durationMs": 20151
+          }
+        ]
+      },
+      {
+        "file": "stage4.spec.ts",
+        "title": "notebook export with attachment can be previewed and imported",
+        "project": "chromium",
+        "status": "expected",
+        "results": [
+          {
+            "status": "passed",
+            "retry": 0,
+            "durationMs": 10278
+          }
+        ]
+      },
+      {
+        "file": "stage4.spec.ts",
+        "title": "internal page link navigates by stable page ID and browser Back returns",
+        "project": "chromium",
+        "status": "expected",
+        "results": [
+          {
+            "status": "passed",
+            "retry": 0,
+            "durationMs": 7245
+          }
+        ]
+      },
+      {
+        "file": "stage4.spec.ts",
+        "title": "mobile sequential navigation, search and Back remain usable",
+        "project": "chromium",
+        "status": "expected",
+        "results": [
+          {
+            "status": "passed",
+            "retry": 0,
+            "durationMs": 6474
+          }
+        ]
+      },
+      {
+        "file": "stage4.spec.ts",
+        "title": "backup restore replaces content but keeps current admin",
+        "project": "chromium",
+        "status": "expected",
+        "results": [
+          {
+            "status": "passed",
+            "retry": 0,
+            "durationMs": 6101
+          }
+        ]
+      },
+      {
+        "file": "stage5.spec.ts",
+        "title": "editor settings persist and remain usable on mobile",
+        "project": "chromium",
+        "status": "expected",
+        "results": [
+          {
+            "status": "passed",
+            "retry": 0,
+            "durationMs": 5855
+          }
+        ]
+      },
+      {
+        "file": "stage5.spec.ts",
+        "title": "manual backup appears in settings and can be deleted",
+        "project": "chromium",
+        "status": "expected",
+        "results": [
+          {
+            "status": "passed",
+            "retry": 0,
+            "durationMs": 3858
+          }
+        ]
+      },
+      {
+        "file": "stage5.spec.ts",
+        "title": "custom callout and safe code language survive reload",
+        "project": "chromium",
+        "status": "expected",
+        "results": [
+          {
+            "status": "passed",
+            "retry": 0,
+            "durationMs": 7850
+          }
+        ]
+      },
+      {
+        "file": "stage5.spec.ts",
+        "title": "tabs, collapse, TOC and block deep links preserve editor structure on mobile",
+        "project": "chromium",
+        "status": "expected",
+        "results": [
+          {
+            "status": "passed",
+            "retry": 0,
+            "durationMs": 6362
+          }
+        ]
+      },
+      {
+        "file": "stage6.spec.ts",
+        "title": "PostgreSQL FTS ranks title, opens RU/EN result and renders safe highlight",
+        "project": "chromium",
+        "status": "expected",
+        "results": [
+          {
+            "status": "passed",
+            "retry": 0,
+            "durationMs": 7599
+          }
+        ]
+      },
+      {
+        "file": "stage6.spec.ts",
+        "title": "custom template creates a page with BlockNote custom blocks",
+        "project": "chromium",
+        "status": "expected",
+        "results": [
+          {
+            "status": "passed",
+            "retry": 0,
+            "durationMs": 8024
+          }
+        ]
+      },
+      {
+        "file": "stage6.spec.ts",
+        "title": "print dialog and standalone HTML export are available",
+        "project": "chromium",
+        "status": "expected",
+        "results": [
+          {
+            "status": "passed",
+            "retry": 0,
+            "durationMs": 5617
+          }
+        ]
+      },
+      {
+        "file": "sticker-board.spec.ts",
+        "title": "sticker board creates multiple cards without leaving the board",
+        "project": "chromium",
+        "status": "expected",
+        "results": [
+          {
+            "status": "passed",
+            "retry": 0,
+            "durationMs": 6402
+          }
+        ]
+      },
+      {
+        "file": "sticker-board.spec.ts",
+        "title": "studio-graphite: freeform canvas is isolated from Today and mobile",
+        "project": "chromium",
+        "status": "expected",
+        "results": [
+          {
+            "status": "passed",
+            "retry": 0,
+            "durationMs": 7700
+          }
+        ]
+      },
+      {
+        "file": "sticker-board.spec.ts",
+        "title": "studio-atelier: freeform canvas is isolated from Today and mobile",
+        "project": "chromium",
+        "status": "expected",
+        "results": [
+          {
+            "status": "passed",
+            "retry": 0,
+            "durationMs": 7230
+          }
+        ]
+      },
+      {
+        "file": "sticker-checklists.spec.ts",
+        "title": "studio-graphite: checklist editing, card toggles, persistence and portable import",
+        "project": "chromium",
+        "status": "expected",
+        "results": [
+          {
+            "status": "passed",
+            "retry": 0,
+            "durationMs": 8567
+          }
+        ]
+      },
+      {
+        "file": "sticker-checklists.spec.ts",
+        "title": "studio-atelier: checklist editing, card toggles, persistence and portable import",
+        "project": "chromium",
+        "status": "expected",
+        "results": [
+          {
+            "status": "passed",
+            "retry": 0,
+            "durationMs": 10273
+          }
+        ]
+      },
+      {
+        "file": "studio-mobile.spec.ts",
+        "title": "studio-graphite: compact drawer, readable tables, stable editor and focus",
+        "project": "chromium",
+        "status": "expected",
+        "results": [
+          {
+            "status": "passed",
+            "retry": 0,
+            "durationMs": 17211
+          }
+        ]
+      },
+      {
+        "file": "studio-mobile.spec.ts",
+        "title": "studio-atelier: compact drawer, readable tables, stable editor and focus",
+        "project": "chromium",
+        "status": "expected",
+        "results": [
+          {
+            "status": "passed",
+            "retry": 0,
+            "durationMs": 15015
+          }
+        ]
+      },
+      {
+        "file": "studio-polish.spec.ts",
+        "title": "studio-graphite: sticker resize persists without changing content or mobile geometry",
+        "project": "chromium",
+        "status": "expected",
+        "results": [
+          {
+            "status": "passed",
+            "retry": 0,
+            "durationMs": 4928
+          }
+        ]
+      },
+      {
+        "file": "studio-polish.spec.ts",
+        "title": "studio-graphite: row dragging preserves sibling scope and keyboard access",
+        "project": "chromium",
+        "status": "expected",
+        "results": [
+          {
+            "status": "passed",
+            "retry": 0,
+            "durationMs": 8327
+          }
+        ]
+      },
+      {
+        "file": "studio-polish.spec.ts",
+        "title": "studio-atelier: sticker resize persists without changing content or mobile geometry",
+        "project": "chromium",
+        "status": "expected",
+        "results": [
+          {
+            "status": "passed",
+            "retry": 0,
+            "durationMs": 5294
+          }
+        ]
+      },
+      {
+        "file": "studio-polish.spec.ts",
+        "title": "studio-atelier: row dragging preserves sibling scope and keyboard access",
+        "project": "chromium",
+        "status": "expected",
+        "results": [
+          {
+            "status": "passed",
+            "retry": 0,
+            "durationMs": 8322
+          }
+        ]
+      },
+      {
+        "file": "studio.spec.ts",
+        "title": "studio-graphite: responsive composition, persistence and pending autosave",
+        "project": "chromium",
+        "status": "expected",
+        "results": [
+          {
+            "status": "passed",
+            "retry": 0,
+            "durationMs": 44987
+          }
+        ]
+      },
+      {
+        "file": "studio.spec.ts",
+        "title": "studio-atelier: responsive composition, persistence and pending autosave",
+        "project": "chromium",
+        "status": "expected",
+        "results": [
+          {
+            "status": "passed",
+            "retry": 0,
+            "durationMs": 44876
+          }
+        ]
+      },
+      {
+        "file": "template-integrity.spec.ts",
+        "title": "studio-graphite: real ZIP restore, template links, new block IDs and safe code",
+        "project": "chromium",
+        "status": "expected",
+        "results": [
+          {
+            "status": "passed",
+            "retry": 0,
+            "durationMs": 15337
+          }
+        ]
+      },
+      {
+        "file": "template-integrity.spec.ts",
+        "title": "studio-atelier: real ZIP restore, template links, new block IDs and safe code",
+        "project": "chromium",
+        "status": "expected",
+        "results": [
+          {
+            "status": "passed",
+            "retry": 0,
+            "durationMs": 12473
+          }
+        ]
+      },
+      {
+        "file": "templates-tables.spec.ts",
+        "title": "studio-graphite: template shared UI, dirty close, save errors, optimistic conflict and links",
+        "project": "chromium",
+        "status": "expected",
+        "results": [
+          {
+            "status": "passed",
+            "retry": 0,
+            "durationMs": 16787
+          }
+        ]
+      },
+      {
+        "file": "templates-tables.spec.ts",
+        "title": "studio-graphite: native tables touch CRUD, selection, paste, widths and structural columns",
+        "project": "chromium",
+        "status": "expected",
+        "results": [
+          {
+            "status": "passed",
+            "retry": 0,
+            "durationMs": 47789
+          }
+        ]
+      },
+      {
+        "file": "templates-tables.spec.ts",
+        "title": "studio-atelier: template shared UI, dirty close, save errors, optimistic conflict and links",
+        "project": "chromium",
+        "status": "expected",
+        "results": [
+          {
+            "status": "passed",
+            "retry": 0,
+            "durationMs": 17237
+          }
+        ]
+      },
+      {
+        "file": "templates-tables.spec.ts",
+        "title": "studio-atelier: native tables touch CRUD, selection, paste, widths and structural columns",
+        "project": "chromium",
+        "status": "expected",
+        "results": [
+          {
+            "status": "passed",
+            "retry": 0,
+            "durationMs": 47091
+          }
+        ]
+      },
+      {
+        "file": "themes-typography.spec.ts",
+        "title": "studio-graphite: real workspace palettes, fonts, Single/Split and adaptive views",
+        "project": "chromium",
+        "status": "expected",
+        "results": [
+          {
+            "status": "passed",
+            "retry": 0,
+            "durationMs": 17513
+          }
+        ]
+      },
+      {
+        "file": "themes-typography.spec.ts",
+        "title": "studio-atelier: real workspace palettes, fonts, Single/Split and adaptive views",
+        "project": "chromium",
+        "status": "expected",
+        "results": [
+          {
+            "status": "passed",
+            "retry": 0,
+            "durationMs": 17405
+          }
+        ]
+      },
+      {
+        "file": "themes-typography.spec.ts",
+        "title": "midnight-ink: real workspace palettes, fonts, Single/Split and adaptive views",
+        "project": "chromium",
+        "status": "expected",
+        "results": [
+          {
+            "status": "passed",
+            "retry": 0,
+            "durationMs": 17767
+          }
+        ]
+      },
+      {
+        "file": "themes-typography.spec.ts",
+        "title": "paper-coffee: real workspace palettes, fonts, Single/Split and adaptive views",
+        "project": "chromium",
+        "status": "expected",
+        "results": [
+          {
+            "status": "passed",
+            "retry": 0,
+            "durationMs": 18369
+          }
+        ]
+      },
+      {
+        "file": "themes-typography.spec.ts",
+        "title": "forest-terminal: real workspace palettes, fonts, Single/Split and adaptive views",
+        "project": "chromium",
+        "status": "expected",
+        "results": [
+          {
+            "status": "passed",
+            "retry": 0,
+            "durationMs": 19597
+          }
+        ]
+      },
+      {
+        "file": "themes-typography.spec.ts",
+        "title": "nord-studio: real workspace palettes, fonts, Single/Split and adaptive views",
+        "project": "chromium",
+        "status": "expected",
+        "results": [
+          {
+            "status": "passed",
+            "retry": 0,
+            "durationMs": 18662
+          }
+        ]
+      },
+      {
+        "file": "themes-typography.spec.ts",
+        "title": "independent typography persists, synchronizes, retries and preserves document selection",
+        "project": "chromium",
+        "status": "expected",
+        "results": [
+          {
+            "status": "passed",
+            "retry": 0,
+            "durationMs": 14965
+          }
+        ]
+      },
+      {
+        "file": "themes-typography.spec.ts",
+        "title": "unknown browser theme falls back to system",
+        "project": "chromium",
+        "status": "expected",
+        "results": [
+          {
+            "status": "passed",
+            "retry": 0,
+            "durationMs": 891
+          }
+        ]
+      },
+      {
+        "file": "themes-typography.spec.ts",
+        "title": "approved identities switch through settings and survive reload without Page writes",
+        "project": "chromium",
+        "status": "expected",
+        "results": [
+          {
+            "status": "passed",
+            "retry": 0,
+            "durationMs": 23278
+          }
+        ]
+      },
+      {
+        "file": "unified-block-controls.spec.ts",
+        "title": "studio-graphite: unified table block controls",
+        "project": "chromium",
+        "status": "expected",
+        "results": [
+          {
+            "status": "passed",
+            "retry": 0,
+            "durationMs": 38362
+          }
+        ]
+      },
+      {
+        "file": "unified-block-controls.spec.ts",
+        "title": "studio-atelier: unified table block controls",
+        "project": "chromium",
+        "status": "expected",
+        "results": [
+          {
+            "status": "passed",
+            "retry": 0,
+            "durationMs": 35337
+          }
+        ]
+      },
+      {
+        "file": "unified-search.spec.ts",
+        "title": "studio-graphite: unified search, history, filters, autosave and responsive layout",
+        "project": "chromium",
+        "status": "expected",
+        "results": [
+          {
+            "status": "passed",
+            "retry": 0,
+            "durationMs": 21787
+          }
+        ]
+      },
+      {
+        "file": "unified-search.spec.ts",
+        "title": "studio-atelier: unified search, history, filters, autosave and responsive layout",
+        "project": "chromium",
+        "status": "expected",
+        "results": [
+          {
+            "status": "passed",
+            "retry": 0,
+            "durationMs": 21942
+          }
+        ]
+      },
+      {
+        "file": "visual-refresh.spec.ts",
+        "title": "all themes persist and system follows the device",
+        "project": "chromium",
+        "status": "expected",
+        "results": [
+          {
+            "status": "passed",
+            "retry": 0,
+            "durationMs": 4052
+          }
+        ]
+      },
+      {
+        "file": "visual-refresh.spec.ts",
+        "title": "theme menu persists system → light after reload",
+        "project": "chromium",
+        "status": "expected",
+        "results": [
+          {
+            "status": "passed",
+            "retry": 0,
+            "durationMs": 7026
+          }
+        ]
+      },
+      {
+        "file": "visual-refresh.spec.ts",
+        "title": "theme menu persists light → dark after reload",
+        "project": "chromium",
+        "status": "expected",
+        "results": [
+          {
+            "status": "passed",
+            "retry": 0,
+            "durationMs": 8321
+          }
+        ]
+      },
+      {
+        "file": "visual-refresh.spec.ts",
+        "title": "theme menu persists dark → atmospheric after reload",
+        "project": "chromium",
+        "status": "expected",
+        "results": [
+          {
+            "status": "passed",
+            "retry": 0,
+            "durationMs": 7618
+          }
+        ]
+      },
+      {
+        "file": "visual-refresh.spec.ts",
+        "title": "theme menu persists atmospheric → studio-graphite after reload",
+        "project": "chromium",
+        "status": "expected",
+        "results": [
+          {
+            "status": "passed",
+            "retry": 0,
+            "durationMs": 7842
+          }
+        ]
+      },
+      {
+        "file": "visual-refresh.spec.ts",
+        "title": "theme menu persists studio-graphite → studio-atelier after reload",
+        "project": "chromium",
+        "status": "expected",
+        "results": [
+          {
+            "status": "passed",
+            "retry": 0,
+            "durationMs": 8624
+          }
+        ]
+      },
+      {
+        "file": "visual-refresh.spec.ts",
+        "title": "theme menu persists studio-atelier → midnight-ink after reload",
+        "project": "chromium",
+        "status": "expected",
+        "results": [
+          {
+            "status": "passed",
+            "retry": 0,
+            "durationMs": 9151
+          }
+        ]
+      },
+      {
+        "file": "visual-refresh.spec.ts",
+        "title": "theme menu persists midnight-ink → paper-coffee after reload",
+        "project": "chromium",
+        "status": "expected",
+        "results": [
+          {
+            "status": "passed",
+            "retry": 0,
+            "durationMs": 9093
+          }
+        ]
+      },
+      {
+        "file": "visual-refresh.spec.ts",
+        "title": "theme menu persists paper-coffee → forest-terminal after reload",
+        "project": "chromium",
+        "status": "expected",
+        "results": [
+          {
+            "status": "passed",
+            "retry": 0,
+            "durationMs": 8278
+          }
+        ]
+      },
+      {
+        "file": "visual-refresh.spec.ts",
+        "title": "theme menu persists forest-terminal → nord-studio after reload",
+        "project": "chromium",
+        "status": "expected",
+        "results": [
+          {
+            "status": "passed",
+            "retry": 0,
+            "durationMs": 8291
+          }
+        ]
+      },
+      {
+        "file": "visual-refresh.spec.ts",
+        "title": "theme menu persists nord-studio → system after reload",
+        "project": "chromium",
+        "status": "expected",
+        "results": [
+          {
+            "status": "passed",
+            "retry": 0,
+            "durationMs": 10354
+          }
+        ]
+      },
+      {
+        "file": "visual-refresh.spec.ts",
+        "title": "legacy nested paragraphs keep real parentheses and list markers on desktop and mobile",
+        "project": "chromium",
+        "status": "expected",
+        "results": [
+          {
+            "status": "passed",
+            "retry": 0,
+            "durationMs": 9888
+          }
+        ]
+      },
+      {
+        "file": "workspace-panels.spec.ts",
+        "title": "studio-graphite: resize, persistence, focus, mobile isolation and safe last close",
+        "project": "chromium",
+        "status": "expected",
+        "results": [
+          {
+            "status": "passed",
+            "retry": 0,
+            "durationMs": 20417
+          }
+        ]
+      },
+      {
+        "file": "workspace-panels.spec.ts",
+        "title": "studio-atelier: resize, persistence, focus, mobile isolation and safe last close",
+        "project": "chromium",
+        "status": "expected",
+        "results": [
+          {
+            "status": "passed",
+            "retry": 0,
+            "durationMs": 19799
+          }
+        ]
+      },
+      {
+        "file": "workspace-responsiveness.spec.ts",
+        "title": "studio-graphite: measured workspace navigation and delayed reads",
+        "project": "chromium",
+        "status": "expected",
+        "results": [
+          {
+            "status": "passed",
+            "retry": 0,
+            "durationMs": 38439
+          }
+        ]
+      },
+      {
+        "file": "workspace-responsiveness.spec.ts",
+        "title": "studio-atelier: measured workspace navigation and delayed reads",
+        "project": "chromium",
+        "status": "expected",
+        "results": [
+          {
+            "status": "passed",
+            "retry": 0,
+            "durationMs": 38613
+          }
+        ]
+      },
+      {
+        "file": "workspace-responsiveness.spec.ts",
+        "title": "studio-graphite: reversed lists, errors, 30 rapid selections and pending autosave",
+        "project": "chromium",
+        "status": "expected",
+        "results": [
+          {
+            "status": "passed",
+            "retry": 0,
+            "durationMs": 11607
+          }
+        ]
+      },
+      {
+        "file": "workspace-responsiveness.spec.ts",
+        "title": "studio-atelier: reversed lists, errors, 30 rapid selections and pending autosave",
+        "project": "chromium",
+        "status": "expected",
+        "results": [
+          {
+            "status": "passed",
+            "retry": 0,
+            "durationMs": 8223
+          }
+        ]
+      }
+    ]
+  }
+}
