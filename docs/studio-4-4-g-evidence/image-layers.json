@@ -1,0 +1,27 @@
+{
+  "revision": "6776c04ff4e6cdfa0e916e8bbd2ad291fc88af84",
+  "imageLayerChecks": {
+    "Signal": true,
+    "Writer": true,
+    "midnight-ink": true,
+    "paper-coffee": true,
+    "forest-terminal": true,
+    "nord-studio": true,
+    "Cyberdeck": true,
+    "Creative": true,
+    "typographyUI": true,
+    "--studio-active-edge": true,
+    "--studio-table-header-bg": true,
+    "--studio-document-gutter": true,
+    "--studio-list-active-bg": true,
+    "tableHorizontalScroll": true,
+    "tableIntrinsicWidth": true,
+    "typographyCSS": true,
+    "appearanceMigration": true
+  },
+  "packagedMigrationsMatchingCommit": 18,
+  "evidence": {
+    "typographyJS": "app/.next/static/chunks/8233-1a4e8b678fcf3932.js",
+    "tableIntrinsicRule": ".notebook-editor .bn-editor [data-content-type=table] .tableWrapper-inner{width:max-content;min-width:0}"
+  }
+}

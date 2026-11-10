@@ -2,7 +2,7 @@
 
 ## Статус
 
-Интеграция утверждённого Round 2. Полный локальный HTTP/Chrome gate прошёл 113/113. Финальные lint, typecheck, unit и production build прошли. Staging-публикация выполняется. До проверки digest и Docker CI образ не считается готовым к установке.
+Интеграция утверждённого Round 2. Полный локальный HTTP/Chrome gate прошёл 113/113. Финальные lint, typecheck, unit и production build прошли. Staging Docker CI, startup smoke и проверка опубликованного digest прошли. Статус CONDITIONAL GO для ручной проверки staging на Windows/Fold.
 
 ## Архитектура
 
@@ -99,3 +99,46 @@ Unit-конфигурация не запускает integration-файлы б�
 - `vitest.config.mts` — разделение unit и documentation capture scripts.
 - `.github/workflows/docker-publish.yml`, `scripts/staging-config-check.mjs`, `.env.staging.example` — отдельный staging G channel и проверка guard.
 - Этот отчёт и `docs/studio-4-4-g-evidence/` — результаты и 59 PNG, включая три контактных листа.
+
+
+## Проверенная публикация
+
+Build commit `6776c04ff4e6cdfa0e916e8bbd2ad291fc88af84` отправлен в `origin/main` и `origin/staging/studio-4.4-e`. Последующий документационный коммит фиксирует полученные CI и registry evidence. Образ связан именно с build commit.
+
+- [Staging Docker CI](https://github.com/imnoname25/notebook/actions/runs/42755401294) — SUCCESS, validate/smoke/publish-staging успешны.
+- [Main Docker CI](https://github.com/imnoname25/notebook/actions/runs/42755396360) — SUCCESS, production publish пропущен согласно promotion guard.
+- [Android CI](https://github.com/imnoname25/notebook/actions/runs/42755396379) — SUCCESS, release job пропущен.
+
+```dotenv
+STAGING_IMAGE=ghcr.io/imnoname25/notebook@sha256:3febafe595a04c320fcd04547691e848136d127b6bd56945ba2544ecd654e49b
+```
+
+GHCR manifests/config подтвердили linux/amd64, OCI revision `6776c04ff4e6cdfa0e916e8bbd2ad291fc88af84`, `NOTEBOOK_CHANNEL=staging` и `PRISMA_SCHEMA_ENGINE_BINARY=/app/prisma/schema-engine`. Теги `staging-4.4-g` и `staging-4.4-g-6776c04ff4e6cdfa0e916e8bbd2ad291fc88af84` разрешились в тот же digest.
+
+Прямое чтение опубликованных CSS/JS слоёв подтвердило все четыре названия и ID, новые семантические токены, настройки типографики, intrinsic width таблиц и горизонтальную прокрутку. Все 18 migration SQL побайтно совпали с build commit. [Registry evidence](studio-4-4-g-evidence/registry.json), [image layers](studio-4-4-g-evidence/image-layers.json), [CI jobs](studio-4-4-g-evidence/ci.json).
+
+Docker CI на PostgreSQL 17 подтвердил offline Prisma CLI, пустую БД, уже применённую схему, restart, upgrade тестовой legacy DB с сохранением content/backlinks/preferences, недоступную БД, зависшую/ошибочную Prisma, отсутствующий engine и health. Локальный Docker engine недоступен, эти runtime/Compose проверки выполнены на GitHub runner.
+
+Production main/edge до и после публикации имеют одинаковый digest `sha256:35c58de7ecaf31551b02451cb6b9bc6fca1de422c24fecdb895c826708d7732e`. Доступ к Unraid и рабочей PostgreSQL в рамках этапа не выполнялся.
+
+### Ручное обновление отдельного staging
+
+Использовать каталог с существующими `docker-compose.staging.yml` и `.env.staging`. Записать прежний immutable `STAGING_IMAGE` для отката. В `.env.staging` заменить только эту строку приведённым выше значением, сохранив существующие staging credentials, hostname и отдельные mounts `/mnt/user/appdata/note-staging/`.
+
+```sh
+docker compose -p notebook-staging -f docker-compose.staging.yml --env-file .env.staging config --quiet
+docker compose -p notebook-staging -f docker-compose.staging.yml --env-file .env.staging pull notebook
+docker compose -p notebook-staging -f docker-compose.staging.yml --env-file .env.staging up -d --no-deps notebook
+docker inspect notebook-staging --format '{{.Config.Image}}'
+docker inspect notebook-staging --format '{{index .Config.Labels "org.opencontainers.image.revision"}}'
+docker inspect notebook-staging --format '{{.State.Health.Status}}'
+docker exec notebook-staging node -e 'fetch("http://127.0.0.1:3000/api/health/ready").then(r=>{console.log(r.status);process.exit(r.ok?0:1)}).catch(()=>process.exit(1))'
+```
+
+Ожидаются приведённый digest, build SHA, `healthy` и HTTP 200 после штатного startup. Compose project — `notebook-staging`, app container — `notebook-staging`, database container — `notebook-staging-postgres`, host port — 3101. Для первой установки использовать isolation/preflight из [staging runbook E.3](STUDIO_STAGING_RELEASE_4_4_E_3.md), включая отдельный hostname.
+
+Для отката staging вернуть сохранённый предыдущий digest в `.env.staging` и повторить `pull notebook` / `up -d --no-deps notebook`. Studio G не добавляет миграций. Постоянные staging mounts сохраняются.
+
+## Итоговый вердикт
+
+CONDITIONAL GO для ручного staging acceptance. Все доступные автоматические gates и проверка опубликованного образа успешны. Физический Fold, Android IME и поведение wrapper после сворачивания остаются ручными сценариями пользователя. Следующий продуктовый этап 4.4-H рассматривается отдельно после этой приёмки.

@@ -1,0 +1,481 @@
+[
+  {
+    "id": 42755401294,
+    "name": "Docker image",
+    "sha": "6776c04ff4e6cdfa0e916e8bbd2ad291fc88af84",
+    "branch": "staging/studio-4.4-e",
+    "status": "completed",
+    "conclusion": "success",
+    "url": "https://github.com/imnoname25/notebook/actions/runs/42755401294",
+    "jobs": [
+      {
+        "id": 129628499710,
+        "name": "validate",
+        "conclusion": "success",
+        "steps": [
+          {
+            "name": "Set up job",
+            "conclusion": "success"
+          },
+          {
+            "name": "Check out repository",
+            "conclusion": "success"
+          },
+          {
+            "name": "Set up Node.js",
+            "conclusion": "success"
+          },
+          {
+            "name": "Install dependencies",
+            "conclusion": "success"
+          },
+          {
+            "name": "Check new commits for secrets",
+            "conclusion": "success"
+          },
+          {
+            "name": "Lint, typecheck, unit tests and production build",
+            "conclusion": "success"
+          },
+          {
+            "name": "Verify shared application version",
+            "conclusion": "success"
+          },
+          {
+            "name": "Verify release tag and shared application version",
+            "conclusion": "skipped"
+          },
+          {
+            "name": "Validate Unraid templates",
+            "conclusion": "success"
+          },
+          {
+            "name": "Validate Docker packaging",
+            "conclusion": "success"
+          },
+          {
+            "name": "Validate Compose configuration (synthetic example, no deployment)",
+            "conclusion": "success"
+          },
+          {
+            "name": "Validate staging isolation and publication guards",
+            "conclusion": "success"
+          },
+          {
+            "name": "Validate isolated staging Compose (synthetic values, no deployment)",
+            "conclusion": "success"
+          },
+          {
+            "name": "Test Unraid deployment safeguards without Docker access",
+            "conclusion": "success"
+          },
+          {
+            "name": "Test PowerShell deployment launcher without SSH access",
+            "conclusion": "success"
+          },
+          {
+            "name": "Record source and migration identity",
+            "conclusion": "success"
+          },
+          {
+            "name": "Run actions/upload-artifact@v6",
+            "conclusion": "success"
+          },
+          {
+            "name": "Post Set up Node.js",
+            "conclusion": "success"
+          },
+          {
+            "name": "Post Check out repository",
+            "conclusion": "success"
+          },
+          {
+            "name": "Complete job",
+            "conclusion": "success"
+          }
+        ]
+      },
+      {
+        "id": 129629701020,
+        "name": "smoke",
+        "conclusion": "success",
+        "steps": [
+          {
+            "name": "Set up job",
+            "conclusion": "success"
+          },
+          {
+            "name": "Check out repository",
+            "conclusion": "success"
+          },
+          {
+            "name": "Set up Docker Buildx",
+            "conclusion": "success"
+          },
+          {
+            "name": "Build amd64 smoke image",
+            "conclusion": "success"
+          },
+          {
+            "name": "Verify image runtime dependencies and permissions",
+            "conclusion": "success"
+          },
+          {
+            "name": "Test migrations, readiness and restart",
+            "conclusion": "success"
+          },
+          {
+            "name": "Export tested staging image",
+            "conclusion": "success"
+          },
+          {
+            "name": "Run actions/upload-artifact@v6",
+            "conclusion": "success"
+          },
+          {
+            "name": "Post Build amd64 smoke image",
+            "conclusion": "success"
+          },
+          {
+            "name": "Post Set up Docker Buildx",
+            "conclusion": "success"
+          },
+          {
+            "name": "Post Check out repository",
+            "conclusion": "success"
+          },
+          {
+            "name": "Complete job",
+            "conclusion": "success"
+          }
+        ]
+      },
+      {
+        "id": 129631376728,
+        "name": "publish-staging",
+        "conclusion": "success",
+        "steps": [
+          {
+            "name": "Set up job",
+            "conclusion": "success"
+          },
+          {
+            "name": "Run actions/download-artifact@v7",
+            "conclusion": "success"
+          },
+          {
+            "name": "Load the exact smoke-tested amd64 image and verify revision",
+            "conclusion": "success"
+          },
+          {
+            "name": "Set up Docker Buildx for registry verification",
+            "conclusion": "success"
+          },
+          {
+            "name": "Log in to GHCR",
+            "conclusion": "success"
+          },
+          {
+            "name": "Publish staging tags only and verify registry digest",
+            "conclusion": "success"
+          },
+          {
+            "name": "Run actions/download-artifact@v7",
+            "conclusion": "success"
+          },
+          {
+            "name": "Bind staging digest to source identity",
+            "conclusion": "success"
+          },
+          {
+            "name": "Run actions/upload-artifact@v6",
+            "conclusion": "success"
+          },
+          {
+            "name": "Post Log in to GHCR",
+            "conclusion": "success"
+          },
+          {
+            "name": "Post Set up Docker Buildx for registry verification",
+            "conclusion": "success"
+          },
+          {
+            "name": "Complete job",
+            "conclusion": "success"
+          }
+        ]
+      },
+      {
+        "id": 129631378715,
+        "name": "publish",
+        "conclusion": "skipped",
+        "steps": []
+      }
+    ]
+  },
+  {
+    "id": 42755396360,
+    "name": "Docker image",
+    "sha": "6776c04ff4e6cdfa0e916e8bbd2ad291fc88af84",
+    "branch": "main",
+    "status": "completed",
+    "conclusion": "success",
+    "url": "https://github.com/imnoname25/notebook/actions/runs/42755396360",
+    "jobs": [
+      {
+        "id": 129628487233,
+        "name": "validate",
+        "conclusion": "success",
+        "steps": [
+          {
+            "name": "Set up job",
+            "conclusion": "success"
+          },
+          {
+            "name": "Check out repository",
+            "conclusion": "success"
+          },
+          {
+            "name": "Set up Node.js",
+            "conclusion": "success"
+          },
+          {
+            "name": "Install dependencies",
+            "conclusion": "success"
+          },
+          {
+            "name": "Check new commits for secrets",
+            "conclusion": "success"
+          },
+          {
+            "name": "Lint, typecheck, unit tests and production build",
+            "conclusion": "success"
+          },
+          {
+            "name": "Verify shared application version",
+            "conclusion": "success"
+          },
+          {
+            "name": "Verify release tag and shared application version",
+            "conclusion": "skipped"
+          },
+          {
+            "name": "Validate Unraid templates",
+            "conclusion": "success"
+          },
+          {
+            "name": "Validate Docker packaging",
+            "conclusion": "success"
+          },
+          {
+            "name": "Validate Compose configuration (synthetic example, no deployment)",
+            "conclusion": "success"
+          },
+          {
+            "name": "Validate staging isolation and publication guards",
+            "conclusion": "success"
+          },
+          {
+            "name": "Validate isolated staging Compose (synthetic values, no deployment)",
+            "conclusion": "success"
+          },
+          {
+            "name": "Test Unraid deployment safeguards without Docker access",
+            "conclusion": "success"
+          },
+          {
+            "name": "Test PowerShell deployment launcher without SSH access",
+            "conclusion": "success"
+          },
+          {
+            "name": "Record source and migration identity",
+            "conclusion": "success"
+          },
+          {
+            "name": "Run actions/upload-artifact@v6",
+            "conclusion": "success"
+          },
+          {
+            "name": "Post Set up Node.js",
+            "conclusion": "success"
+          },
+          {
+            "name": "Post Check out repository",
+            "conclusion": "success"
+          },
+          {
+            "name": "Complete job",
+            "conclusion": "success"
+          }
+        ]
+      },
+      {
+        "id": 129629577747,
+        "name": "smoke",
+        "conclusion": "success",
+        "steps": [
+          {
+            "name": "Set up job",
+            "conclusion": "success"
+          },
+          {
+            "name": "Check out repository",
+            "conclusion": "success"
+          },
+          {
+            "name": "Set up Docker Buildx",
+            "conclusion": "success"
+          },
+          {
+            "name": "Build amd64 smoke image",
+            "conclusion": "success"
+          },
+          {
+            "name": "Verify image runtime dependencies and permissions",
+            "conclusion": "success"
+          },
+          {
+            "name": "Test migrations, readiness and restart",
+            "conclusion": "success"
+          },
+          {
+            "name": "Export tested staging image",
+            "conclusion": "skipped"
+          },
+          {
+            "name": "Run actions/upload-artifact@v6",
+            "conclusion": "skipped"
+          },
+          {
+            "name": "Post Build amd64 smoke image",
+            "conclusion": "success"
+          },
+          {
+            "name": "Post Set up Docker Buildx",
+            "conclusion": "success"
+          },
+          {
+            "name": "Post Check out repository",
+            "conclusion": "success"
+          },
+          {
+            "name": "Complete job",
+            "conclusion": "success"
+          }
+        ]
+      },
+      {
+        "id": 129631385969,
+        "name": "publish-staging",
+        "conclusion": "skipped",
+        "steps": []
+      },
+      {
+        "id": 129631386338,
+        "name": "publish",
+        "conclusion": "skipped",
+        "steps": []
+      }
+    ]
+  },
+  {
+    "id": 42755396379,
+    "name": "Android client",
+    "sha": "6776c04ff4e6cdfa0e916e8bbd2ad291fc88af84",
+    "branch": "main",
+    "status": "completed",
+    "conclusion": "success",
+    "url": "https://github.com/imnoname25/notebook/actions/runs/42755396379",
+    "jobs": [
+      {
+        "id": 129628487643,
+        "name": "checks",
+        "conclusion": "success",
+        "steps": [
+          {
+            "name": "Set up job",
+            "conclusion": "success"
+          },
+          {
+            "name": "Run actions/checkout@v7",
+            "conclusion": "success"
+          },
+          {
+            "name": "Run actions/setup-node@v6",
+            "conclusion": "success"
+          },
+          {
+            "name": "Run actions/setup-java@v5",
+            "conclusion": "success"
+          },
+          {
+            "name": "Run android-actions/setup-android@v3",
+            "conclusion": "success"
+          },
+          {
+            "name": "Run gradle/actions/setup-gradle@v5",
+            "conclusion": "success"
+          },
+          {
+            "name": "Verify shared application version",
+            "conclusion": "success"
+          },
+          {
+            "name": "Verify release tag",
+            "conclusion": "skipped"
+          },
+          {
+            "name": "Check new commits for secrets",
+            "conclusion": "success"
+          },
+          {
+            "name": "Run npm ci",
+            "conclusion": "success"
+          },
+          {
+            "name": "Run npm run check",
+            "conclusion": "success"
+          },
+          {
+            "name": "Run npx cap sync android",
+            "conclusion": "success"
+          },
+          {
+            "name": "Lint, unit tests and debug APK",
+            "conclusion": "success"
+          },
+          {
+            "name": "Upload test APK",
+            "conclusion": "success"
+          },
+          {
+            "name": "Post Run gradle/actions/setup-gradle@v5",
+            "conclusion": "success"
+          },
+          {
+            "name": "Post Run actions/setup-java@v5",
+            "conclusion": "success"
+          },
+          {
+            "name": "Post Run actions/setup-node@v6",
+            "conclusion": "success"
+          },
+          {
+            "name": "Post Run actions/checkout@v7",
+            "conclusion": "success"
+          },
+          {
+            "name": "Complete job",
+            "conclusion": "success"
+          }
+        ]
+      },
+      {
+        "id": 129629105461,
+        "name": "release",
+        "conclusion": "skipped",
+        "steps": []
+      }
+    ]
+  }
+]

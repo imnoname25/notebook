@@ -29,5 +29,9 @@
   "unraidTemplates": "PASS",
   "physicalFold": "not tested",
   "protectedFilesUnchanged": 139,
-  "newMigrations": 0
+  "newMigrations": 0,
+  "dockerCI": "PASS",
+  "postgres17StartupSmoke": "PASS in GitHub Actions",
+  "registryLayers": "PASS",
+  "verdict": "CONDITIONAL GO for staging acceptance"
 }
