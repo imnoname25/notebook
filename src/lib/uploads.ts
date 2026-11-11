@@ -15,7 +15,15 @@ export const IMAGE_EXTENSIONS: Record<string, string> = {
 };
 
 export function isValidImageMime(mimeType: string, bytes: Uint8Array) {
-  return Boolean(IMAGE_SIGNATURES[mimeType]?.(bytes));
+  return Object.hasOwn(IMAGE_SIGNATURES, mimeType) && IMAGE_SIGNATURES[mimeType](bytes);
+}
+
+export const ATTACHMENT_EXTENSIONS: Record<string, string> = { ...IMAGE_EXTENSIONS, "application/pdf": "pdf" };
+
+export function isValidAttachmentMime(mimeType: string, bytes: Uint8Array) {
+  return mimeType === "application/pdf"
+    ? String.fromCharCode(...bytes.subarray(0, 5)) === "%PDF-"
+    : isValidImageMime(mimeType, bytes);
 }
 
 export function maxUploadBytes() {

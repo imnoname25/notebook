@@ -35,6 +35,7 @@ export function blockNoteToSafeHtml(blocks: unknown[], imagePath: (url: string) 
     if (type === "quote") return `<blockquote>${content}</blockquote>`;
     if (type === "codeBlock") return `<pre><code data-language="${escapeHtml(props?.language ?? "text")}">${content}</code></pre>`;
     if (type === "image") { const source = imagePath(String(props?.url ?? "")); return source ? `<figure><img src="${escapeHtml(source)}" alt="${escapeHtml(props?.caption ?? "")}">${props?.caption ? `<figcaption>${escapeHtml(props.caption)}</figcaption>` : ""}</figure>` : ""; }
+    if (type === "file") { const source = imagePath(String(props?.url ?? "")); return source ? `<p><a href="${escapeHtml(source)}" download>${escapeHtml(props?.name || "Файл")}</a></p>` : ""; }
     if (type === "table") return table(block.content);
     if (type === "callout") return `<aside class="callout"><strong>${escapeHtml(props?.title || props?.kind || "Заметка")}</strong>${content ? `<p>${content}</p>` : ""}</aside>`;
     if (type === "banner") return `<aside class="banner"><strong>${escapeHtml(props?.title || props?.kind || "Важная информация")}</strong>${content ? `<p>${content}</p>` : ""}</aside>`;

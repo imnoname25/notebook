@@ -34,7 +34,7 @@ export async function requireAdmin(): Promise<CurrentUser> {
   return user;
 }
 
-export async function readJson(request: NextRequest): Promise<unknown> {
+export async function readJson(request: Request): Promise<unknown> {
   try {
     return await request.json();
   } catch {

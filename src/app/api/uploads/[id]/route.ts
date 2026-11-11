@@ -12,10 +12,15 @@ type Context = { params: Promise<{ id: string }> };
 export async function GET(_request: NextRequest, { params }: Context) {
   try {
     const [user, { id }] = await Promise.all([requireUser(), params]);
-    const upload = await db.upload.findFirst({ where: { id, userId: user.id } });
+    const upload = await db.upload.findFirst({
+      where: { id, userId: user.id },
+      include: { savedItems: { select: { savedItemId: true }, take: 1 } },
+    });
     if (!upload) throw new ApiError(404, "Файл не найден");
     const filePath = resolveStoragePath(upload.storageName); const info = await stat(filePath).catch(() => null); if (!info?.isFile()) throw new ApiError(404, "Файл вложения отсутствует");
-    const headers: Record<string, string> = { "content-type": upload.mimeType, "content-length": String(info.size), "cache-control": "private, max-age=86400, immutable", "x-content-type-options": "nosniff", "content-disposition": contentDisposition(upload.originalName, _request.nextUrl.searchParams.get("download") === "1" ? "attachment" : "inline") };
+    const pdf = upload.mimeType === "application/pdf";
+    const disposition = pdf || _request.nextUrl.searchParams.get("download") === "1" ? "attachment" : "inline";
+    const headers: Record<string, string> = { "content-type": upload.mimeType, "content-length": String(info.size), "cache-control": pdf || upload.savedItems.length ? "private, no-store" : "private, max-age=86400, immutable", "x-content-type-options": "nosniff", "content-disposition": contentDisposition(upload.originalName, disposition) };
     return new Response(Readable.toWeb(createReadStream(filePath)) as ReadableStream, { headers });
   } catch (error) { return apiError(error); }
 }

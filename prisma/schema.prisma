@@ -18,6 +18,16 @@ enum QuickNoteStatus {
   CONVERTED
 }
 
+enum SavedItemReviewStatus {
+  pending
+  reviewed
+}
+
+enum SavedItemOperation {
+  create
+  convert
+}
+
 model User {
   id                         String             @id @default(cuid())
   email                      String             @unique
@@ -42,6 +52,8 @@ model User {
   settings                   UserSettings?
   recentPages                RecentPage[]
   quickNotes                 QuickNote[]
+  savedItems                 SavedItem[]
+  savedItemRequests          SavedItemRequest[]
   tags                       Tag[]
 
   @@index([role, disabledAt])
@@ -249,6 +261,7 @@ model Page {
   outgoingLinks      PageLink[]      @relation("PageLinkSource")
   incomingLinks      PageLink[]      @relation("PageLinkTarget")
   liveWidgets        LiveWidgetIndex[]
+  savedItems         SavedItem[]
 
   @@index([sectionId, deletedAt, sortOrder])
   @@index([deletionGroupId])
@@ -313,6 +326,7 @@ model Tag {
   user       User      @relation(fields: [userId], references: [id], onDelete: Cascade)
   pages      PageTag[]
   quickNotes QuickNoteTag[]
+  savedItems SavedItemTag[]
 
   @@unique([userId, normalized])
   @@index([userId, name])
@@ -336,6 +350,76 @@ model QuickNoteTag {
 
   @@id([quickNoteId, tagId])
   @@index([tagId, quickNoteId])
+}
+
+model SavedItem {
+  id              String                @id @default(cuid())
+  userId          String
+  title           String                @default("")
+  text            String                @default("") @db.Text
+  url             String?
+  reviewStatus    SavedItemReviewStatus @default(pending)
+  archivedAt      DateTime?
+  convertedAt     DateTime?
+  convertedPageId String?
+  createdAt       DateTime              @default(dbgenerated("(CURRENT_TIMESTAMP AT TIME ZONE 'UTC'::text)"))
+  updatedAt       DateTime              @updatedAt
+  searchVector    Unsupported("tsvector")? @default(dbgenerated())
+  user            User                  @relation(fields: [userId], references: [id], onDelete: Cascade)
+  convertedPage   Page?                 @relation(fields: [convertedPageId], references: [id], onDelete: SetNull)
+  tags            SavedItemTag[]
+  attachments     SavedItemAttachment[]
+  metadataJob     SavedItemMetadataJob?
+
+  @@index([userId, archivedAt, createdAt, id])
+  @@index([convertedPageId])
+  @@index([searchVector], type: Gin)
+}
+
+model SavedItemTag {
+  savedItemId String
+  tagId       String
+  savedItem   SavedItem @relation(fields: [savedItemId], references: [id], onDelete: Cascade)
+  tag         Tag       @relation(fields: [tagId], references: [id], onDelete: Cascade)
+
+  @@id([savedItemId, tagId])
+  @@index([tagId, savedItemId])
+}
+
+model SavedItemAttachment {
+  savedItemId String
+  uploadId    String
+  position    Int
+  savedItem   SavedItem @relation(fields: [savedItemId], references: [id], onDelete: Cascade)
+  upload      Upload    @relation(fields: [uploadId], references: [id], onDelete: NoAction)
+
+  @@id([savedItemId, uploadId])
+  @@unique([savedItemId, position])
+  @@index([uploadId])
+}
+
+model SavedItemRequest {
+  userId      String
+  operation   SavedItemOperation
+  key         String
+  fingerprint String
+  resultId    String
+  createdAt   DateTime           @default(dbgenerated("(CURRENT_TIMESTAMP AT TIME ZONE 'UTC'::text)"))
+  user        User               @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@id([userId, operation, key])
+}
+
+model SavedItemMetadataJob {
+  savedItemId String    @id
+  availableAt DateTime  @default(dbgenerated("(CURRENT_TIMESTAMP AT TIME ZONE 'UTC'::text)"))
+  leaseToken  String?
+  attempts    Int       @default(0)
+  finishedAt  DateTime?
+  failed      Boolean   @default(false)
+  savedItem   SavedItem @relation(fields: [savedItemId], references: [id], onDelete: Cascade)
+
+  @@index([finishedAt, availableAt, savedItemId])
 }
 
 model PageLink {
@@ -378,6 +462,7 @@ model Upload {
   coverFor      Page?    @relation("PageCover")
   backgroundFor Page?    @relation("PageBackground")
   notebookCoverFor Notebook? @relation("NotebookCover")
+  savedItems    SavedItemAttachment[]
 
   @@index([userId])
   @@index([userId, createdAt])

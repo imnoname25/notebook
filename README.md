@@ -304,6 +304,8 @@ npm run test:e2e
 
 Integration tests требуют отдельную БД и оба `TEST_DATABASE_URL` / `TEST_RESET_DATABASE=1`. E2E использует отдельные `E2E_DATABASE_URL` / `E2E_RESET_DATABASE=1`; без явного reset-флага база не очищается. Stage 4 покрывает round-trip export/import, вложения, trash/history backup, internal links, mobile smoke, hostile archives и отсутствие auth secrets.
 
+Для HTTP-тестов «Сохранённого» запустите тестовый экземпляр Notebook с той же выделенной БД, что и `TEST_DATABASE_URL`, и отдельным каталогом `UPLOAD_DIR`. Установите `TEST_SAVED_HTTP_ORIGIN` равным `APP_ORIGIN` этого экземпляра и запустите `npm run test:integration -- src/lib/services/saved-item-api.integration.test.ts`.
+
 ## Настройки и эксплуатация
 
 ### Учётные записи и роли

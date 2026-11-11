@@ -125,7 +125,7 @@ export async function buildPortableExport(
   }
   const uploads = await db.upload.findMany({
     where: options.backup
-      ? { userId }
+      ? { userId, OR: [{ savedItems: { none: {} } }, { id: { in: [...attachmentIds] } }] }
       : { userId, id: { in: [...attachmentIds] } },
     orderBy: { createdAt: "asc" },
   });

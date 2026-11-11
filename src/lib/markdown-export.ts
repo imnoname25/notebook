@@ -47,6 +47,14 @@ export function blockNoteToMarkdown(title: string, blocks: unknown[]) {
       lines.push(`${fence}${language}\n${code}\n${fence}`);
     }
     else if (type === "image") lines.push(`![${String(record(block.props)?.caption ?? "image")}](${String(record(block.props)?.url ?? "")})`);
+    else if (type === "file") {
+      const props = record(block.props);
+      const url = String(props?.url ?? "");
+      const name = escapeHtml(props?.name || "Файл").replace(/[\[\]\\]/gu, "\\$&");
+      lines.push(/^(?:https?:\/\/|\/api\/uploads\/)/iu.test(url)
+        ? `[${name}](${url.replace(/[<>()\s]/gu, character => `%${character.charCodeAt(0).toString(16).padStart(2, "0")}`)})`
+        : name);
+    }
     else if (type === "table") lines.push(tableMarkdown(record(block.content) ?? {}));
     else if (type === "callout" || type === "banner") { const props = record(block.props); lines.push(`> **${escapeHtml(props?.title || props?.kind || (type === "banner" ? "Banner" : "Note"))}** — ${text}`); }
     else if (type === "toggle" || type === "toggleListItem") { lines.push(`<details>\n<summary>${escapeHtml(codeText(block.content)) || "Детали"}</summary>\n\n${nested}\n</details>`); childrenHandled = true; }

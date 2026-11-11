@@ -1,17 +1,19 @@
 import { randomUUID } from "node:crypto";
 import { mkdir, readdir, rename, rm, stat } from "node:fs/promises";
 import path from "node:path";
+import type { Prisma } from "@/generated/prisma/client";
 import { db } from "@/lib/db";
 import { ApiError } from "@/lib/errors";
 import { attachmentIdsInContent } from "@/lib/portable-content";
 import { resolveStoragePath, uploadRoot } from "@/lib/storage";
+import { lockUserUploads } from "./upload-service";
 import {
   createNotification,
   resolveNotification,
 } from "@/lib/services/system-notification-service";
 
-async function usedUploadIds(userId: string) {
-  const pages = await db.page.findMany({
+async function usedUploadIds(userId: string, tx: Prisma.TransactionClient = db) {
+  const [pages, saved, notebooks] = await Promise.all([tx.page.findMany({
     where: { section: { notebook: { userId } } },
     select: {
       content: true,
@@ -19,8 +21,13 @@ async function usedUploadIds(userId: string) {
       backgroundUploadId: true,
       versions: { select: { content: true } },
     },
-  });
-  const used = new Set<string>();
+  }), tx.savedItemAttachment.findMany({
+    where: { savedItem: { userId }, upload: { userId } }, select: { uploadId: true },
+  }), tx.notebook.findMany({
+    where: { userId, coverUploadId: { not: null } }, select: { coverUploadId: true },
+  })]);
+  const used = new Set(saved.map(({ uploadId }) => uploadId));
+  for (const { coverUploadId } of notebooks) if (coverUploadId) used.add(coverUploadId);
   for (const page of pages) {
     if (page.coverUploadId) used.add(page.coverUploadId);
     if (page.backgroundUploadId) used.add(page.backgroundUploadId);
@@ -113,10 +120,10 @@ export type StorageAudit = {
   }[];
   reclaimableBytes: number;
 };
-export async function auditStorage(userId: string): Promise<StorageAudit> {
+async function inspectStorage(userId: string, tx: Prisma.TransactionClient): Promise<StorageAudit> {
   const [uploads, used, files] = await Promise.all([
-    db.upload.findMany({ where: { userId } }),
-    usedUploadIds(userId),
+    tx.upload.findMany({ where: { userId } }),
+    usedUploadIds(userId, tx),
     diskFiles(path.join(uploadRoot(), userId)),
   ]);
   const disk = new Map(
@@ -138,6 +145,17 @@ export async function auditStorage(userId: string): Promise<StorageAudit> {
       storageName: upload.storageName,
       exists: disk.has(upload.storageName),
     }));
+  return {
+    missingFiles,
+    orphanFiles,
+    unusedAttachments,
+    reclaimableBytes:
+      orphanFiles.reduce((sum, file) => sum + file.size, 0) +
+      unusedAttachments.filter((item) => item.exists).reduce((sum, item) => sum + item.size, 0),
+  };
+}
+
+async function reportStorageAudit({ missingFiles }: StorageAudit) {
   if (missingFiles.length)
     await createNotification({
       type: "storage_audit_failed",
@@ -147,79 +165,61 @@ export async function auditStorage(userId: string): Promise<StorageAudit> {
       dedupKey: "storage:audit:critical",
     });
   else await resolveNotification("storage:audit:critical");
-  return {
-    missingFiles,
-    orphanFiles,
-    unusedAttachments,
-    reclaimableBytes:
-      orphanFiles.reduce((sum, file) => sum + file.size, 0) +
-      unusedAttachments
-        .filter((item) => item.exists)
-        .reduce((sum, item) => sum + item.size, 0),
-  };
+}
+
+export async function auditStorage(userId: string) {
+  const audit = await inspectStorage(userId, db);
+  await reportStorageAudit(audit);
+  return audit;
+}
+
+async function removeUploadFiles<T>(userId: string, remove: (
+  tx: Prisma.TransactionClient,
+  quarantineFile: (storageName: string) => Promise<void>,
+) => Promise<T>) {
+  const quarantine = path.join(uploadRoot(), `.cleanup-${randomUUID()}`);
+  const moved: { from: string; to: string }[] = [];
+  let result: T;
+  try {
+    result = await db.$transaction(async tx => {
+      await lockUserUploads(tx, userId);
+      return remove(tx, async storageName => {
+        const from = resolveStoragePath(storageName);
+        const to = path.join(quarantine, randomUUID());
+        await mkdir(quarantine, { recursive: true });
+        await rename(from, to);
+        moved.push({ from, to });
+      });
+    }, { timeout: 120_000 });
+  } catch (error) {
+    const restored = await Promise.allSettled(moved.map(item => rename(item.to, item.from)));
+    if (restored.every(item => item.status === "fulfilled")) await rm(quarantine, { recursive: true, force: true });
+    throw error;
+  }
+  await rm(quarantine, { recursive: true, force: true });
+  return result;
 }
 
 export async function cleanupStorage(userId: string) {
-  const audit = await auditStorage(userId);
-  const quarantine = path.join(uploadRoot(), `.cleanup-${randomUUID()}`);
-  await mkdir(quarantine, { recursive: true });
-  const moved: { from: string; to: string }[] = [];
-  try {
-    for (const item of audit.unusedAttachments
-      .filter((entry) => entry.exists)
-      .map((entry) => ({ storageName: entry.storageName }))
-      .concat(audit.orphanFiles)) {
-      const from = resolveStoragePath(item.storageName);
-      const to = path.join(quarantine, randomUUID());
-      await rename(from, to);
-      moved.push({ from, to });
-    }
-    await db.upload.deleteMany({
-      where: {
-        userId,
-        id: { in: audit.unusedAttachments.map((item) => item.id) },
-      },
-    });
-    await rm(quarantine, { recursive: true, force: true });
-    return {
-      removed: audit.unusedAttachments.length + audit.orphanFiles.length,
-      reclaimedBytes: audit.reclaimableBytes,
-    };
-  } catch (error) {
-    for (const item of moved.reverse())
-      await rename(item.to, item.from).catch(() => undefined);
-    await rm(quarantine, { recursive: true, force: true });
-    throw error;
-  }
+  const audit = await removeUploadFiles(userId, async (tx, quarantineFile) => {
+    const current = await inspectStorage(userId, tx);
+    const diskFiles = [...current.unusedAttachments.filter(entry => entry.exists), ...current.orphanFiles];
+    for (const { storageName } of diskFiles) await quarantineFile(storageName);
+    await tx.upload.deleteMany({ where: { userId, id: { in: current.unusedAttachments.map(item => item.id) } } });
+    return current;
+  });
+  await reportStorageAudit(audit);
+  return { removed: audit.unusedAttachments.length + audit.orphanFiles.length, reclaimedBytes: audit.reclaimableBytes };
 }
 
 export async function deleteUnusedAttachment(userId: string, id: string) {
-  const used = await usedUploadIds(userId);
-  if (used.has(id))
-    throw new ApiError(
-      409,
-      "Вложение используется страницей или историей версий",
-    );
-  const upload = await db.upload.findFirst({ where: { id, userId } });
-  if (!upload) throw new ApiError(404, "Вложение не найдено");
-  const source = resolveStoragePath(upload.storageName);
-  const quarantine = path.join(uploadRoot(), `.cleanup-${randomUUID()}`);
-  const exists = Boolean(await stat(source).catch(() => null));
-  if (exists) {
-    await mkdir(quarantine, { recursive: true });
-    await rename(source, path.join(quarantine, "attachment"));
-  }
-  try {
-    await db.upload.delete({ where: { id } });
-    await rm(quarantine, { recursive: true, force: true });
-  } catch (error) {
-    if (exists)
-      await rename(path.join(quarantine, "attachment"), source).catch(
-        () => undefined,
-      );
-    await rm(quarantine, { recursive: true, force: true });
-    throw error;
-  }
+  await removeUploadFiles(userId, async (tx, quarantineFile) => {
+    const upload = await tx.upload.findFirst({ where: { id, userId } });
+    if (!upload) throw new ApiError(404, "Вложение не найдено");
+    if ((await usedUploadIds(userId, tx)).has(id)) throw new ApiError(409, "Вложение используется");
+    if (await stat(resolveStoragePath(upload.storageName)).catch(() => null)) await quarantineFile(upload.storageName);
+    await tx.upload.delete({ where: { id } });
+  });
 }
 
 export async function storageStats(userId: string) {

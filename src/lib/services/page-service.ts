@@ -83,22 +83,37 @@ export async function savePage(userId: string, pageId: string, input: PageSaveIn
 }
 
 export async function createPage(userId: string, input: { sectionId: string; title?: string; templateId?: string }) {
-  const section = await db.section.findFirst({ where: { id: input.sectionId, deletedAt: null, notebook: { userId, deletedAt: null } }, select: { id: true } });
-  if (!section) throw new ApiError(404, "Раздел не найден");
-  const template = input.templateId ? await db.pageTemplate.findFirst({ where: { id: input.templateId, userId }, select: { name: true, content: true } }) : null;
+  return db.$transaction(tx => createPageInTransaction(tx, userId, input));
+}
+
+export async function createPageInTransaction(
+  tx: Prisma.TransactionClient,
+  userId: string,
+  input: { sectionId: string; title?: string; templateId?: string; content?: Prisma.InputJsonArray },
+) {
+  const sections = await tx.$queryRaw<{ id: string }[]>(Prisma.sql`
+    SELECT s.id FROM "Section" s JOIN "Notebook" n ON n.id = s."notebookId"
+    WHERE s.id = ${input.sectionId} AND s."deletedAt" IS NULL AND n."userId" = ${userId} AND n."deletedAt" IS NULL
+    FOR NO KEY UPDATE OF s FOR SHARE OF n`);
+  if (!sections.length) throw new ApiError(404, "Раздел не найден");
+
+  const template = input.templateId ? await tx.pageTemplate.findFirst({ where: { id: input.templateId, userId }, select: { name: true, content: true } }) : null;
   if (input.templateId && !template) throw new ApiError(404, "Шаблон не найден");
-  const content = template ? validateTemplateContent(template.content) : [{ type: "paragraph", content: [] }];
-  const preferences = await db.userSettings.findUnique({ where: { userId }, select: { defaultPagePreset: true } });
+  const content = template
+    ? cloneBlocksWithFreshIds(await materializeTemplateContent(userId, validateTemplateContent(template.content), tx))
+    : input.content ?? [{ type: "paragraph", content: [] }];
+  const preferences = await tx.userSettings.findUnique({ where: { userId }, select: { defaultPagePreset: true } });
   const preset = valueFromAllowlist(preferences?.defaultPagePreset, PAGE_APPEARANCE_PRESETS, "default");
-  const appearance = pagePresetAppearance(preset);
-  const last = await db.page.aggregate({ where: { sectionId: input.sectionId, deletedAt: null }, _max: { sortOrder: true } });
-  const page = await db.$transaction(async (tx) => {
-    const pageContent = template ? cloneBlocksWithFreshIds(await materializeTemplateContent(userId, content, tx)) : content;
-    const created = await tx.page.create({ data: { sectionId: input.sectionId, title: input.title ?? template?.name ?? "Без названия", sortOrder: (last._max.sortOrder ?? -1) + 1, content: pageContent as Prisma.InputJsonValue, searchText: extractBlockNoteText(pageContent), ...appearance } });
-    await syncPageTags(tx, userId, created.id, `${created.title} ${created.searchText}`);
-    await syncPageLinks(tx, userId, created.id, created.content);
-    await syncLiveWidgetIndex(tx, created.id, created.content);
-    return created;
+  const last = await tx.page.aggregate({ where: { sectionId: input.sectionId, deletedAt: null }, _max: { sortOrder: true } });
+  const created = await tx.page.create({
+    data: {
+      sectionId: input.sectionId, title: input.title ?? template?.name ?? "Без названия",
+      sortOrder: (last._max.sortOrder ?? -1) + 1, content: content as Prisma.InputJsonValue,
+      searchText: extractBlockNoteText(content), ...pagePresetAppearance(preset),
+    },
   });
-  return page;
+  await syncPageTags(tx, userId, created.id, `${created.title} ${created.searchText}`);
+  await syncPageLinks(tx, userId, created.id, created.content);
+  await syncLiveWidgetIndex(tx, created.id, created.content);
+  return created;
 }

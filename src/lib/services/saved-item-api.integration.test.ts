@@ -1,0 +1,105 @@
+import { randomUUID } from "node:crypto";
+import { afterAll, beforeAll, describe, expect, it } from "vitest";
+
+const origin = process.env.TEST_SAVED_HTTP_ORIGIN;
+const databaseUrl = process.env.TEST_DATABASE_URL;
+const enabled = Boolean(origin && databaseUrl) && process.env.TEST_RESET_DATABASE === "1";
+if (enabled) process.env.DATABASE_URL = databaseUrl;
+
+describe.skipIf(!enabled)("saved item routes over HTTP with real sessions", () => {
+  let db: typeof import("@/lib/db").db;
+  const userIds: string[] = [];
+  let ownerCookie: string;
+  let otherCookie: string;
+  let sectionId: string;
+  const endpoint = "/api/saved-items";
+
+  beforeAll(async () => {
+    ({ db } = await import("@/lib/db"));
+    const { hashSessionToken, SESSION_COOKIE } = await import("@/lib/auth/session");
+    const sessions = await Promise.all(["owner", "other"].map(async (name) => {
+      const user = await db.user.create({ data: { name, email: `${randomUUID()}@saved-http.test`, passwordHash: "unused" } });
+      userIds.push(user.id);
+      const token = randomUUID();
+      const expires = new Date(Date.now() + 3_600_000);
+      await db.session.create({ data: { userId: user.id, tokenHash: hashSessionToken(token), expiresAt: expires, absoluteExpiresAt: expires } });
+      return { userId: user.id, cookie: `${SESSION_COOKIE}=${token}` };
+    }));
+    ownerCookie = sessions[0].cookie;
+    otherCookie = sessions[1].cookie;
+    sectionId = (await db.section.create({ data: { title: "Destination", notebook: { create: { userId: sessions[0].userId, title: "Notebook" } } } })).id;
+  });
+
+  afterAll(async () => {
+    await db?.user.deleteMany({ where: { id: { in: userIds } } });
+    await db?.$disconnect();
+  });
+
+  function request(path: string, options?: RequestInit) {
+    return fetch(new URL(path, origin), { ...options, signal: AbortSignal.timeout(60_000) });
+  }
+
+  function json(cookie: string, body: unknown, key?: string, method = "POST") {
+    return {
+      method, body: JSON.stringify(body),
+      headers: { cookie, origin: origin!, "content-type": "application/json", ...(key ? { "idempotency-key": key } : {}) },
+    };
+  }
+
+  it("requires a session, matching origin and idempotency key, then enforces ownership", async () => {
+    expect((await request(endpoint)).status).toBe(401);
+    expect((await request(endpoint, { method: "POST", headers: { cookie: ownerCookie } })).status).toBe(403);
+    expect((await request(endpoint, { method: "POST", headers: { cookie: ownerCookie, origin: "https://foreign.invalid" } })).status).toBe(403);
+    expect((await request(endpoint, json(ownerCookie, { text: "data" }))).status).toBe(400);
+    expect((await request(endpoint, json(ownerCookie, { url: "file:///file" }, "invalid-url"))).status).toBe(400);
+    expect((await request(endpoint, json(ownerCookie, { text: " ".repeat(530_000) }, "oversize"))).status).toBe(413);
+    const capture = json(ownerCookie, { text: "data" }, "http-save");
+    const responses = await Promise.all([request(endpoint, capture), request(endpoint, capture)]);
+    expect(responses.map(response => response.status).sort()).toEqual([200, 201]);
+    const created = responses.find(response => response.status === 201)!;
+    const { item } = await created.json();
+    expect(await responses.find(response => response.status === 200)!.json()).toMatchObject({ item: { id: item.id } });
+    expect((await request(endpoint, json(ownerCookie, { text: "different" }, "http-save"))).status).toBe(409);
+    const itemPath = `${endpoint}/${item.id}`;
+    expect((await request(itemPath, { headers: { cookie: otherCookie } })).status).toBe(404);
+    expect((await request(itemPath, json(otherCookie, { archived: true }, undefined, "PATCH"))).status).toBe(404);
+    expect((await request(`${itemPath}/convert`, json(otherCookie, { sectionId }, "http-transfer"))).status).toBe(404);
+    const patched = await request(itemPath, json(ownerCookie, { reviewStatus: "reviewed" }, undefined, "PATCH"));
+    expect(await patched.json()).toMatchObject({ item: { reviewStatus: "reviewed", archivedAt: null } });
+    const transfer = json(ownerCookie, { sectionId }, "http-transfer");
+    const transfers = await Promise.all([request(`${itemPath}/convert`, transfer), request(`${itemPath}/convert`, transfer)]);
+    expect(transfers.map(response => response.status).sort()).toEqual([200, 201]);
+    expect(await transfers[0].json()).toEqual(await transfers[1].json());
+    const archived = await request(`${endpoint}?archive=archived`, { headers: { cookie: ownerCookie } });
+    expect(await archived.json()).toMatchObject({ items: [{ id: item.id, reviewStatus: "reviewed" }] });
+    expect((await request(itemPath, { method: "DELETE", headers: { cookie: ownerCookie, origin: origin! } })).status).toBe(204);
+    expect((await request(itemPath, { headers: { cookie: ownerCookie } })).status).toBe(404);
+  }, 120_000);
+
+  it("stores a multipart PDF privately and rejects unsupported attachments and excess files", async () => {
+    const pdf = new File(["%PDF-1.7\n%%EOF"], "capture.pdf", { type: "application/pdf" });
+    const multipart = (body: FormData, key: string) => request(endpoint, {
+      method: "POST", headers: { cookie: ownerCookie, origin: origin!, "idempotency-key": key }, body,
+    });
+    const invalid = new FormData();
+    invalid.append("file", new File(["bad"], "capture.pdf", { type: "application/pdf" }));
+    expect((await multipart(invalid, "invalid-pdf")).status).toBe(415);
+    const excess = new FormData();
+    for (let index = 0; index < 5; index++) excess.append("file", pdf);
+    expect((await multipart(excess, "excess-files")).status).toBe(413);
+    const valid = new FormData();
+    valid.append("payload", JSON.stringify({ title: "Private PDF" }));
+    valid.append("file", pdf);
+    const response = await multipart(valid, "valid-pdf");
+    expect(response.status).toBe(201);
+    const { item } = await response.json();
+    const fileUrl = item.attachments[0].url;
+    expect((await request(fileUrl)).status).toBe(401);
+    expect((await request(fileUrl, { headers: { cookie: otherCookie } })).status).toBe(404);
+    const ownFile = await request(fileUrl, { headers: { cookie: ownerCookie } });
+    expect(ownFile.status).toBe(200);
+    expect(ownFile.headers.get("cache-control")).toBe("private, no-store");
+    expect(ownFile.headers.get("content-disposition")).toMatch(/^attachment;/);
+    expect(await ownFile.text()).toMatch(/^%PDF-/);
+  }, 120_000);
+});

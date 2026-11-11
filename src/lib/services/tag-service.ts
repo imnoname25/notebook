@@ -1,6 +1,6 @@
 import type { Prisma } from "@/generated/prisma/client";
 import { db } from "@/lib/db";
-import { extractHashtags } from "@/lib/hashtags";
+import { extractHashtags, MAX_PAGE_TAGS } from "@/lib/hashtags";
 
 export async function syncPageTags(
   tx: Prisma.TransactionClient,
@@ -30,10 +30,11 @@ export async function syncPageTags(
   }
 }
 
-async function resolveTags(tx: Prisma.TransactionClient, userId: string, text: string) {
-  const extracted = extractHashtags(text);
+async function resolveTags(tx: Prisma.TransactionClient, userId: string, text: string, names: string[] = []) {
+  const extracted = new Map(extractHashtags(text).map(({ name, normalized }) => [normalized, name]));
+  for (const name of names) if (!extracted.has(name)) extracted.set(name, name);
   return Promise.all(
-    extracted.map(({ name, normalized }) =>
+    [...extracted].slice(0, MAX_PAGE_TAGS).sort(([a], [b]) => a.localeCompare(b)).map(([normalized, name]) =>
       tx.tag.upsert({
         where: { userId_normalized: { userId, normalized } },
         create: { userId, name, normalized },
@@ -42,6 +43,14 @@ async function resolveTags(tx: Prisma.TransactionClient, userId: string, text: s
       }),
     ),
   );
+}
+
+export async function syncSavedItemTags(tx: Prisma.TransactionClient, userId: string, savedItemId: string, names: string[]) {
+  const tags = await resolveTags(tx, userId, "", names);
+  await tx.savedItemTag.deleteMany({ where: { savedItemId, tagId: { notIn: tags.map(tag => tag.id) } } });
+  if (tags.length) {
+    await tx.savedItemTag.createMany({ data: tags.map(tag => ({ savedItemId, tagId: tag.id })), skipDuplicates: true });
+  }
 }
 
 export async function syncQuickNoteTags(

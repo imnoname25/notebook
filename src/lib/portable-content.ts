@@ -1,12 +1,13 @@
 import { linkedPageId } from "./page-links";
-const UPLOAD_URL = /\/api\/uploads\/([A-Za-z0-9_-]+)/g;
+const UPLOAD_URL = /^\/api\/uploads\/([A-Za-z0-9_-]+)(?=$|[?#][^\s]*$)/u;
+const PORTABLE_UPLOAD_URL = /^attachment:\/\/([A-Za-z0-9_-]+)(?=$|[?#][^\s]*$)/u;
 
 export function attachmentIdsInContent(value: unknown) {
   const ids = new Set<string>();
   function visit(node: unknown) {
-    if (typeof node === "string") { for (const match of node.matchAll(UPLOAD_URL)) if (match[1]) ids.add(match[1]); return; }
+    if (typeof node === "string") { const id = node.match(UPLOAD_URL)?.[1]; if (id) ids.add(id); return; }
     if (Array.isArray(node)) { node.forEach(visit); return; }
-    if (node && typeof node === "object") Object.values(node).forEach(visit);
+    if (node && typeof node === "object" && !("type" in node && node.type === "text")) Object.values(node).forEach(visit);
   }
   visit(value); return ids;
 }
@@ -14,10 +15,10 @@ export function attachmentIdsInContent(value: unknown) {
 export function rewriteAttachmentReferences(value: unknown, mapping: ReadonlyMap<string, string>, direction: "export" | "import"): unknown {
   if (typeof value === "string") {
     if (direction === "export") return value.replace(UPLOAD_URL, (original, id: string) => mapping.has(id) ? `attachment://${mapping.get(id)}` : original);
-    return value.replace(/attachment:\/\/([A-Za-z0-9_-]+)/g, (original, key: string) => mapping.has(key) ? `/api/uploads/${mapping.get(key)}` : original);
+    return value.replace(PORTABLE_UPLOAD_URL, (original, key: string) => mapping.has(key) ? `/api/uploads/${mapping.get(key)}` : original);
   }
   if (Array.isArray(value)) return value.map((child) => rewriteAttachmentReferences(child, mapping, direction));
-  if (value && typeof value === "object") return Object.fromEntries(Object.entries(value).map(([key, child]) => [key, rewriteAttachmentReferences(child, mapping, direction)]));
+  if (value && typeof value === "object" && !("type" in value && value.type === "text")) return Object.fromEntries(Object.entries(value).map(([key, child]) => [key, rewriteAttachmentReferences(child, mapping, direction)]));
   return value;
 }
 
@@ -33,9 +34,9 @@ export function internalPageIdsInContent(value: unknown) {
 export function portableAttachmentKeysInContent(value: unknown) {
   const keys = new Set<string>();
   function visit(node: unknown) {
-    if (typeof node === "string") { for (const match of node.matchAll(/attachment:\/\/([A-Za-z0-9_-]+)/g)) if (match[1]) keys.add(match[1]); }
+    if (typeof node === "string") { const key = node.match(PORTABLE_UPLOAD_URL)?.[1]; if (key) keys.add(key); }
     else if (Array.isArray(node)) node.forEach(visit);
-    else if (node && typeof node === "object") Object.values(node).forEach(visit);
+    else if (node && typeof node === "object" && !("type" in node && node.type === "text")) Object.values(node).forEach(visit);
   }
   visit(value); return keys;
 }

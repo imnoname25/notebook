@@ -35,7 +35,8 @@ import { extractBlockNoteText } from "@/lib/blocknote-text";
 import { syncPageTags, syncQuickNoteTags } from "@/lib/services/tag-service";
 import { syncPageLinks } from "@/lib/services/page-link-service";
 import { syncLiveWidgetIndex } from "@/lib/services/live-widget-service";
-import { IMAGE_EXTENSIONS, isValidImageMime } from "@/lib/uploads";
+import { ATTACHMENT_EXTENSIONS, isValidAttachmentMime } from "@/lib/uploads";
+import { lockUserUploads } from "./upload-service";
 import {
   portableAttachmentKeysInContent,
   rewriteAttachmentReferences,
@@ -142,10 +143,7 @@ async function validateArchiveFiles(directory: string, data: ArchiveData) {
     if (attachment.sha256 && hash !== attachment.sha256)
       throw new ApiError(400, `SHA-256 не совпадает: ${attachment.fileName}`);
     const bytes = new Uint8Array(await readFile(filePath));
-    if (
-      !IMAGE_EXTENSIONS[attachment.mimeType] ||
-      !isValidImageMime(attachment.mimeType, bytes)
-    )
+    if (!isValidAttachmentMime(attachment.mimeType, bytes))
       throw new ApiError(
         415,
         `Недопустимый MIME вложения: ${attachment.fileName}`,
@@ -241,10 +239,7 @@ export async function prepareImport(
           (attachment.sha256 && hashBytes(bytes) !== attachment.sha256)
         )
           throw new ApiError(400, "Вложение page JSON повреждено");
-        if (
-          !IMAGE_EXTENSIONS[attachment.mimeType] ||
-          !isValidImageMime(attachment.mimeType, bytes)
-        )
+        if (!isValidAttachmentMime(attachment.mimeType, bytes))
           throw new ApiError(415, "Недопустимый MIME вложения");
         total += bytes.byteLength;
       }
@@ -322,7 +317,7 @@ async function materializeAttachments(
   }[] = [];
   try {
     for (const attachment of attachments) {
-      const extension = IMAGE_EXTENSIONS[attachment.mimeType];
+      const extension = ATTACHMENT_EXTENSIONS[attachment.mimeType];
       if (!extension) throw new ApiError(415, "Неподдерживаемое вложение");
       const id = randomUUID();
       const storageName = `${userId}/${randomUUID()}.${extension}`;
@@ -710,20 +705,21 @@ export async function restoreBackupData(
 ) {
   if (!prepared.data || prepared.manifest?.format !== BACKUP_FORMAT)
     throw new ApiError(400, "Некорректная резервная копия");
-  const oldUploads = await db.upload.findMany({
-    where: { userId },
-    select: { storageName: true },
-  });
   const materialized = await materializeAttachments(
     userId,
     prepared,
     prepared.data.attachments,
   );
+  let oldUploads: { storageName: string }[];
   try {
-    await db.$transaction(
+    oldUploads = await db.$transaction(
       async (tx) => {
+        await lockUserUploads(tx, userId);
+        // v1–v5 contain no saved items. Preserve files still referenced by that space.
+        const removable = { userId, savedItems: { none: {} } };
+        const removed = await tx.upload.findMany({ where: removable, select: { storageName: true } });
         await tx.notebook.deleteMany({ where: { userId } });
-        await tx.upload.deleteMany({ where: { userId } });
+        await tx.upload.deleteMany({ where: removable });
         if (prepared.manifest!.version >= 4)
           await tx.quickNote.deleteMany({ where: { userId } });
         const restored = await createPortableData(
@@ -752,6 +748,7 @@ export async function restoreBackupData(
               },
             });
         }
+        return removed;
       },
       { timeout: 120_000 },
     );
