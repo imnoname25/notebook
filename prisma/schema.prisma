@@ -358,6 +358,11 @@ model SavedItem {
   title           String                @default("")
   text            String                @default("") @db.Text
   url             String?
+  metadataTitle       String?
+  metadataDescription String? @db.Text
+  metadataSiteName    String?
+  metadataImageUrl    String?
+  searchTags          String  @default("") @db.Text
   reviewStatus    SavedItemReviewStatus @default(pending)
   archivedAt      DateTime?
   convertedAt     DateTime?

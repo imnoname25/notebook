@@ -2,7 +2,7 @@ export type MobileView = "navigation" | "pages" | "editor";
 
 export type MobileBackState = {
   hasOverlay: boolean;
-  screen: "workspace" | "trash" | "stickers" | "today" | "search";
+  screen: "workspace" | "trash" | "stickers" | "today" | "search" | "saved";
   view: MobileView;
 };
 

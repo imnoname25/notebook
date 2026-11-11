@@ -51,6 +51,7 @@ export async function syncSavedItemTags(tx: Prisma.TransactionClient, userId: st
   if (tags.length) {
     await tx.savedItemTag.createMany({ data: tags.map(tag => ({ savedItemId, tagId: tag.id })), skipDuplicates: true });
   }
+  await tx.savedItem.update({ where: { id: savedItemId }, data: { searchTags: names.join(" ") } });
 }
 
 export async function syncQuickNoteTags(

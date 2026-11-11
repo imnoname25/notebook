@@ -3,6 +3,7 @@
 import { memo, useEffect, useLayoutEffect, useMemo, useRef, useState, type CSSProperties } from "react";
 
 import {
+  Bookmark,
   ChevronDown,
   Ellipsis,
   FolderPlus,
@@ -44,7 +45,7 @@ type Props = {
   activeSectionId: string | null;
   density?: "comfortable" | "compact";
   sectionAccentIntensity?: SectionAccentIntensity;
-  activeDestination?: "workspace" | "today" | "stickers";
+  activeDestination?: "workspace" | "today" | "stickers" | "saved";
   expansionStorageKey?: string;
   onNotebookSelect(id: string): void;
   onSectionSelect(section: Section): void;
@@ -62,6 +63,7 @@ type Props = {
   onTagsOpen(): void;
   onInboxOpen(): void;
   onTodayOpen(): void;
+  onSavedOpen(): void;
   onFavoritesOpen?(): void;
   onRecentOpen?(): void;
   onTemplatesOpen?(): void;
@@ -212,6 +214,7 @@ export function NotebookSidebar(props: Props) {
     onSectionReorder: (id: string, parent: string | null, ids: string[]) => latest.current.onSectionReorder(id, parent, ids),
     onTrashOpen: () => latest.current.onTrashOpen(), onTagsOpen: () => latest.current.onTagsOpen(),
     onInboxOpen: () => latest.current.onInboxOpen(), onTodayOpen: () => latest.current.onTodayOpen(),
+    onSavedOpen: () => latest.current.onSavedOpen(),
     onFavoritesOpen: () => latest.current.onFavoritesOpen?.(), onRecentOpen: () => latest.current.onRecentOpen?.(),
     onTemplatesOpen: () => latest.current.onTemplatesOpen?.(), onSettingsOpen: () => latest.current.onSettingsOpen?.(),
     onRetry: () => latest.current.onRetry?.(),
@@ -273,6 +276,10 @@ function NotebookSidebarTree(props: Props) {
       <button aria-current={props.activeDestination === "today" ? "page" : undefined} className={cn("mb-0.5 flex min-h-11 items-center gap-3 rounded-lg px-3 text-[14px] font-medium transition md:min-h-10", props.activeDestination === "today" ? "bg-sidebar-accent text-sidebar-accent-foreground" : "text-muted-foreground hover:bg-sidebar-accent/60 hover:text-foreground")} onClick={props.onTodayOpen}>
         <Sparkles size={18} />
         {t("today.title")}
+      </button>
+      <button aria-current={props.activeDestination === "saved" ? "page" : undefined} className={cn("mb-0.5 flex min-h-11 items-center gap-3 rounded-lg px-3 text-[14px] font-medium transition md:min-h-10", props.activeDestination === "saved" ? "bg-sidebar-accent text-sidebar-accent-foreground" : "text-muted-foreground hover:bg-sidebar-accent/60 hover:text-foreground")} onClick={props.onSavedOpen}>
+        <Bookmark size={17} aria-hidden="true"/>
+        {t("saved.title")}
       </button>
       <button aria-current={props.activeDestination === "stickers" ? "page" : undefined} className={cn("mb-3 flex min-h-11 items-center gap-3 rounded-lg px-3 text-[14px] font-medium transition md:min-h-10", props.activeDestination === "stickers" ? "bg-sidebar-accent text-sidebar-accent-foreground" : "text-muted-foreground hover:bg-sidebar-accent/60 hover:text-foreground")} onClick={props.onInboxOpen}>
         <StickyNote size={18}/>

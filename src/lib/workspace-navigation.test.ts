@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { blockIdFromHash, getPageHref, pageIdFromPath } from "./workspace-navigation";
+import { blockIdFromHash, getPageHref, pageIdFromPath, savedFromUrl, savedHref } from "./workspace-navigation";
 
 describe("workspace navigation", () => {
   it("creates one canonical page and block URL", () => {
@@ -14,5 +14,11 @@ describe("workspace navigation", () => {
     expect(blockIdFromHash("#block=block%2F2")).toBe("block/2");
     expect(blockIdFromHash("#block=%ZZ")).toBeNull();
     expect(blockIdFromHash("#other=value")).toBeNull();
+  });
+  it("round-trips an exact saved material destination", () => {
+    expect(savedFromUrl(savedHref("saved_id-42"))).toEqual({ id: "saved_id-42" });
+    expect(savedFromUrl(savedHref())).toEqual({ id: null });
+    expect(savedFromUrl("/app?view=saved&item=%2Fbad")).toEqual({ id: null });
+    expect(savedFromUrl("/api/saved-items?view=saved")).toBeNull();
   });
 });

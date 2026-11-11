@@ -11,6 +11,7 @@ import { lockUserUploads, type PreparedUpload, withUploadWrites } from "./upload
 
 const itemSelect = {
   id: true, title: true, text: true, url: true, reviewStatus: true,
+  metadataTitle: true, metadataDescription: true, metadataSiteName: true, metadataImageUrl: true,
   archivedAt: true, convertedAt: true, convertedPageId: true, createdAt: true, updatedAt: true,
   tags: { orderBy: { tag: { normalized: "asc" } }, select: { tag: { select: { name: true, normalized: true } } } },
   attachments: { orderBy: { position: "asc" }, select: { upload: { select: { id: true, originalName: true, mimeType: true, size: true } } } },
@@ -20,11 +21,12 @@ type Item = Prisma.SavedItemGetPayload<{ select: typeof itemSelect }>;
 
 function attachmentUrl(id: string) { return `/api/uploads/${id}`; }
 
-function serializeItem({ attachments, tags, metadataJob, ...item }: Item) {
+function serializeItem({ attachments, tags, metadataJob, metadataTitle, metadataDescription, metadataSiteName, metadataImageUrl, ...item }: Item) {
   return {
     ...item,
     tags: tags.map(({ tag }) => tag),
     attachments: attachments.map(({ upload }) => ({ ...upload, url: attachmentUrl(upload.id) })),
+    metadata: { title: metadataTitle, description: metadataDescription, siteName: metadataSiteName, hasPreview: Boolean(metadataImageUrl) },
     metadataStatus: !metadataJob ? "skipped" : !metadataJob.finishedAt ? "queued" : metadataJob.failed ? "failed" : "ready",
   };
 }
@@ -75,6 +77,18 @@ export async function getSavedItem(userId: string, id: string) {
   const item = await findOwnedItem(db, userId, id);
   if (!item) throw new ApiError(404, "Материал не найден");
   return serializeItem(item);
+}
+
+export async function retrySavedItemMetadata(userId: string, id: string) {
+  const item = await db.savedItem.findFirst({ where: { id, userId }, select: { url: true } });
+  if (!item) throw new ApiError(404, "Материал не найден");
+  if (!item.url) throw new ApiError(409, "У материала нет ссылки");
+  const changed = await db.savedItemMetadataJob.updateMany({
+    where: { savedItemId: id, savedItem: { userId }, finishedAt: { lte: new Date(Date.now() - 30_000) } },
+    data: { availableAt: new Date(), finishedAt: null, failed: false, leaseToken: null, attempts: 0 },
+  });
+  if (!changed.count) throw new ApiError(409, "Проверка уже в очереди или завершилась менее 30 секунд назад");
+  return getSavedItem(userId, id);
 }
 
 export async function createSavedItem(userId: string, key: string, input: SavedItemCreateInput, files: PreparedUpload[]) {

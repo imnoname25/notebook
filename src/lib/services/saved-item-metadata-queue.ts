@@ -3,11 +3,12 @@ import { Prisma } from "@/generated/prisma/client";
 import { db } from "@/lib/db";
 
 const LEASE_SECONDS = 60;
+export const MAX_METADATA_ATTEMPTS = 3;
 
 // A job is eligible again after its lease expires, including after a process restart.
 export async function claimSavedItemMetadataJob() {
   const leaseToken = randomUUID();
-  const [job] = await db.$queryRaw<{ savedItemId: string; url: string; attempts: number }[]>(Prisma.sql`
+  const [job] = await db.$queryRaw<{ savedItemId: string; url: string; attempts: number; finishedAt: Date | null }[]>(Prisma.sql`
     WITH candidate AS (
       SELECT j."savedItemId", s.url
       FROM "SavedItemMetadataJob" j JOIN "SavedItem" s ON s.id = j."savedItemId"
@@ -16,12 +17,14 @@ export async function claimSavedItemMetadataJob() {
       ORDER BY j."availableAt", j."savedItemId"
       LIMIT 1 FOR UPDATE OF j SKIP LOCKED
     )
-    UPDATE "SavedItemMetadataJob" j SET "leaseToken" = ${leaseToken},
+    UPDATE "SavedItemMetadataJob" j SET "leaseToken" = CASE WHEN j.attempts < ${MAX_METADATA_ATTEMPTS} THEN ${leaseToken} END,
       "availableAt" = (now() AT TIME ZONE 'UTC') + ${LEASE_SECONDS} * interval '1 second',
-      attempts = j.attempts + 1
+      "finishedAt" = CASE WHEN j.attempts >= ${MAX_METADATA_ATTEMPTS} THEN now() AT TIME ZONE 'UTC' END,
+      failed = j.attempts >= ${MAX_METADATA_ATTEMPTS},
+      attempts = LEAST(j.attempts + 1, ${MAX_METADATA_ATTEMPTS})
     FROM candidate WHERE j."savedItemId" = candidate."savedItemId"
-    RETURNING j."savedItemId", candidate.url, j.attempts`);
-  return job ? { ...job, leaseToken } : null;
+    RETURNING j."savedItemId", candidate.url, j.attempts, j."finishedAt"`);
+  return job && !job.finishedAt ? { savedItemId: job.savedItemId, url: job.url, attempts: job.attempts, leaseToken } : null;
 }
 
 type MetadataOutcome = { status: "done" | "failed" } | { status: "retry"; retryAt: Date };

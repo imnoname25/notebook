@@ -3,7 +3,7 @@
 import { useCallback, useRef, useState } from "react";
 import { EMPTY_SEARCH, searchFromUrl, searchHref, type WorkspaceSearch } from "@/lib/workspace-search";
 
-export type WorkspaceScreen = "workspace" | "trash" | "stickers" | "today" | "search";
+export type WorkspaceScreen = "workspace" | "trash" | "stickers" | "today" | "search" | "saved";
 export function useWorkspaceSearch({ leave, setScreen }: {
   leave(operation: () => void): Promise<boolean>;
   setScreen(value: WorkspaceScreen): void;

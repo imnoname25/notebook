@@ -60,6 +60,7 @@ import { StickerSaveProvider, useStickerSaves } from "./sticker-save-provider";
 import { QuickCapture, StickerBoard } from "./quick-notes";
 import { TagBrowser } from "./tag-browser";
 import { TodayView } from "./today-view";
+import { SavedItemsView } from "./saved-items-view";
 import {
   TemplateManager,
   TemplatePicker,
@@ -87,7 +88,7 @@ import { consumeNativeShare, flushNativeAuthCookies } from "@/lib/native-android
 import type { PaletteCommand } from "@/lib/command-palette";
 import type { PageOutlineItem } from "@/lib/page-outline";
 import { createReversibleAction, type ReversibleAction } from "@/lib/reversible-action";
-import { blockIdFromHash, getPageHref, pageIdFromPath, WORKSPACE_ROOT_HREF } from "@/lib/workspace-navigation";
+import { blockIdFromHash, getPageHref, pageIdFromPath, savedFromUrl, savedHref, WORKSPACE_ROOT_HREF } from "@/lib/workspace-navigation";
 import {
   PAGE_LIST_VIEWS,
   SECTION_ACCENT_INTENSITIES,
@@ -187,6 +188,9 @@ function NotebookWorkspace({ user, initialLocation }: NotebookAppProps) {
   const [startScreen, setStartScreen] = useState<"last" | "today" | "notebooks" | "inbox">("last");
   const [searchOpen, setSearchOpen] = useState(false);
   const [stickerToReveal, setStickerToReveal] = useState<string | null>(null);
+  const [savedId, setSavedId] = useState<string | null>(null);
+  const savedDismiss = useRef<(() => void) | null>(null);
+  const registerSavedDismiss = useCallback((dismiss: (() => void) | null) => { savedDismiss.current = dismiss; }, []);
   const stickerRevealed = useCallback(() => setStickerToReveal(null), []);
   const [searchMatch, setSearchMatch] = useState<DocumentSearchRequest | null>(null);
   const searchMatchIntent = useRef(0);
@@ -534,6 +538,33 @@ function NotebookWorkspace({ user, initialLocation }: NotebookAppProps) {
   useLayoutEffect(() => { syncActive(activePage); }, [activePage, workspacePane, syncActive]);
   const tabs = { ...workspace.controller(workspace.active), leave: workspace.leave };
   const openTab = workspace.open;const restoreTabs = workspace.restore;const leaveTabs = workspace.leave;
+  const openSaved = useCallback((id: string | null = null) => leaveTabs(() => {
+    const current = savedFromUrl(window.location.href);
+    if (!current || current.id !== id) {
+      if (current?.id && !id && window.history.state?.notebookSavedFromList) {
+        window.history.back();
+        return;
+      }
+      if (current?.id) window.history.replaceState(window.history.state, "", savedHref(id));
+      else window.history.pushState({ notebookSaved: true, notebookSavedFromList: Boolean(current && id) }, "", savedHref(id));
+    }
+    setSavedId(id);
+    setScreen("saved");
+    setMobileView("navigation");
+    setFocusMode(false);
+    setNavigationOpen(false);
+  }), [leaveTabs]);
+  const backSaved = useCallback(() => {
+    if (window.history.state?.notebookSaved) { window.history.back(); return; }
+    if (savedFromUrl(window.location.href)?.id) {
+      window.history.replaceState(null, "", savedHref());
+      setSavedId(null);
+    } else {
+      window.history.replaceState(null, "", WORKSPACE_ROOT_HREF);
+      setScreen("workspace");
+      setMobileView("navigation");
+    }
+  }, []);
   const openPageById = useCallback(async (id: string, history: DocumentHistory = "push", mode: DocumentTab["mode"] = "preview") => { const opened = await openTab(id, mode, history);const block = blockIdFromHash(location.hash);if (opened && block) editorController.current?.scrollToBlock(block);return opened; }, [openTab]);
   const search = useWorkspaceSearch({ leave: leaveTabs, setScreen });
   const { open: openSearch, back: backSearch } = search;
@@ -553,11 +584,13 @@ function NotebookWorkspace({ user, initialLocation }: NotebookAppProps) {
     if (initialPageOpened.current) return;
     const params = new URLSearchParams(window.location.search);
     const view = params.get("view");
-    const standalone = Boolean(searchFromUrl(window.location.href) || view === "today" || view === "stickers" || params.has("notebook"));
+    const standalone = Boolean(searchFromUrl(window.location.href) || view === "saved" || view === "today" || view === "stickers" || params.has("notebook"));
     if (notebooks.length === 0 && (!standalone || params.has("notebook"))) return;
     initialPageOpened.current = true;
     void restoreTabs(pageIdFromPath(window.location.pathname) ?? initialLocation?.pageId ?? null, !standalone).then(() => {
       if (restoreSearch()) return;
+      const saved = savedFromUrl(window.location.href);
+      if (saved) { setSavedId(saved.id); setScreen("saved"); return; }
       const view = new URLSearchParams(window.location.search).get("view");
       if (view === "today" || view === "stickers") setScreen(view);
       else if (params.has("notebook")) {
@@ -578,6 +611,8 @@ function NotebookWorkspace({ user, initialLocation }: NotebookAppProps) {
       setQuickSearchOpen(false);setFocusMode(false);
       const destination = searchFromUrl(window.location.href);
       if (destination) { void leaveTabs(() => { restoreSearch(); }); return; }
+      const saved = savedFromUrl(window.location.href);
+      if (saved) { void leaveTabs(() => { setSavedId(saved.id); setScreen("saved"); setMobileView("navigation"); }); return; }
       const params = new URLSearchParams(window.location.search);
       const view = params.get("view");
       if (view === "today" || view === "stickers") { void leaveTabs(() => { setScreen(view);setMobileView("navigation"); });return; }
@@ -605,6 +640,7 @@ function NotebookWorkspace({ user, initialLocation }: NotebookAppProps) {
     androidWindow.__NOTEBOOK_ANDROID_BACK__ = () => {
       const state = mobileBackStateRef.current;
       if (!state) return "UNHANDLED";
+      if (state.screen === "saved" && savedDismiss.current) { savedDismiss.current(); return "HANDLED"; }
       const hasOverlay =
         Boolean(state.actionTarget) ||
         state.mobileMenuOpen ||
@@ -660,7 +696,11 @@ function NotebookWorkspace({ user, initialLocation }: NotebookAppProps) {
         return "HANDLED";
       }
       setFocusMode(false);
-      if (action === "workspace") { if (state.screen === "search") backSearch(); else setScreen("workspace"); }
+      if (action === "workspace") {
+        if (state.screen === "search") backSearch();
+        else if (state.screen === "saved") backSaved();
+        else setScreen("workspace");
+      }
       if (action === "pages") {
         window.history.replaceState(null, "", "/app");
         setMobileView("pages");
@@ -677,7 +717,7 @@ function NotebookWorkspace({ user, initialLocation }: NotebookAppProps) {
       delete androidWindow.__NOTEBOOK_ANDROID_BACK__;
       delete androidWindow.__NOTEBOOK_ANDROID_BACK_VERSION__;
     };
-  }, [backSearch]);
+  }, [backSearch, backSaved]);
 
   async function addNotebook() {
     const title = window.prompt("Название блокнота");
@@ -1061,6 +1101,7 @@ function NotebookWorkspace({ user, initialLocation }: NotebookAppProps) {
   async function openSearchResult(result: SearchResult, query = "") {
     const intent = ++searchMatchIntent.current;
     setSearchOpen(false);
+    if (result.type === "savedItem") return openSaved(result.id);
     if (result.type === "tag") {
       openGlobalSearch({ tag: result.id });
       return;
@@ -1357,7 +1398,7 @@ function NotebookWorkspace({ user, initialLocation }: NotebookAppProps) {
         onRetry={() => void loadNotebooks()}
         activeNotebookId={activeNotebookId}
         activeSectionId={activeSection?.id ?? null}
-        activeDestination={screen === "today" ? "today" : screen === "stickers" ? "stickers" : "workspace"}
+        activeDestination={screen === "today" || screen === "stickers" || screen === "saved" ? screen : "workspace"}
         expansionStorageKey={`notebook:expanded-notebooks:${user.id}`}
         sectionAccentIntensity={sectionAccentIntensity}
         onNotebookSelect={(id) => { setNavigationOpen(false); openNotebookOverview(id); }}
@@ -1371,6 +1412,7 @@ function NotebookWorkspace({ user, initialLocation }: NotebookAppProps) {
         onTrashOpen={() => { setNavigationOpen(false); void tabs.leave(() => setScreen("trash")); }}
         onInboxOpen={() => { setNavigationOpen(false); openSpecial("stickers"); }}
         onTodayOpen={() => { setNavigationOpen(false); openSpecial("today"); }}
+        onSavedOpen={() => { void openSaved(); }}
         onFavoritesOpen={() => { setNavigationOpen(false); openGlobalSearch({ group: "favorites" }); }}
         onRecentOpen={() => { setNavigationOpen(false); openGlobalSearch({ group: "recent" }); }}
         onTemplatesOpen={() => { setNavigationOpen(false); setTemplateManagerOpen(true); }}
@@ -1455,6 +1497,13 @@ function NotebookWorkspace({ user, initialLocation }: NotebookAppProps) {
             }}
             onError={report}
           />
+        ) : screen === "saved" ? (
+          <>
+            {navigationSidebar}
+            <SavedItemsView selectedId={savedId} notebooks={notebooks} onSelect={id => void openSaved(id)}
+              onBack={backSaved} registerDismiss={registerSavedDismiss}
+              onPage={id => { setWorkspaceRevision(value => value + 1); void openPageById(id).catch(report); }}/>
+          </>
         ) : screen === "stickers" ? (
           <>
           {navigationSidebar}

@@ -9,7 +9,7 @@ export const SEARCH_PAGE_SIZE = 25;
 
 export type HighlightPart = { text: string; highlight: boolean };
 export type SearchResult = {
-  type: "page" | "section" | "notebook" | "tag" | "quickNote";
+  type: "page" | "section" | "notebook" | "tag" | "quickNote" | "savedItem";
   id: string;
   title: string;
   notebookId: string;
@@ -94,6 +94,8 @@ export async function searchNotebook(userId: string, rawQuery: string, limit = S
     SELECT to_tsquery('simple', string_agg(quote_literal(token) || ':*', ' & '))
     FROM unnest(tsvector_to_array(to_tsvector('simple', ${query}))) AS token
   ), ''::tsquery)` : Prisma.empty}`;
+  const savedTitle = Prisma.sql`coalesce(nullif(saved.title, ''), saved."metadataTitle", nullif(left(saved.text, 80), ''), saved.url, 'Сохранённый материал')`;
+  const savedSnippet = Prisma.sql`concat_ws(' ', nullif(saved.text, ''), saved."metadataDescription", saved."metadataSiteName", saved.url, nullif(saved."searchTags", ''))`;
   const rows = await db.$queryRaw<SearchRow[]>(Prisma.sql`
     WITH search_input AS (
       SELECT ${tsquery} AS query, lower(${query}) AS normalized
@@ -149,6 +151,19 @@ export async function searchNotebook(userId: string, rawQuery: string, limit = S
         ${from ? Prisma.sql`AND note."updatedAt" >= ${from}` : Prisma.empty}
         ${until ? Prisma.sql`AND note."updatedAt" < ${until}` : Prisma.empty}
         ${tags.length ? Prisma.join(tags.map(tag => Prisma.sql`AND EXISTS (SELECT 1 FROM "QuickNoteTag" link JOIN "Tag" tag ON tag.id = link."tagId" WHERE link."quickNoteId" = note.id AND tag."userId" = ${userId} AND tag.normalized = ${tag})`), " ") : Prisma.empty}
+      UNION ALL
+      SELECT 'savedItem', saved.id, ${savedTitle}, '', '', 'default', 'notebook', NULL, NULL,
+             CASE WHEN ${query !== ""} THEN ts_headline('simple', ${savedSnippet}, input.query,
+               'StartSel=${Prisma.raw(START)}, StopSel=${Prisma.raw(STOP)}, MaxWords=22, MinWords=8, ShortWord=2')
+               ELSE left(${savedSnippet}, 180) END,
+             saved."updatedAt", 260, ts_rank_cd(saved."searchVector", input.query, 32), saved."updatedAt"
+      FROM "SavedItem" saved CROSS JOIN search_input input
+      WHERE saved."userId" = ${userId} AND saved."archivedAt" IS NULL
+        AND ${!filters.notebookId && !filters.sectionId && (!filters.group || filters.group === "all")}
+        AND (${query === ""} OR saved."searchVector" @@ input.query)
+        ${from ? Prisma.sql`AND saved."updatedAt" >= ${from}` : Prisma.empty}
+        ${until ? Prisma.sql`AND saved."updatedAt" < ${until}` : Prisma.empty}
+        ${tags.length ? Prisma.join(tags.map(tag => Prisma.sql`AND EXISTS (SELECT 1 FROM "SavedItemTag" link JOIN "Tag" tag ON tag.id = link."tagId" WHERE link."savedItemId" = saved.id AND tag."userId" = ${userId} AND tag.normalized = ${tag})`), " ") : Prisma.empty}
     )
     SELECT type, id, title, "notebookId", "notebookTitle", "notebookColor", "notebookIcon", "sectionId", "sectionTitle", snippet, "updatedAt"
     FROM ranked ORDER BY priority DESC, score DESC, recency DESC, title ASC, id ASC

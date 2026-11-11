@@ -102,4 +102,15 @@ describe.skipIf(!enabled)("saved item routes over HTTP with real sessions", () =
     expect(ownFile.headers.get("content-disposition")).toMatch(/^attachment;/);
     expect(await ownFile.text()).toMatch(/^%PDF-/);
   }, 120_000);
+
+  it("requires ownership for previews and refuses a private preview destination", async () => {
+    const { id } = await db.savedItem.create({
+      data: { userId: userIds[0], title: "Private preview", metadataImageUrl: "http://127.0.0.1/preview.png" },
+      select: { id: true },
+    });
+    const path = `${endpoint}/${id}/preview`;
+    expect((await request(path)).status).toBe(401);
+    expect((await request(path, { headers: { cookie: otherCookie } })).status).toBe(404);
+    expect((await request(path, { headers: { cookie: ownerCookie } })).status).toBe(404);
+  }, 120_000);
 });

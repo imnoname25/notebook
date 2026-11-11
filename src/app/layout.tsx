@@ -2,6 +2,7 @@ import type { Metadata, Viewport } from "next";
 import { ThemeProvider } from "@/components/theme-provider";
 import { PwaClient } from "@/components/pwa-client";
 import "./globals.css";
+import "./saved-items.css";
 import { fontVariables } from "./fonts";
 
 export const metadata: Metadata = {

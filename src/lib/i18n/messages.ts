@@ -1,4 +1,5 @@
 export const RU_MESSAGES = {
+  "saved.title": "Сохранённое",
   "editor.placeholder": "Начните писать или введите / для команд",
   "editor.pageTitlePlaceholder": "Название страницы",
   "editor.untitled": "Без названия",

@@ -170,6 +170,59 @@ describe.skipIf(!enabled)("saved items on PostgreSQL with persistent files", () 
     expect(await db.savedItemMetadataJob.count()).toBe(0);
   });
 
+  it("stores fetched metadata atomically and searches only owned, active materials", async () => {
+    const { processSavedMetadataJob } = await import("./saved-item-metadata-worker");
+    const { searchNotebook } = await import("./search-service");
+    const metadata = {
+      metadataTitle: "Workshop Transcription", metadataDescription: "Seminar handout",
+      metadataSiteName: "Fieldnotes", metadataImageUrl: "https://example.com/preview.png",
+    };
+    const signal = new AbortController().signal;
+    const { item } = await saved.createSavedItem(owner, "searchable", { ...input, url: "https://example.com/docs/", tags: ["reference"] }, []);
+    const foreign = await saved.createSavedItem(other, "foreign", { ...input, text: "Workshop Transcription" }, []);
+    expect(await processSavedMetadataJob(signal, async () => metadata)).toBe(true);
+    const hydrated = await saved.getSavedItem(owner, item.id);
+    expect(hydrated).toMatchObject({
+      metadataStatus: "ready", reviewStatus: "pending",
+      metadata: { title: metadata.metadataTitle, description: metadata.metadataDescription, siteName: "Fieldnotes", hasPreview: true },
+    });
+    expect(hydrated).not.toHaveProperty("metadataImageUrl");
+    expect(await db.upload.count({ where: { userId: owner } })).toBe(0);
+    for (const query of ["Workshop Transcription", "handout", "Fieldnotes", "example.com", "reference", "#reference", "original handout"]) {
+      const results = (await searchNotebook(owner, query)).results;
+      expect(results.filter(result => result.type === "savedItem").map(result => result.id)).toEqual([item.id]);
+      expect(results.map(result => result.id)).not.toContain(foreign.item.id);
+    }
+    expect((await searchNotebook(owner, "handout", 25, 0, { sectionId })).results.some(result => result.type === "savedItem")).toBe(false);
+    const { notebookId } = await db.section.findUniqueOrThrow({ where: { id: sectionId }, select: { notebookId: true } });
+    expect((await searchNotebook(owner, "handout", 25, 0, { notebookId })).results.some(result => result.type === "savedItem")).toBe(false);
+    await saved.updateSavedItem(owner, item.id, { archived: true });
+    expect((await searchNotebook(owner, "handout")).results).toEqual([]);
+    expect((await saved.listSavedItems(owner, { ...list, archive: "archived", q: "handout" })).items[0].id).toBe(item.id);
+  });
+
+  it("preserves the source after SSRF rejection and allows owner-only manual retry after exhaustion", async () => {
+    const { processSavedMetadataJob } = await import("./saved-item-metadata-worker");
+    const signal = new AbortController().signal;
+    const blocked = await saved.createSavedItem(owner, "blocked", { ...input, url: "http://127.0.0.1/" }, []);
+    expect(await processSavedMetadataJob(signal)).toBe(true);
+    expect(await saved.getSavedItem(owner, blocked.item.id)).toMatchObject({
+      metadataStatus: "failed", url: "http://127.0.0.1/", text: input.text, reviewStatus: "pending",
+    });
+    await expect(saved.retrySavedItemMetadata(other, blocked.item.id)).rejects.toMatchObject({ status: 404 });
+    await expect(saved.retrySavedItemMetadata(owner, blocked.item.id)).rejects.toMatchObject({ status: 409 });
+    const { item } = await saved.createSavedItem(owner, "exhausted", { ...input, url: "https://example.com/" }, []);
+    await db.savedItemMetadataJob.update({
+      where: { savedItemId: item.id }, data: { attempts: queue.MAX_METADATA_ATTEMPTS, availableAt: new Date(0), leaseToken: "abandoned" },
+    });
+    expect(await queue.claimSavedItemMetadataJob()).toBeNull();
+    expect(await saved.getSavedItem(owner, item.id)).toMatchObject({ metadataStatus: "failed" });
+    await db.savedItemMetadataJob.update({ where: { savedItemId: item.id }, data: { finishedAt: new Date(0) } });
+    const retries = await Promise.allSettled([saved.retrySavedItemMetadata(owner, item.id), saved.retrySavedItemMetadata(owner, item.id)]);
+    expect(retries.filter(result => result.status === "fulfilled")).toHaveLength(1);
+    expect(await queue.claimSavedItemMetadataJob()).toMatchObject({ savedItemId: item.id, attempts: 1 });
+  });
+
   it("preserves saved-only files on v5 restore and restores converted PDF references", async () => {
     const [standalone, converted] = await Promise.all(["standalone", "converted"].map(async key => (
       await saved.createSavedItem(owner, key, { ...input, title: key }, [await prepareUpload(pdf(), true)])
