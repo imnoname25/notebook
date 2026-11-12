@@ -11,7 +11,7 @@ const redirects = new Set([301, 302, 303, 307, 308]);
 export class SavedMetadataError extends Error {
   constructor(
     readonly retryable: boolean,
-    readonly reason: "destination" | "dns" | "redirect" | "http" | "mime" | "encoding" | "size",
+    readonly reason: "destination" | "dns" | "redirect" | "http" | "mime" | "encoding" | "size" | "challenge",
     readonly httpStatus?: number,
   ) {
     super("Saved metadata request failed");
@@ -62,7 +62,7 @@ async function abortable<T>(work: Promise<T>, signal: AbortSignal) {
   }
 }
 
-type Options = { maxBytes: number; types: readonly string[]; signal?: AbortSignal };
+type Options = { maxBytes: number; types: readonly string[]; signal?: AbortSignal; rejectChallenge?: boolean };
 type Response = Pick<http.IncomingMessage, "statusCode" | "headers"> & AsyncIterable<Buffer> & { destroy(): void };
 
 function request(url: URL, target: Address, signal: AbortSignal, accept: string) {
@@ -88,6 +88,9 @@ export async function fetchSavedMetadataResource(value: string, options: Options
     const response = await (network?.request ?? request)(url, target, signal, options.types.join(", "));
     try {
       const status = response.statusCode ?? 0;
+      if (options.rejectChallenge && response.headers["cf-mitigated"] === "challenge") {
+        throw new SavedMetadataError(false, "challenge", status);
+      }
       if (redirects.has(status)) {
         if (hop === 3 || !response.headers.location) throw new SavedMetadataError(false, "redirect");
         url = metadataUrl(response.headers.location, url);

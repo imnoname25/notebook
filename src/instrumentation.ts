@@ -7,6 +7,10 @@ export async function register() {
     if (process.env.NEXT_PHASE !== "phase-production-build") {
       const { startSavedMetadataWorker } = await import("@/lib/services/saved-item-metadata-worker");
       startSavedMetadataWorker();
+      if (process.env.SAVED_ARTICLE_AUTO_EXTRACT === "1") {
+        const { startSavedArticleWorker } = await import("@/lib/services/saved-article-worker");
+        startSavedArticleWorker();
+      }
     }
   }
 }

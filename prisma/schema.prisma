@@ -384,6 +384,8 @@ model SavedItem {
   tags            SavedItemTag[]
   attachments     SavedItemAttachment[]
   metadataJob     SavedItemMetadataJob?
+  article         SavedArticle?
+  articleJob      SavedArticleJob?
 
   @@index([userId, archivedAt, createdAt, id])
   @@index([convertedPageId])
@@ -434,6 +436,41 @@ model SavedItemMetadataJob {
   savedItem   SavedItem @relation(fields: [savedItemId], references: [id], onDelete: Cascade)
 
   @@index([finishedAt, availableAt, savedItemId])
+}
+
+enum SavedArticleJobStatus {
+  queued
+  running
+  retry
+  ready
+  fallback
+  failed
+}
+
+model SavedArticle {
+  savedItemId    String   @id
+  contentVersion Int
+  blocks         Json
+  sourceUrl      String
+  extractedAt    DateTime
+  savedItem      SavedItem @relation(fields: [savedItemId], references: [id], onDelete: Cascade)
+}
+
+model SavedArticleJob {
+  savedItemId String                @id
+  sourceUrl   String
+  generation  String
+  status      SavedArticleJobStatus @default(queued)
+  attempts    Int                   @default(0)
+  availableAt DateTime              @default(dbgenerated("(CURRENT_TIMESTAMP AT TIME ZONE 'UTC'::text)"))
+  leaseUntil  DateTime?
+  leaseToken  String?
+  finishedAt  DateTime?
+  reason      String?
+  savedItem   SavedItem             @relation(fields: [savedItemId], references: [id], onDelete: Cascade)
+
+  @@index([status, availableAt, savedItemId])
+  @@index([status, leaseUntil, savedItemId])
 }
 
 model PageLink {
