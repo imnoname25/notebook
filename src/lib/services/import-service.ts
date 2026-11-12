@@ -16,7 +16,9 @@ import {
   BACKUP_FORMAT,
   blockNoteContentSchema,
   EXPORT_FORMAT,
-  DATA_FORMAT_VERSION,
+  SAVED_ITEMS_DATA_FORMAT_VERSION,
+  FILE_INTEGRITY_DATA_FORMAT_VERSION,
+  ARTICLES_DATA_FORMAT_VERSION,
   manifestSchema,
   pageExportSchema,
   type ArchiveData,
@@ -53,6 +55,7 @@ import {
 import { pageContentHash } from "@/lib/page-version-policy";
 import { restoreTemplateReferences, templateReferenceWarnings } from "@/lib/template-portability";
 import { validateTemplateContent } from "@/lib/page-templates";
+import { validatePortableArticleImage } from "./portable-article-files";
 
 export type ImportSummary = {
   kind: "page" | "notebook" | "all" | "backup";
@@ -97,7 +100,24 @@ function assertPortableReferences(data: ArchiveData, manifest: DataManifest) {
   const available = new Set(
     data.attachments.map((attachment) => attachment.key),
   );
+  const imageAttachments = new Set<string>();
+  const attachmentByKey = new Map(data.attachments.map(file => [file.key, file]));
+  const pageKeys = new Set(keys[2]);
   for (const item of data.savedItems ?? []) {
+    if (manifest.version < ARTICLES_DATA_FORMAT_VERSION && item.article !== undefined)
+      throw new ApiError(400, "Статьи требуют формат v7");
+    if (manifest.version >= ARTICLES_DATA_FORMAT_VERSION &&
+        (item.article === undefined || item.titleOrigin === undefined || item.sharedTitle === undefined))
+      throw new ApiError(400, "Неполная запись Saved Item v7");
+    for (const image of item.article?.images ?? []) {
+      if (image.attachmentKey === null) continue;
+      const attachment = attachmentByKey.get(image.attachmentKey);
+      if (!attachment || attachment.mimeType !== "image/webp" || imageAttachments.has(image.attachmentKey))
+        throw new ApiError(400, "Некорректное вложение изображения статьи");
+      imageAttachments.add(image.attachmentKey);
+    }
+    if (item.convertedPageKey && !pageKeys.has(item.convertedPageKey))
+      throw new ApiError(400, "Некорректная ссылка на преобразованную страницу");
     if (!item.title && !item.text.trim() && !item.url && !item.attachmentKeys.length)
       throw new ApiError(400, "Пустой материал в архиве");
     if (new Set(item.tags.map(tag => tag.normalized)).size !== item.tags.length ||
@@ -167,7 +187,7 @@ async function validateArchiveFiles(directory: string, data: ArchiveData, dataNa
         !attachment.archivePath.startsWith("attachments/") || allowed.has(attachment.archivePath) || attachment.dataBase64 !== undefined)
       throw new ApiError(400, "Некорректный путь вложения");
     if (requireHash && !attachment.sha256)
-      throw new ApiError(400, "Вложение v6 не содержит SHA-256");
+      throw new ApiError(400, "Вложение v6+ не содержит SHA-256");
     allowed.add(attachment.archivePath);
     const filePath = path.resolve(
       directory,
@@ -319,11 +339,14 @@ export async function prepareImport(
       throw new ApiError(400, "Manifest не соответствует списку вложений");
     if ((manifest.scope === "backup") !== (manifest.format === BACKUP_FORMAT))
       throw new ApiError(400, "Некорректная область архива");
-    const includesSavedItems = manifest.version >= DATA_FORMAT_VERSION && manifest.scope !== "notebook";
+    const includesSavedItems = manifest.version >= SAVED_ITEMS_DATA_FORMAT_VERSION && manifest.scope !== "notebook";
     if (includesSavedItems !== (data.savedItems !== undefined))
       throw new ApiError(400, "Состав «Сохранённого» не соответствует версии или области архива");
     assertPortableReferences(data, manifest);
-    const bytes = await validateArchiveFiles(extracted, data, dataName, manifest.version >= DATA_FORMAT_VERSION);
+    const bytes = await validateArchiveFiles(extracted, data, dataName, manifest.version >= FILE_INTEGRITY_DATA_FORMAT_VERSION);
+    const articleFiles = new Set(data.savedItems?.flatMap(item => item.article?.images.flatMap(image => image.attachmentKey ? [image.attachmentKey] : []) ?? []));
+    for (const attachment of data.attachments) if (articleFiles.has(attachment.key))
+      await validatePortableArticleImage(path.join(extracted, ...attachment.archivePath!.split("/")));
     return {
       directory,
       sourcePath,
@@ -442,11 +465,10 @@ async function importSavedItems(
     }
     const metadata = item.metadata;
     const titleOrigin = item.titleOrigin ?? (item.title ? "legacy" : "system");
-    const hasMetadata = Object.values(metadata).some(value => value !== null);
     const { id } = await tx.savedItem.create({
       data: {
         userId,
-        title: titleOrigin === "manual" || titleOrigin === "legacy" ? item.title : "",
+        title: item.article !== undefined || titleOrigin === "manual" || titleOrigin === "legacy" ? item.title : "",
         titleOrigin,
         sharedTitle: item.sharedTitle ?? null,
         text: item.text,
@@ -462,7 +484,8 @@ async function importSavedItems(
         metadataSiteName: metadata.siteName,
         metadataImageUrl: metadata.imageUrl,
         searchTags: item.tags.map(tag => tag.normalized).join(" "),
-        ...(item.url ? { metadataJob: { create: hasMetadata ? { finishedAt: new Date() } : {} } } : {}),
+        // Import and restore never schedule requests to URLs from an archive.
+        ...(item.url ? { metadataJob: { create: { finishedAt: new Date() } } } : {}),
       },
       select: { id: true },
     });
@@ -472,6 +495,16 @@ async function importSavedItems(
     if (item.attachmentKeys.length) await tx.savedItemAttachment.createMany({
       data: item.attachmentKeys.map((key, position) => ({ savedItemId: id, uploadId: attachmentIds.get(key)!, position })),
     });
+    if (item.article) {
+      const { images, extractedAt, ...article } = item.article;
+      await tx.savedArticle.create({ data: {
+        savedItemId: id, ...article, blocks: article.blocks as Prisma.InputJsonValue,
+        extractedAt: new Date(extractedAt),
+        images: { create: images.map(({ attachmentKey, ...image }) => ({
+          ...image, uploadId: attachmentKey ? attachmentIds.get(attachmentKey)! : null,
+        })) },
+      } });
+    }
   }
 }
 
@@ -819,7 +852,7 @@ export async function restoreBackupData(
   const { data, manifest } = prepared;
   const oldUploads = await withPortableAttachments(userId, prepared, data.attachments, async (tx, materialized) => {
     // Page deletion clears convertedPageId through its FK. Keep v1–v5 saved items and tags.
-    if (manifest.version >= DATA_FORMAT_VERSION)
+    if (manifest.version >= SAVED_ITEMS_DATA_FORMAT_VERSION)
       await tx.savedItem.deleteMany({ where: { userId } });
     const removable = { userId, savedItems: { none: {} }, savedArticleImage: { is: null } };
     const removed = await tx.upload.findMany({ where: removable, select: { storageName: true } });

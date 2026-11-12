@@ -136,6 +136,7 @@ export async function createSavedItem(userId: string, key: string, input: SavedI
 
 export async function updateSavedItem(userId: string, id: string, { archived, tags, title, useWebsiteTitle, ...fields }: SavedItemUpdateInput) {
   return db.$transaction(async tx => {
+    await lockUserUploads(tx, userId);
     const rows = await tx.$queryRaw<{ archivedAt: Date | null; metadataTitle: string | null }[]>(Prisma.sql`
       SELECT "archivedAt", "metadataTitle" FROM "SavedItem" WHERE id = ${id} AND "userId" = ${userId} FOR NO KEY UPDATE`);
     const row = rows[0];

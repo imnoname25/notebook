@@ -33,7 +33,7 @@ describe.skipIf(!enabled)("template integrity: real PostgreSQL and ZIP", () => {
     const built = await exporter.buildPortableExport(owner, { backup: true, includeDeleted: true, includeHistory: true });
     if (version) {
       built.manifest.version = version as typeof built.manifest.version;
-      delete built.data.savedItems;
+      if (version < 6) delete built.data.savedItems;
       if (version < 5) built.data.templates![0]!.content = content as NonNullable<typeof built.data.templates>[number]["content"];
     }
     if (invalid) built.data.templates!.push({ name: "Invalid", description: null, icon: "file-text", sortOrder: 10, content: [{ type: "alien" }] });
@@ -44,8 +44,8 @@ describe.skipIf(!enabled)("template integrity: real PostgreSQL and ZIP", () => {
     const bytes = new Uint8Array(await readFile(file));
     return importer.prepareImport(new Request("http://test/restore", { method: "POST", headers: { "content-type": "application/zip" }, body: bytes }), "backup");
   }
-  it.each([5, 6])("restores v%i targets by key, preserves aliases/nesting, then creates backlinks only for real pages", async version => {
-    const prepared = await zip(version === 5 ? version : undefined);
+  it.each([5, 6, 7])("restores v%i targets by key, preserves aliases/nesting, then creates backlinks only for real pages", async version => {
+    const prepared = await zip(version);
     try {
       expect(prepared.manifest!.version).toBe(version);expect(prepared.summary.warnings).toEqual([]);
       const portableKey = [...internalPageIdsInContent(content)][0]!;

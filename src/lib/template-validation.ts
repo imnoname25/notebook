@@ -1,4 +1,4 @@
-import { blockNoteContentSchema } from "./data-format";
+import { blockNoteContentSchema } from "./blocknote-content-schema";
 import { ApiError } from "./errors";
 import { liveWidgetPropsSchema } from "./live-widgets";
 import { pageLinkPropsSchema } from "./page-links";

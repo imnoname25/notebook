@@ -1,5 +1,5 @@
 import type { ClipboardEvent } from "react";
-import { blockNoteContentSchema } from "@/lib/data-format";
+import { blockNoteContentSchema } from "@/lib/blocknote-content-schema";
 import { unsupportedEditorBlocks } from "@/lib/editor-compatibility";
 import { validateTemplateContent } from "@/lib/page-templates";
 import { tsvToTableHtml } from "@/lib/table-paste";

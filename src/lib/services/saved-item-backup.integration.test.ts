@@ -6,7 +6,7 @@ import path from "node:path";
 import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
 import { createZipArchive } from "@/lib/archive";
 import { savedItemCreateSchema } from "@/lib/saved-item-validation";
-import { BACKUP_FORMAT, type ArchiveData, type DataManifest } from "@/lib/data-format";
+import { BACKUP_FORMAT, DATA_FORMAT_VERSION, type ArchiveData, type DataManifest } from "@/lib/data-format";
 
 vi.mock("node:fs/promises", async importOriginal => {
   const fs = await importOriginal<typeof import("node:fs/promises")>();
@@ -26,7 +26,7 @@ const request = (bytes: Uint8Array<ArrayBuffer>) => new Request("http://local/re
   method: "POST", headers: { "content-type": "application/zip" }, body: bytes,
 });
 
-describe.skipIf(!enabled)("v6 Saved Items backup, real PostgreSQL and ZIP", () => {
+describe.skipIf(!enabled)("Saved Items portable backup, real PostgreSQL and ZIP", () => {
   let db: typeof import("@/lib/db").db;
   let exports: typeof import("./export-service");
   let imports: typeof import("./import-service");
@@ -137,7 +137,7 @@ describe.skipIf(!enabled)("v6 Saved Items backup, real PostgreSQL and ZIP", () =
     const bytes = await readZip(all);
     const prepared = await imports.prepareImport(request(bytes));
     try {
-      expect(prepared.manifest?.version).toBe(6);
+      expect(prepared.manifest?.version).toBe(DATA_FORMAT_VERSION);
       expect(prepared.summary.savedItems).toBe(2);
       expect(JSON.stringify(prepared.data)).not.toMatch(/leaseToken|fixture-lease|fingerprint|convertedPageId/);
       await imports.commitImport(other, prepared);
@@ -155,7 +155,9 @@ describe.skipIf(!enabled)("v6 Saved Items backup, real PostgreSQL and ZIP", () =
   it("reads v6 saved titles from archives predating title provenance", async () => {
     await saved.createSavedItem(owner, randomUUID(), savedItemCreateSchema.parse({ title: "Old title" }), []);
     const { manifest, data } = await exports.buildPortableExport(owner, all);
+    manifest.version = 6;
     for (const item of data.savedItems ?? []) {
+      delete item.article;
       delete item.titleOrigin;
       delete item.sharedTitle;
     }
@@ -176,7 +178,10 @@ describe.skipIf(!enabled)("v6 Saved Items backup, real PostgreSQL and ZIP", () =
         sharedTitle: "Android title", url: "https://example.org/",
       }), []);
       await db.savedItem.update({ where: { id: item.id }, data: { metadataTitle: "Website title" } });
-      const prepared = await imports.prepareImport(request(await readZip(all)));
+      const built = await exports.buildPortableExport(owner, all);
+      built.manifest.version = 6;
+      for (const item of built.data.savedItems!) { delete item.article; item.title = "Website title"; }
+      const prepared = await imports.prepareImport(request(await writeFixture(built.manifest, built.data, built.attachmentFiles)));
       try {
         expect(prepared.manifest?.version).toBe(6);
         expect(prepared.data?.savedItems?.[0]).toMatchObject({
@@ -213,7 +218,7 @@ describe.skipIf(!enabled)("v6 Saved Items backup, real PostgreSQL and ZIP", () =
     } finally { await imports.disposePreparedImport(prepared); }
   });
 
-  it("restores a recorded backup over existing data and keeps the v6 safety copy", async () => {
+  it("restores a recorded backup over existing data and keeps the v7 safety copy", async () => {
     await capture();
     const record = await backups.createOperationalBackup(owner, "manual");
     const { item: later } = await saved.createSavedItem(owner, randomUUID(), savedItemCreateSchema.parse({ text: "Later" }), []);
@@ -225,7 +230,7 @@ describe.skipIf(!enabled)("v6 Saved Items backup, real PostgreSQL and ZIP", () =
     const safety = await backups.backupRecordFile(result.safetyBackupId);
     const prepared = await imports.prepareImport(request(new Uint8Array(await readFile(safety.filePath))), "backup");
     try {
-      expect(prepared.manifest?.version).toBe(6);
+      expect(prepared.manifest?.version).toBe(DATA_FORMAT_VERSION);
       expect(prepared.data?.savedItems?.map(item => item.text)).toContain("Later");
       expect(safety.record.type).toBe("safety");
     } finally { await imports.disposePreparedImport(prepared); }
@@ -320,7 +325,7 @@ describe.skipIf(!enabled)("v6 Saved Items backup, real PostgreSQL and ZIP", () =
     await assertRestored(owner);
   });
 
-  it("uploads v6 to WebDAV over HTTP and restores after the local copy is lost", async () => {
+  it("uploads v7 to WebDAV over HTTP and restores after the local copy is lost", async () => {
     await capture();
     const files = new Map<string, Buffer>();
     const server = createServer(async (req, res) => {

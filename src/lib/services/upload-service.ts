@@ -35,9 +35,13 @@ export async function discardUncommittedUploads(userId: string, written: string[
     await lockUserUploads(tx, userId);
     const committed = await tx.upload.findMany({ where: { storageName: { in: written } }, select: { storageName: true } });
     const retained = new Set(committed.map(file => file.storageName));
-    await Promise.allSettled(written.filter(name => !retained.has(name))
+    const removed = await Promise.allSettled(written.filter(name => !retained.has(name))
       .map(name => rm(resolveStoragePath(name), { force: true })));
-  }).catch(() => undefined);
+    const failed = removed.filter(result => result.status === "rejected").length;
+    if (failed) console.error("Notebook upload rollback requires storage audit", { files: failed });
+  }).catch(() => {
+    console.error("Notebook upload rollback could not verify database state; storage audit required");
+  });
 }
 
 export async function withUploadWrites<T>(userId: string, write: (

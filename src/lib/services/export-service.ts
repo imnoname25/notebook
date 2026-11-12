@@ -4,10 +4,10 @@ import path from "node:path";
 import type { Prisma } from "@/generated/prisma/client";
 import { db } from "@/lib/db";
 import { ApiError } from "@/lib/errors";
-import { resolveSavedItemTitle } from "@/lib/saved-item-title";
 import {
   BACKUP_FORMAT,
   archiveDataSchema,
+  portableArticleSchema,
   blockNoteContentSchema,
   DATA_FORMAT_VERSION,
   EXPORT_FORMAT,
@@ -33,6 +33,7 @@ import { assertSafeArchivePath, createDataTempDirectory, createZipArchive } from
 import { MAX_IMPORT_ENTRIES, MAX_IMPORT_JSON_BYTES, maxImportArchiveBytes, maxImportUncompressedBytes } from "@/lib/data-limits";
 import { ATTACHMENT_EXTENSIONS, isValidAttachmentMime } from "@/lib/uploads";
 import { lockUserUploads } from "./upload-service";
+import { validatePortableArticleImage } from "./portable-article-files";
 import { blockNoteToSafeHtml, standalonePageHtml } from "@/lib/html-export";
 import { TEMPLATE_ICONS, type TemplateIcon } from "@/lib/template-icons";
 import { portableTemplateReferences } from "@/lib/template-portability";
@@ -135,11 +136,14 @@ export async function buildPortableExport(
     include: {
       tags: { where: { tag: { userId } }, orderBy: { tag: { normalized: "asc" } }, include: { tag: true } },
       attachments: { orderBy: { position: "asc" }, include: { upload: { select: { originalName: true } } } },
+      article: { include: { images: { orderBy: { position: "asc" } } } },
     },
   });
   for (const item of savedItems) {
     for (const attachment of item.attachments) attachmentIds.add(attachment.uploadId);
+    for (const image of item.article?.images ?? []) if (image.uploadId) attachmentIds.add(image.uploadId);
   }
+  const articleUploadIds = new Set(savedItems.flatMap(item => item.article?.images.flatMap(image => image.uploadId ? [image.uploadId] : []) ?? []));
   const uploads = await client.upload.findMany({
     where: options.backup
       ? { userId }
@@ -277,6 +281,7 @@ export async function buildPortableExport(
       }
       hash = await sha256File(source);
       if (upload.sha256 && upload.sha256 !== hash) throw new Error("SHA-256");
+      if (articleUploadIds.has(upload.id)) await validatePortableArticleImage(source);
     } catch {
       throw new ApiError(
         409,
@@ -336,9 +341,9 @@ export async function buildPortableExport(
         ? {
             savedItems: savedItems.map((item, index) => ({
               key: `saved-item-${index + 1}`,
-              title: resolveSavedItemTitle({ ...item, fileName: item.attachments[0]?.upload.originalName }),
-              ...(item.titleOrigin === "legacy" && !item.sharedTitle ? {}
-                : { titleOrigin: item.titleOrigin, sharedTitle: item.sharedTitle }),
+              title: item.title,
+              titleOrigin: item.titleOrigin,
+              sharedTitle: item.sharedTitle,
               text: item.text,
               url: item.url,
               reviewStatus: item.reviewStatus,
@@ -349,6 +354,16 @@ export async function buildPortableExport(
               updatedAt: date(item.updatedAt),
               tags: item.tags.map(({ tag: { name, normalized } }) => ({ name, normalized })),
               attachmentKeys: item.attachments.map(({ uploadId }) => uploadKey.get(uploadId)!),
+              article: item.article ? portableArticleSchema.parse({
+                contentVersion: item.article.contentVersion,
+                blocks: item.article.blocks,
+                sourceUrl: item.article.sourceUrl,
+                extractedAt: date(item.article.extractedAt),
+                images: item.article.images.map(image => ({
+                  imageKey: image.imageKey, sourceUrl: image.sourceUrl, position: image.position,
+                  attachmentKey: image.uploadId ? uploadKey.get(image.uploadId)! : null,
+                })),
+              }) : null,
               metadata: {
                 title: item.metadataTitle,
                 description: item.metadataDescription,
@@ -400,7 +415,10 @@ export async function writePortableArchive(
       throw new ApiError(413, "Архив превышает допустимый размер");
     }
     return built.manifest;
-  }, { timeout: 120_000 });
+  }, { timeout: 120_000 }).catch(async (error: unknown) => {
+    await rm(target, { force: true }).catch(() => undefined);
+    throw error;
+  });
 }
 
 export async function exportPageJson(

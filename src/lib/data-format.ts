@@ -1,4 +1,7 @@
 import { z } from "zod";
+import { blockNoteContentSchema } from "./blocknote-content-schema";
+export { blockNoteContentSchema } from "./blocknote-content-schema";
+import { MAX_ARTICLE_IMAGES, savedArticleBlocks, savedArticleImageKey } from "./saved-article-format";
 import { NOTEBOOK_COLORS, NOTEBOOK_ICONS } from "@/lib/notebook-appearance";
 import { TEMPLATE_ICONS } from "@/lib/template-icons";
 import { SECTION_ICONS } from "@/lib/section-icons";
@@ -15,7 +18,10 @@ import {
   PAGE_PATTERNS,
 } from "@/lib/content-appearance";
 
-export const DATA_FORMAT_VERSION = 6 as const;
+export const DATA_FORMAT_VERSION = 7 as const;
+export const SAVED_ITEMS_DATA_FORMAT_VERSION = 6 as const;
+export const FILE_INTEGRITY_DATA_FORMAT_VERSION = 6 as const;
+export const ARTICLES_DATA_FORMAT_VERSION = 7 as const;
 const SECTION_ICONS_DATA_FORMAT_VERSION = 5 as const;
 export const LINKS_DATA_FORMAT_VERSION = 4 as const;
 export const APPEARANCE_DATA_FORMAT_VERSION = 3 as const;
@@ -25,9 +31,6 @@ export const EXPORT_FORMAT = "notebook-export" as const;
 export const PAGE_FORMAT = "notebook-page" as const;
 export const BACKUP_FORMAT = "notebook-backup" as const;
 
-export const blockNoteContentSchema = z
-  .array(z.object({ type: z.string().min(1).max(80) }).passthrough())
-  .max(10_000);
 const portableDate = z.iso.datetime();
 const portableAttachmentSchema = z
   .object({
@@ -143,6 +146,26 @@ const portableTag = z.strictObject({
   !name.includes("\0") && hashtagQuery(`#${normalized}`) === normalized &&
   hashtagQuery(`#${name}`) === normalized);
 const portableMetadataText = (max: number) => z.string().max(max).refine(value => !value.includes("\0")).nullable();
+export const portableArticleSchema = z.strictObject({
+  contentVersion: z.union([z.literal(1), z.literal(2)]),
+  blocks: savedArticleBlocks,
+  sourceUrl: savedItemCreateSchema.shape.url.unwrap().unwrap(),
+  extractedAt: portableDate,
+  images: z.array(z.strictObject({
+    imageKey: savedArticleImageKey,
+    sourceUrl: savedItemCreateSchema.shape.url.unwrap().unwrap(),
+    position: z.number().int().min(0).max(MAX_ARTICLE_IMAGES - 1),
+    attachmentKey: portableKey.nullable(),
+  })).max(MAX_ARTICLE_IMAGES),
+}).superRefine((article, ctx) => {
+  const keys = article.blocks.flatMap(block => block.type === "image" ? [block.key] : []);
+  const images = new Set(article.images.map(image => image.imageKey));
+  if (images.size !== article.images.length || new Set(keys).size !== keys.length ||
+      new Set(article.images.map(image => image.position)).size !== article.images.length ||
+      keys.length !== images.size || keys.some(key => !images.has(key)) ||
+      (article.contentVersion === 1 && keys.length))
+    ctx.addIssue({ code: "custom", message: "Invalid article image references" });
+});
 const portableSavedItemSchema = z.strictObject({
   ...savedItemCreateSchema.pick({ text: true, url: true }).required().shape,
   title: z.string().max(200).refine(value => !value.includes("\0")),
@@ -157,6 +180,7 @@ const portableSavedItemSchema = z.strictObject({
   updatedAt: portableDate,
   tags: z.array(portableTag).max(MAX_PAGE_TAGS),
   attachmentKeys: z.array(portableKey).max(MAX_SAVED_ATTACHMENTS),
+  article: portableArticleSchema.nullable().optional(),
   metadata: z.strictObject({
     title: portableMetadataText(300),
     description: portableMetadataText(1000),
@@ -176,6 +200,7 @@ export const manifestSchema = z
       z.literal(APPEARANCE_DATA_FORMAT_VERSION),
       z.literal(LINKS_DATA_FORMAT_VERSION),
       z.literal(SECTION_ICONS_DATA_FORMAT_VERSION),
+      z.literal(SAVED_ITEMS_DATA_FORMAT_VERSION),
       z.literal(DATA_FORMAT_VERSION),
     ]),
     createdAt: portableDate,
@@ -205,6 +230,7 @@ export const pageExportSchema = z
           z.literal(APPEARANCE_DATA_FORMAT_VERSION),
           z.literal(LINKS_DATA_FORMAT_VERSION),
           z.literal(SECTION_ICONS_DATA_FORMAT_VERSION),
+          z.literal(SAVED_ITEMS_DATA_FORMAT_VERSION),
           z.literal(DATA_FORMAT_VERSION),
         ]),
         createdAt: portableDate,

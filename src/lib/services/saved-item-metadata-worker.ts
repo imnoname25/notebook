@@ -1,5 +1,6 @@
 import { Prisma } from "@/generated/prisma/client";
 import { db } from "@/lib/db";
+import { lockUserUploads } from "./upload-service";
 import { fetchSavedMetadata } from "@/lib/saved-metadata";
 import { SavedMetadataError } from "@/lib/saved-metadata-network";
 import { claimSavedItemMetadataJob, MAX_METADATA_ATTEMPTS, settleSavedItemMetadataJob } from "./saved-item-metadata-queue";
@@ -39,6 +40,9 @@ export async function processSavedMetadataJob(signal: AbortSignal, fetchMetadata
   }
   if (signal.aborted) return false;
   await db.$transaction(async tx => {
+    const owner = await tx.savedItem.findUnique({ where: { id: job.savedItemId }, select: { userId: true } });
+    if (!owner) return;
+    await lockUserUploads(tx, owner.userId);
     const item = await tx.$queryRaw<{ id: string }[]>(Prisma.sql`
       SELECT id FROM "SavedItem" WHERE id = ${job.savedItemId} AND url = ${job.url} FOR NO KEY UPDATE`);
     if (!item.length) return;
