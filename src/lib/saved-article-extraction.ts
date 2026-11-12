@@ -1,6 +1,7 @@
+import { createHash } from "node:crypto";
 import { defaultTreeAdapter, Parser, parseFragment, type DefaultTreeAdapterTypes, type TreeAdapter } from "parse5";
 import {
-  MAX_ARTICLE_BLOCKS, MAX_ARTICLE_INLINE, MAX_ARTICLE_INLINE_TEXT, MAX_ARTICLE_LIST_DEPTH,
+  MAX_ARTICLE_BLOCKS, MAX_ARTICLE_IMAGES, MAX_ARTICLE_INLINE, MAX_ARTICLE_INLINE_TEXT, MAX_ARTICLE_LIST_DEPTH,
   savedArticleBlocks, type SavedArticleBlocks,
 } from "./saved-article-format";
 import { fetchSavedMetadataResource, metadataUrl } from "./saved-metadata-network";
@@ -14,9 +15,10 @@ type Element = DefaultTreeAdapterTypes.Element;
 type Child = DefaultTreeAdapterTypes.ChildNode;
 type Parent = DefaultTreeAdapterTypes.ParentNode;
 type Block = SavedArticleBlocks[number];
-type Inline = Block["content"][number];
+type Inline = Exclude<Block, { type: "image" }>["content"][number];
+export type ArticleImageCandidate = { key: string; sourceUrl: string };
 export type ArticleExtraction =
-  | { status: "ready"; blocks: SavedArticleBlocks }
+  | { status: "ready"; blocks: SavedArticleBlocks; imageCandidates?: ArticleImageCandidate[] }
   | { status: "fallback"; reason: "access" | "empty" | "limits" };
 
 class ArticleLimit extends Error {}
@@ -120,6 +122,28 @@ function safeLink(value: string | undefined, url: URL) {
   } catch { return undefined; }
 }
 
+function promotional(node: Element) {
+  return /(?:^|[^\w])(?:ads?|advert(?:ising|isement)?|sponsored|tracking|tracker|pixel|beacon)(?:$|[^\w])/iu
+    .test([attr(node, "class"), attr(node, "id"), attr(node, "role")].filter(Boolean).join(" "));
+}
+
+function imageCandidate(node: Element, base: URL) {
+  if (node.namespaceURI !== htmlNamespace || hidden(node) || promotional(node)
+    || attr(node, "onerror") !== undefined || attr(node, "onload") !== undefined
+    || [attr(node, "width"), attr(node, "height")].some(value => value && /^\d+$/u.test(value) && Number(value) < 32)) return null;
+  for (const name of ["src", "data-src"]) {
+    const value = attr(node, name);
+    if (!value?.trim() || value.length > 2048) continue;
+    try {
+      const url = metadataUrl(value, base);
+      if (url.href.length > 2048 || /(?:^|[/.?_-])(?:tracking|tracker|pixel|beacon)(?:[/.?_-]|$)/iu.test(url.pathname)) continue;
+      const key = createHash("sha256").update(url.href).digest("hex");
+      return { key, sourceUrl: url.href, alt: clean(attr(node, "alt") ?? "").trim().slice(0, 300) };
+    } catch { continue; }
+  }
+  return null;
+}
+
 function inlineContent(parent: Parent, url: URL, checkTime: () => void) {
   const parts: Inline[] = [];
   function append(text: string, href?: string) {
@@ -214,9 +238,28 @@ export function extractSavedArticle(html: string, url: URL, signal?: AbortSignal
     const main = selectMain(body, checkTime);
     if (!main) return { status: "fallback", reason: "empty" };
     const blocks: SavedArticleBlocks = [];
+    const imageCandidates = new Map<string, ArticleImageCandidate>();
+    let imageCount = 0;
+    function emitImage(node: Element) {
+      if (imageCount >= MAX_ARTICLE_IMAGES || blocks.length >= MAX_ARTICLE_BLOCKS) return;
+      const image = imageCandidate(node, url);
+      if (!image) return;
+      imageCandidates.set(image.key, { key: image.key, sourceUrl: image.sourceUrl });
+      blocks.push({ type: "image", key: image.key, alt: image.alt });
+      imageCount++;
+    }
+    function emitInlineImages(node: Element) {
+      checkTime();
+      if (imageCount >= MAX_ARTICLE_IMAGES) return;
+      if (node.tagName === "img") emitImage(node);
+      else if (!ignored(node) && !promotional(node) && node.tagName !== "ol" && node.tagName !== "ul") {
+        for (const child of elements(node)) emitInlineImages(child);
+      }
+    }
     function emit(node: Element, depth = 0, ordered = false) {
       checkTime();
-      if (ignored(node)) return;
+      if (node.tagName === "img") { emitImage(node); return; }
+      if (ignored(node) || promotional(node)) return;
       const heading = /^h([1-6])$/u.exec(node.tagName);
       if (heading || paragraphs.has(node.tagName)) {
         const content = inlineContent(node, url, checkTime);
@@ -226,6 +269,7 @@ export function extractSavedArticle(html: string, url: URL, signal?: AbortSignal
           else if (node.tagName === "li") blocks.push({ type: "listItem", ordered, depth, content });
           else blocks.push({ type: node.tagName === "blockquote" ? "quote" : "paragraph", content });
         }
+        for (const child of elements(node)) emitInlineImages(child);
         if (node.tagName !== "li") return;
         for (const child of elements(node).filter(element => element.tagName === "ul" || element.tagName === "ol"))
           emit(child, depth + 1);
@@ -234,9 +278,14 @@ export function extractSavedArticle(html: string, url: URL, signal?: AbortSignal
       for (const child of elements(node)) emit(child, depth, node.tagName === "ol");
     }
     emit(main);
+    if (!blocks.some(block => block.type === "paragraph" || block.type === "quote" || block.type === "listItem")) {
+      return { status: "fallback", reason: "empty" };
+    }
     const parsed = savedArticleBlocks.safeParse(blocks);
     checkTime();
-    return parsed.success ? { status: "ready", blocks: parsed.data } : { status: "fallback", reason: "limits" };
+    return parsed.success ? { status: "ready", blocks: parsed.data,
+      ...(imageCandidates.size ? { imageCandidates: [...imageCandidates.values()] } : {}),
+    } : { status: "fallback", reason: "limits" };
   } catch (error) {
     if (error instanceof ArticleLimit) return { status: "fallback", reason: "limits" };
     throw error;

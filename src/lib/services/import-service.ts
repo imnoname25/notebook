@@ -821,7 +821,7 @@ export async function restoreBackupData(
     // Page deletion clears convertedPageId through its FK. Keep v1–v5 saved items and tags.
     if (manifest.version >= DATA_FORMAT_VERSION)
       await tx.savedItem.deleteMany({ where: { userId } });
-    const removable = { userId, savedItems: { none: {} } };
+    const removable = { userId, savedItems: { none: {} }, savedArticleImage: { is: null } };
     const removed = await tx.upload.findMany({ where: removable, select: { storageName: true } });
     await tx.notebook.deleteMany({ where: { userId } });
     await tx.upload.deleteMany({ where: removable });

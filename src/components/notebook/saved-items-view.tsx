@@ -8,6 +8,7 @@ import { api, jsonOptions } from "@/lib/client-api";
 import { cn } from "@/lib/utils";
 import { t } from "@/lib/i18n/messages";
 import { SavedItemDialog, type SavedDialogAction } from "./saved-item-dialog";
+import { SavedArticleControls, SavedArticleReader, savedArticleHeading, useSavedArticle } from "./saved-article-reader";
 import { savedError, savedItemEndpoint, savedSource, savedTitle, useSavedItem, useSavedItems, type SavedItem } from "./saved-items-client";
 import type { Notebook } from "./types";
 
@@ -15,9 +16,9 @@ const views = [{ id: "all", name: "Все" }, { id: "pending", name: "Нераз
 type View = (typeof views)[number]["id"];
 const date = new Intl.DateTimeFormat("ru", { day: "numeric", month: "short", year: "numeric" });
 
-function MaterialPreview({ item, className }: { item: SavedItem; className?: string }) {
+function MaterialPreview({ item, className, allowRemote = true }: { item: SavedItem; className?: string; allowRemote?: boolean }) {
   const attachment = item.attachments.find(file => file.mimeType.startsWith("image/"));
-  const source = attachment?.url ?? (item.metadata.hasPreview ? `${savedItemEndpoint(item.id)}/preview` : null);
+  const source = attachment?.url ?? (allowRemote && !item.hasSavedArticle && item.metadata.hasPreview ? `${savedItemEndpoint(item.id)}/preview` : null);
   const [failed, setFailed] = useState<string | null>(null);
   if (!source || failed === source) return null;
   // Both sources are authenticated routes with validated bytes and no public cache.
@@ -47,7 +48,7 @@ function SavedCard({ item, selected, onSelect, onTag }: { item: SavedItem; selec
   const excerpt = item.metadata.description || item.text;
   return <li className={cn("notebook-surface min-w-0 rounded-xl px-3 pb-2", selected && "ring-2 ring-primary/50")}>
     <button type="button" aria-current={selected ? "true" : undefined} onClick={onSelect} className="block min-h-11 w-full min-w-0 rounded-lg py-3 text-left focus-visible:outline-2 focus-visible:outline-ring">
-      <MaterialPreview item={item} className="mb-2 aspect-[2.5] w-full rounded-lg bg-muted object-cover"/>
+      <MaterialPreview item={item} allowRemote={!selected} className="mb-2 aspect-[2.5] w-full rounded-lg bg-muted object-cover"/>
       <span className="mb-1 flex items-start gap-2"><Icon size={16} className="mt-0.5 shrink-0 text-muted-foreground"/><strong className="line-clamp-2 min-w-0 break-words text-sm font-semibold">{savedTitle(item)}</strong></span>
       <SavedFacts item={item}/>
       {excerpt && <span className="mt-2 line-clamp-2 break-words text-sm text-muted-foreground">{excerpt}</span>}
@@ -65,7 +66,11 @@ function SavedDetail({ item, busy, onTag, onDialog, onPatch, onRetry, onPage }: 
   onRetry(): void; onPage(id: string): void;
 }) {
   const heading = useRef<HTMLHeadingElement>(null);
-  const title = savedTitle(item);
+  const reader = useSavedArticle(item.id, Boolean(item.url));
+  const article = reader.state?.article;
+  const articleHeading = savedArticleHeading(article);
+  const protectedTitle = item.titleOrigin === "manual" || item.titleOrigin === "legacy";
+  const title = protectedTitle ? savedTitle(item) : articleHeading.title || savedTitle(item);
   const [expanded, setExpanded] = useState(false);
   const [canExpand, setCanExpand] = useState(false);
   useEffect(() => { heading.current?.focus({ preventScroll: true }); }, []);
@@ -110,7 +115,7 @@ function SavedDetail({ item, busy, onTag, onDialog, onPatch, onRetry, onPage }: 
     </div>
     <div className="notebook-saved-material-tags"><SavedTags item={item} onTag={onTag}/></div>
     <div className="notebook-saved-actions flex flex-wrap items-center gap-2">
-      {item.url && <a className={cn(buttonVariants({ variant: "outline" }), "notebook-saved-source min-h-11")} href={item.url} target="_blank" rel="noopener noreferrer">Открыть источник <ArrowUpRight size={16}/></a>}
+      {item.url && <a className={cn(buttonVariants({ variant: "outline" }), "notebook-saved-source min-h-11")} href={item.url} target="_blank" rel="noopener noreferrer">{article ? "Открыть оригинал" : "Открыть источник"} <ArrowUpRight size={16}/></a>}
       {pageAction && <Button variant="outline" className={cn("min-h-11", item.url && "notebook-saved-desktop")} onClick={pageAction.run}>{pageAction.label}</Button>}
       <DropdownMenu.Root>
         <DropdownMenu.Trigger asChild>
@@ -126,10 +131,12 @@ function SavedDetail({ item, busy, onTag, onDialog, onPatch, onRetry, onPage }: 
         </DropdownMenu.Portal>
       </DropdownMenu.Root>
     </div>
-    {item.metadataStatus === "queued" && <p role="status" className="text-sm text-muted-foreground">Ссылка сохранена. Получаем данные для превью…</p>}
-    {item.metadataStatus === "failed" && <div className="flex flex-wrap items-center gap-2 text-sm text-muted-foreground"><p role="status">Ссылка сохранена. Не удалось получить данные для превью.</p><Button variant="ghost" className="notebook-saved-desktop min-h-11" disabled={busy} onClick={onRetry}>Повторить</Button></div>}
-    {item.metadata.hasPreview && !item.attachments.some(file => file.mimeType.startsWith("image/")) && <MaterialPreview item={item} className="max-h-64 max-w-full rounded-xl object-contain"/>}
-    {item.metadata.description && <p className="whitespace-pre-wrap break-words text-muted-foreground">{item.metadata.description}</p>}
+    {item.url && <SavedArticleControls reader={reader}/>}
+    {article && <SavedArticleReader article={article} headingIndex={title === articleHeading.title ? articleHeading.index : -1}/>}
+    {!article && item.metadataStatus === "queued" && <p role="status" className="text-sm text-muted-foreground">Ссылка сохранена. Получаем данные для превью…</p>}
+    {!article && item.metadataStatus === "failed" && <div className="flex flex-wrap items-center gap-2 text-sm text-muted-foreground"><p role="status">Ссылка сохранена. Не удалось получить данные для превью.</p><Button variant="ghost" className="notebook-saved-desktop min-h-11" disabled={busy} onClick={onRetry}>Повторить</Button></div>}
+    {!article && reader.state && item.metadata.hasPreview && !item.attachments.some(file => file.mimeType.startsWith("image/")) && <MaterialPreview item={item} className="max-h-64 max-w-full rounded-xl object-contain"/>}
+    {!article && item.metadata.description && <p className="whitespace-pre-wrap break-words text-muted-foreground">{item.metadata.description}</p>}
     {item.text && <p className="whitespace-pre-wrap break-words">{item.text}</p>}
     {item.attachments.length > 0 && <ul className="space-y-2" aria-label="Вложения">
       {item.attachments.map(file => <li key={file.id} className="min-w-0">

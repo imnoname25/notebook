@@ -9,6 +9,7 @@ if (enabled) process.env.DATABASE_URL = databaseUrl;
 describe.skipIf(!enabled)("saved item routes over HTTP with real sessions", () => {
   let db: typeof import("@/lib/db").db;
   const userIds: string[] = [];
+  let ownerId: string;
   let ownerCookie: string;
   let otherCookie: string;
   let sectionId: string;
@@ -26,6 +27,7 @@ describe.skipIf(!enabled)("saved item routes over HTTP with real sessions", () =
       return { userId: user.id, cookie: `${SESSION_COOKIE}=${token}` };
     }));
     ownerCookie = sessions[0].cookie;
+    ownerId = sessions[0].userId;
     otherCookie = sessions[1].cookie;
     sectionId = (await db.section.create({ data: { title: "Destination", notebook: { create: { userId: sessions[0].userId, title: "Notebook" } } } })).id;
   });
@@ -130,12 +132,57 @@ describe.skipIf(!enabled)("saved item routes over HTTP with real sessions", () =
 
   it("requires ownership for previews and refuses a private preview destination", async () => {
     const { id } = await db.savedItem.create({
-      data: { userId: userIds[0], title: "Private preview", titleOrigin: "legacy", metadataImageUrl: "http://127.0.0.1/preview.png" },
+      data: { userId: ownerId, title: "Private preview", titleOrigin: "legacy", metadataImageUrl: "http://127.0.0.1/preview.png" },
       select: { id: true },
     });
     const path = `${endpoint}/${id}/preview`;
     expect((await request(path)).status).toBe(401);
     expect((await request(path, { headers: { cookie: otherCookie } })).status).toBe(404);
     expect((await request(path, { headers: { cookie: ownerCookie } })).status).toBe(404);
+  }, 120_000);
+
+  it("enforces private article and image access, Origin and manual throttling", async () => {
+    const { createHash } = await import("node:crypto");
+    const { default: sharp } = await import("sharp");
+    const { prepareUpload, withUploadWrites } = await import("./upload-service");
+    const userId = ownerId;
+    const url = "https://example.invalid/article";
+    const sourceUrl = "https://example.invalid/image.webp";
+    const key = createHash("sha256").update(sourceUrl).digest("hex");
+    const bytes = await sharp({ create: { width: 64, height: 48, channels: 3, background: "teal" } }).webp().toBuffer();
+    const file = await prepareUpload(new File([new Uint8Array(bytes)], "fixture.webp", { type: "image/webp" }));
+    const { id, uploadId } = await withUploadWrites(userId, async (tx, store) => {
+      const { id } = await tx.savedItem.create({ data: { userId, url, text: "Story" }, select: { id: true } });
+      const upload = await store(file);
+      await tx.savedArticle.create({ data: { savedItemId: id, sourceUrl: url, extractedAt: new Date(), contentVersion: 2,
+        blocks: [{ type: "paragraph", content: [{ type: "text", text: "Story" }] }, { type: "image", key, alt: "Fixture" }],
+        images: { create: { imageKey: key, position: 0, sourceUrl, uploadId: upload.id } },
+      } });
+      return { id, uploadId: upload.id };
+    });
+    const article = `${endpoint}/${id}/article`;
+    const image = `${article}/images/${key}`;
+    const owner = { headers: { cookie: ownerCookie } };
+    const other = { headers: { cookie: otherCookie } };
+    expect((await request(article)).status).toBe(401);
+    expect((await request(article, other)).status).toBe(404);
+    expect((await request(image, other)).status).toBe(404);
+    expect((await request(`/api/uploads/${uploadId}`, owner)).status).toBe(404);
+    const content = await request(article, owner);
+    expect(content.headers.get("cache-control")).toBe("private, no-store");
+    expect(await content.json()).toMatchObject({ article: { contentVersion: 2, images: [{ key }] }, job: null });
+    const binary = await request(image, owner);
+    expect(binary.headers.get("x-content-type-options")).toBe("nosniff");
+    expect(binary.headers.get("content-type")).toBe("image/webp");
+    expect(Buffer.from(await binary.arrayBuffer())).toEqual(bytes);
+    expect((await request(article, { method: "POST", ...owner })).status).toBe(403);
+    expect((await request(article, json(otherCookie, {}))).status).toBe(404);
+    expect((await request(article, json(ownerCookie, {}))).status).toBe(202);
+    await db.savedArticleJob.update({ where: { savedItemId: id }, data: {
+      status: "failed", finishedAt: new Date(), leaseToken: null, leaseUntil: null,
+    } });
+    const throttled = await request(article, json(ownerCookie, {}));
+    expect(throttled.status).toBe(429);
+    expect(throttled.headers.get("retry-after")).toBe("60");
   }, 120_000);
 });

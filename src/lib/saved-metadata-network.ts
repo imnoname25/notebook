@@ -62,7 +62,10 @@ async function abortable<T>(work: Promise<T>, signal: AbortSignal) {
   }
 }
 
-type Options = { maxBytes: number; types: readonly string[]; signal?: AbortSignal; rejectChallenge?: boolean };
+type Options = {
+  maxBytes: number; types: readonly string[]; signal?: AbortSignal; rejectChallenge?: boolean;
+  onBytes?: (bytes: number) => void;
+};
 type Response = Pick<http.IncomingMessage, "statusCode" | "headers"> & AsyncIterable<Buffer> & { destroy(): void };
 
 function request(url: URL, target: Address, signal: AbortSignal, accept: string) {
@@ -107,6 +110,7 @@ export async function fetchSavedMetadataResource(value: string, options: Options
       let bytes = 0;
       for await (const chunk of response) {
         bytes += chunk.byteLength;
+        options.onBytes?.(chunk.byteLength);
         if (bytes > options.maxBytes) throw new SavedMetadataError(false, "size");
         chunks.push(chunk);
       }

@@ -13,7 +13,7 @@ import {
 } from "@/lib/services/system-notification-service";
 
 async function usedUploadIds(userId: string, tx: Prisma.TransactionClient = db) {
-  const [pages, saved, notebooks] = await Promise.all([tx.page.findMany({
+  const [pages, saved, notebooks, articleImages] = await Promise.all([tx.page.findMany({
     where: { section: { notebook: { userId } } },
     select: {
       content: true,
@@ -25,8 +25,11 @@ async function usedUploadIds(userId: string, tx: Prisma.TransactionClient = db) 
     where: { savedItem: { userId }, upload: { userId } }, select: { uploadId: true },
   }), tx.notebook.findMany({
     where: { userId, coverUploadId: { not: null } }, select: { coverUploadId: true },
+  }), tx.savedArticleImage.findMany({
+    where: { article: { savedItem: { userId } }, upload: { userId } }, select: { uploadId: true },
   })]);
   const used = new Set(saved.map(({ uploadId }) => uploadId));
+  for (const { uploadId } of articleImages) if (uploadId) used.add(uploadId);
   for (const { coverUploadId } of notebooks) if (coverUploadId) used.add(coverUploadId);
   for (const page of pages) {
     if (page.coverUploadId) used.add(page.coverUploadId);

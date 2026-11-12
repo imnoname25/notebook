@@ -17,6 +17,7 @@ const itemSelect = {
   tags: { orderBy: { tag: { normalized: "asc" } }, select: { tag: { select: { name: true, normalized: true } } } },
   attachments: { orderBy: { position: "asc" }, select: { upload: { select: { id: true, originalName: true, mimeType: true, size: true } } } },
   metadataJob: { select: { finishedAt: true, failed: true } },
+  article: { select: { sourceUrl: true } },
 } as const satisfies Prisma.SavedItemSelect;
 type Item = Prisma.SavedItemGetPayload<{ select: typeof itemSelect }>;
 
@@ -27,9 +28,10 @@ function displayTitle(item: Item) {
 }
 
 function serializeItem(record: Item) {
-  const { attachments, tags, metadataJob, metadataTitle, metadataDescription, metadataSiteName, metadataImageUrl, ...item } = record;
+  const { attachments, tags, metadataJob, metadataTitle, metadataDescription, metadataSiteName, metadataImageUrl, article, ...item } = record;
   return {
     ...item,
+    hasSavedArticle: article !== null && article.sourceUrl === item.url,
     displayTitle: displayTitle(record),
     canUseWebsiteTitle: savedItemTitleOriginsEnabled() && Boolean(websiteTitle(metadataTitle))
       && item.titleOrigin !== "system",

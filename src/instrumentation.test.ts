@@ -13,7 +13,7 @@ it("starts the existing scheduler in the Node runtime", async () => {
   vi.stubEnv("NEXT_RUNTIME", "nodejs");
   vi.stubEnv("SAVED_ARTICLE_AUTO_EXTRACT", undefined);
   await register();
-  expect(startSavedArticleWorker).not.toHaveBeenCalled();
+  expect(startSavedArticleWorker).toHaveBeenCalledOnce();
   expect(startBackupScheduler).toHaveBeenCalledOnce();
   expect(startSavedMetadataWorker).toHaveBeenCalledOnce();
 });
@@ -35,9 +35,9 @@ it("does not start metadata processing during a production build", async () => {
   expect(startSavedArticleWorker).not.toHaveBeenCalled();
 });
 
-it("starts article processing only with its independent flag", async () => {
+it("resumes explicitly queued article jobs with automatic capture disabled", async () => {
   vi.stubEnv("NEXT_RUNTIME", "nodejs");
-  vi.stubEnv("SAVED_ARTICLE_AUTO_EXTRACT", "1");
+  vi.stubEnv("SAVED_ARTICLE_AUTO_EXTRACT", "0");
   vi.stubEnv("SAVED_ITEM_TITLE_ORIGINS", "0");
   await register();
   expect(startSavedArticleWorker).toHaveBeenCalledOnce();

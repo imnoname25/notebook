@@ -454,6 +454,21 @@ model SavedArticle {
   sourceUrl      String
   extractedAt    DateTime
   savedItem      SavedItem @relation(fields: [savedItemId], references: [id], onDelete: Cascade)
+  images         SavedArticleImage[]
+}
+
+model SavedArticleImage {
+  savedItemId String
+  imageKey    String
+  sourceUrl   String
+  position    Int
+  uploadId    String?
+  article     SavedArticle @relation(fields: [savedItemId], references: [savedItemId], onDelete: Cascade)
+  upload      Upload?      @relation(fields: [uploadId], references: [id], onDelete: NoAction)
+
+  @@id([savedItemId, imageKey])
+  @@unique([savedItemId, position])
+  @@unique([uploadId])
 }
 
 model SavedArticleJob {
@@ -462,6 +477,7 @@ model SavedArticleJob {
   generation  String
   status      SavedArticleJobStatus @default(queued)
   attempts    Int                   @default(0)
+  requestedAt DateTime              @default(dbgenerated("(CURRENT_TIMESTAMP AT TIME ZONE 'UTC'::text)"))
   availableAt DateTime              @default(dbgenerated("(CURRENT_TIMESTAMP AT TIME ZONE 'UTC'::text)"))
   leaseUntil  DateTime?
   leaseToken  String?
@@ -514,6 +530,7 @@ model Upload {
   backgroundFor Page?    @relation("PageBackground")
   notebookCoverFor Notebook? @relation("NotebookCover")
   savedItems    SavedItemAttachment[]
+  savedArticleImage SavedArticleImage?
 
   @@index([userId])
   @@index([userId, createdAt])

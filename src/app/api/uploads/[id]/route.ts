@@ -13,7 +13,7 @@ export async function GET(_request: NextRequest, { params }: Context) {
   try {
     const [user, { id }] = await Promise.all([requireUser(), params]);
     const upload = await db.upload.findFirst({
-      where: { id, userId: user.id },
+      where: { id, userId: user.id, savedArticleImage: { is: null } },
       include: { savedItems: { select: { savedItemId: true }, take: 1 } },
     });
     if (!upload) throw new ApiError(404, "Файл не найден");

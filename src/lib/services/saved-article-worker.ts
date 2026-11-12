@@ -1,5 +1,6 @@
 import { fetchSavedArticle } from "@/lib/saved-article-extraction";
 import { SavedMetadataError } from "@/lib/saved-metadata-network";
+import { downloadSavedArticleImages } from "./saved-article-images";
 import {
   claimSavedArticleJob, MAX_ARTICLE_ATTEMPTS, settleSavedArticleJob, type SavedArticleOutcome,
 } from "./saved-article-queue";
@@ -33,13 +34,16 @@ export function savedArticleRequestFailure(error: unknown, attempts: number): Sa
   return { status: "failed", reason };
 }
 
-export async function processSavedArticleJob(signal: AbortSignal, extract = fetchSavedArticle) {
+export async function processSavedArticleJob(signal: AbortSignal, extract = fetchSavedArticle, download = downloadSavedArticleImages) {
   if (signal.aborted) return false;
   const job = await claimSavedArticleJob();
   if (!job || signal.aborted) return false;
   let outcome: SavedArticleOutcome;
   try {
-    outcome = await extract(job.sourceUrl, signal);
+    const result = await extract(job.sourceUrl, signal);
+    outcome = result.status === "ready" && result.imageCandidates?.length
+      ? { status: "ready", blocks: result.blocks, images: await download(result.imageCandidates, signal) }
+      : result;
   } catch (error) {
     outcome = savedArticleRequestFailure(error, job.attempts);
   }

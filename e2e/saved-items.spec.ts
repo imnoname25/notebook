@@ -1,5 +1,7 @@
 import { expect, test, type Page } from "@playwright/test";
+import { createHash } from "node:crypto";
 import { Client } from "pg";
+import sharp from "sharp";
 import { setTestTheme } from "./theme-fixture";
 
 async function login(page: Page) {
@@ -188,6 +190,140 @@ test("Atelier opens an exact global result and retains both split panes on Back"
   await expect(title(right)).toHaveValue(b.page.title);
   await expect(left.locator(".bn-editor")).toContainText("Saved transition marker");
   await expect.poll(async () => JSON.stringify(await page.request.get(`/api/pages/${a.page.id}`).then(r => r.json()))).toContain("Saved transition marker");
+});
+
+test("reads a local illustrated copy in Graphite and Atelier at all supported widths", async ({ page, baseURL }, info) => {
+  test.setTimeout(120_000);
+  await login(page);
+  const origin = baseURL!;
+  const remote = "https://field-notes.example.invalid/cedar-trail";
+  const title = "Тропа вдоль кедрового ручья";
+  const id = crypto.randomUUID();
+  const outside: string[] = [];
+  const preview: string[] = [];
+  const client = new Client({ connectionString: process.env.E2E_DATABASE_URL });
+  await client.connect();
+  try {
+    const notebook = await page.request.post("/api/notebooks", { data: { title: "Полевой журнал" } });
+    expect(notebook.ok()).toBe(true);
+    const { notebook: { id: notebookId } } = await notebook.json();
+    const { rows: [{ id: userId }] } = await client.query<{ id: string }>('SELECT id FROM "User" WHERE email = $1', ["admin@example.test"]);
+    const fixtures = [
+      { alt: "Туман над кедровым ручьём", colors: ["#bacbc2", "#426854", "#152f2c", "#83ada4"] },
+      { alt: "Открытая долина за перевалом", colors: ["#efcaa0", "#a77958", "#43382d", "#d8aa74"] },
+      { alt: "Карта верхней тропы", colors: null },
+    ];
+    const images: { key: string; source: string; position: number; alt: string; uploadId: string | null }[] = [];
+    for (const [position, { alt, colors }] of fixtures.entries()) {
+      const source = `${remote}/figure-${position}.webp`;
+      const key = createHash("sha256").update(source).digest("hex");
+      let uploadId: string | null = null;
+      if (colors) {
+        const [sky, hills, forest, water] = colors;
+        const vector = `<svg width="960" height="420" xmlns="http://www.w3.org/2000/svg">
+          <rect width="960" height="420" fill="${sky}"/><circle cx="704" cy="103" r="48" fill="#f4e6c6"/>
+          <path d="M0 238 145 126 261 211 377 94 488 220 620 145 758 218 870 142 960 196V420H0Z" fill="${hills}"/>
+          <path d="M0 260Q155 235 334 278T609 272Q820 215 960 245V420H0Z" fill="${water}"/>
+          <path d="M0 307 102 276 180 293 271 330 155 370 0 390ZM960 278 819 272 711 321 735 355 960 396Z" fill="${forest}"/>
+          <path d="M0 337Q140 336 241 365T460 389M402 302Q563 285 693 306M511 343Q620 329 710 348" stroke="#f4e6c6" stroke-opacity=".4" stroke-width="5" fill="none"/>
+          ${Array.from({ length: 16 }, (_, i) => {
+            const x = i < 8 ? i * 30 : 725 + (i - 8) * 30;
+            const y = (i < 8 ? 273 : 267) + (i * 17) % 27;
+            return `<path d="M${x} ${y - 80}l-27 80h54z" fill="${forest}"/>`;
+          }).join("")}</svg>`;
+        const raster = await sharp(Buffer.from(vector)).webp({ quality: 86 }).toBuffer();
+        const uploaded = await page.request.post("/api/uploads", { headers: { origin }, multipart: {
+          notebookId, file: { name: `cedar-${position}.webp`, mimeType: "image/webp", buffer: raster },
+        } });
+        expect(uploaded.status()).toBe(201);
+        uploadId = (await uploaded.json()).id;
+      }
+      images.push({ key, source, position, alt, uploadId });
+    }
+    await client.query(`INSERT INTO "SavedItem"(id,"userId",url,"metadataImageUrl","updatedAt")
+      VALUES ($1,$2,$3,$4,now())`, [id, userId, remote, `${remote}/preview.webp`]);
+    await page.setViewportSize({ width: 360, height: 960 });
+    await page.goto(`/app?view=saved&item=${id}`);
+    await expect(detail(page).getByText("Статья ещё не сохранена.")).toBeVisible();
+    const enqueued = page.waitForResponse(response => response.request().method() === "POST" && response.url().endsWith(`/${id}/article`));
+    await detail(page).getByRole("button", { name: "Сохранить статью" }).click();
+    expect((await enqueued).status()).toBe(202);
+    const text = (value: string) => [{ type: "text", text: value }];
+    const image = (index: number) => ({ type: "image", key: images[index].key, alt: images[index].alt });
+    const blocks = [
+      { type: "heading", level: 1, content: text(title) },
+      { type: "paragraph", content: text("Утром тропа спускается к воде. Отсюда хорошо слышно ручей, а за дальними кедрами проступает линия перевала.") },
+      image(0),
+      { type: "heading", level: 2, content: text("От ручья к перевалу") },
+      { type: "listItem", ordered: true, depth: 0, content: text("Перейдите ручей по деревянному настилу.") },
+      { type: "listItem", ordered: true, depth: 0, content: text("Держитесь левой тропы до открытой долины.") },
+      { type: "listItem", ordered: false, depth: 1, content: text("На развилке ориентиром служит плоский валун.") },
+      { type: "quote", content: text("Лучше остановиться у воды: здесь лес тише, чем на подъёме.") },
+      image(1), image(2),
+      { type: "paragraph", content: [{ type: "link", text: "Заметки о маршруте", href: `${remote}/notes` }] },
+    ];
+    await client.query("BEGIN");
+    try {
+      await client.query(`INSERT INTO "SavedArticle"("savedItemId","sourceUrl","contentVersion",blocks,"extractedAt")
+        VALUES ($1,$2,2,$3,$4)`, [id, remote, JSON.stringify(blocks), new Date("2026-10-18T10:00:00Z")]);
+      for (const { key, source, position, uploadId } of images) {
+        await client.query(`INSERT INTO "SavedArticleImage"("savedItemId","imageKey","sourceUrl",position,"uploadId")
+          VALUES ($1,$2,$3,$4,$5)`, [id, key, source, position, uploadId]);
+      }
+      await client.query(`UPDATE "SavedArticleJob" SET status = 'ready', "finishedAt" = now(), reason = NULL, "leaseToken" = NULL, "leaseUntil" = NULL
+        WHERE "savedItemId" = $1`, [id]);
+      await client.query("COMMIT");
+    } catch (error) {
+      await client.query("ROLLBACK");
+      throw error;
+    }
+    await expect(detail(page).getByRole("heading", { name: title, exact: true })).toBeVisible();
+    page.on("request", request => {
+      const url = new URL(request.url());
+      if (url.hostname === new URL(remote).hostname) outside.push(request.url());
+      if (url.pathname === `/api/saved-items/${id}/preview`) preview.push(request.url());
+    });
+    for (const theme of ["studio-graphite", "studio-atelier"]) {
+      await setTestTheme(page, theme);
+      for (const width of [360, 768, 1920]) {
+        await page.setViewportSize({ width, height: 960 });
+        await page.goto(`/app?view=saved&item=${id}`);
+        await expect(page.locator("html")).toHaveClass(theme);
+        const article = detail(page).getByRole("region", { name: "Сохранённая статья" });
+        await expect(detail(page).getByRole("heading", { name: title, exact: true })).toBeVisible();
+        await expect(detail(page).getByRole("link", { name: "Открыть оригинал" })).toHaveAttribute("href", remote);
+        await expect(detail(page).getByText("Часть изображений недоступна.")).toBeVisible();
+        await expect(article.getByText("Изображение недоступно · Карта верхней тропы")).toBeAttached();
+        await expect(article.locator("ol > li > ul")).toHaveCount(1);
+        await expect(article.locator("blockquote")).toHaveCount(1);
+        await expect(article.getByRole("link", { name: "Заметки о маршруте" })).toHaveAttribute("href", `${remote}/notes`);
+        await expect(article.getByRole("img")).toHaveCount(2);
+        const lead = article.getByRole("img", { name: images[0].alt });
+        await expect.poll(() => lead.evaluate(image => (image as HTMLImageElement).naturalWidth)).toBe(960);
+        const second = article.getByRole("img", { name: images[1].alt });
+        await second.scrollIntoViewIfNeeded();
+        await expect.poll(() => second.evaluate(image => (image as HTMLImageElement).naturalWidth)).toBe(960);
+        await detail(page).getByRole("heading", { name: title, exact: true }).evaluate(node => node.scrollIntoView());
+        await page.evaluate(() => document.fonts.ready);
+        await expect.poll(() => page.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(width);
+        await page.screenshot({ path: info.outputPath(`${theme}-${width}.png`), animations: "disabled" });
+      }
+    }
+    expect(outside).toEqual([]);
+    expect(preview).toEqual([]);
+    await client.query(`UPDATE "SavedArticleJob" SET status = 'failed', "finishedAt" = now(), reason = 'request'
+      WHERE "savedItemId" = $1`, [id]);
+    await page.reload();
+    await expect(detail(page).getByText("Обновление не удалось. Доступна предыдущая копия.")).toBeVisible();
+    await expect(detail(page).getByRole("heading", { name: title, exact: true })).toBeVisible();
+    await expect(detail(page).getByRole("button", { name: "Обновить копию" })).toBeEnabled();
+    await client.query(`UPDATE "SavedItem" SET title = $2, "titleOrigin" = 'manual' WHERE id = $1`, [id, "Мой заголовок маршрута"]);
+    await page.reload();
+    await expect(detail(page).getByRole("heading", { name: "Мой заголовок маршрута", level: 2 })).toBeVisible();
+    await expect(detail(page).getByRole("heading", { name: title, level: 3 })).toBeVisible();
+  } finally {
+    await client.end();
+  }
 });
 
 test("server paginates the feed and the running worker preserves blocked links", async ({ page, baseURL }) => {
