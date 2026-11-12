@@ -180,10 +180,11 @@ describe.skipIf(!enabled)("saved items on PostgreSQL with persistent files", () 
     const signal = new AbortController().signal;
     const { item } = await saved.createSavedItem(owner, "searchable", { ...input, url: "https://example.com/docs/", tags: ["reference"] }, []);
     const foreign = await saved.createSavedItem(other, "foreign", { ...input, text: "Workshop Transcription" }, []);
+    await saved.updateSavedItem(owner, item.id, { title: "Моё название" });
     expect(await processSavedMetadataJob(signal, async () => metadata)).toBe(true);
     const hydrated = await saved.getSavedItem(owner, item.id);
     expect(hydrated).toMatchObject({
-      metadataStatus: "ready", reviewStatus: "pending",
+      title: "Моё название", metadataStatus: "ready", reviewStatus: "pending",
       metadata: { title: metadata.metadataTitle, description: metadata.metadataDescription, siteName: "Fieldnotes", hasPreview: true },
     });
     expect(hydrated).not.toHaveProperty("metadataImageUrl");

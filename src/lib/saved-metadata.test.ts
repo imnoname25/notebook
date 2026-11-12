@@ -34,9 +34,34 @@ describe("saved URL metadata", () => {
       metadataTitle: "Пример — сайт", metadataDescription: "Описание", metadataSiteName: "Журнал", metadataImageUrl: null,
     });
   });
+
+  it("uses a semantic article heading before the SEO title", () => {
+    expect(extractSavedMetadata(`<title>${"SEO ".repeat(200)}</title>
+      <nav><h1>Меню</h1></nav><main><article><h1>Как выбрать <em>инструмент</em></h1></article></main>`, page))
+      .toMatchObject({ metadataTitle: "Как выбрать инструмент" });
+    expect(extractSavedMetadata(`<title>${"a".repeat(299)}😀</title>`, page).metadataTitle).toBe("a".repeat(299));
+  });
+
+  it("falls back through repeated Open Graph images and handles absent metadata", () => {
+    expect(extractSavedMetadata(`<meta property="og:image:secure_url" content="http://example.com/cover.png">
+      <meta property="og:image" content="ftp://example.com/cover.png">
+      <meta property="og:image" content=" //cdn.example.com/cover.png ">`, page).metadataImageUrl)
+      .toBe("https://cdn.example.com/cover.png");
+    expect(extractSavedMetadata("<main><p>Text only</p></main>", page)).toEqual({
+      metadataTitle: null, metadataDescription: null, metadataSiteName: "example.com", metadataImageUrl: null,
+    });
+  });
 });
 
 describe("saved URL network boundary", () => {
+  it.each([[401, false], [403, false], [429, true], [503, true]])("preserves the HTTP %i failure classification", async (status, retryable) => {
+    const reply = response(status, { "content-type": "text/html" }, "<title>Error</title>");
+    const resolve = async () => [publicIp];
+    const request = async () => reply;
+    await expect(fetchSavedMetadataResource(page.href, options, { resolve, request }))
+      .rejects.toMatchObject({ reason: "http", httpStatus: status, retryable });
+    expect(reply.destroy).toHaveBeenCalledOnce();
+  });
   it.each(["127.0.0.1", "0.0.0.0", "10.0.0.1", "192.168.1.2", "172.16.0.2", "169.254.169.254", "100.64.0.1",
     "192.0.2.1", "192.88.99.1", "::1", "::ffff:127.0.0.1", "fe80::1", "fc00::1", "64:ff9b::7f00:1", "2002:7f00:1::1",
   ])("blocks non-public address %s", address => expect(publicMetadataAddress(address)).toBe(false));

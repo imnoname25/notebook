@@ -6,7 +6,38 @@
   border-inline-end: 1px solid var(--border);
 }
 
+.notebook-saved-material-tags:empty {
+  display: none;
+}
+
+@media (min-width: 1200px) {
+  .notebook-saved-material .notebook-saved-mobile {
+    display: none;
+  }
+}
+
 @media (max-width: 1199px) {
+  .notebook-saved-material .notebook-saved-desktop,
+  .notebook-saved-material .notebook-saved-site-name {
+    display: none;
+  }
+
+  .notebook-saved-heading {
+    overflow-wrap: anywhere;
+  }
+
+  .notebook-saved-heading[data-expanded="false"] {
+    display: -webkit-box;
+    -webkit-box-orient: vertical;
+    -webkit-line-clamp: 3;
+    overflow: hidden;
+  }
+
+  .notebook-saved-actions .notebook-saved-source {
+    background: var(--primary);
+    color: var(--primary-foreground);
+  }
+
   .notebook-app-shell[data-workspace-screen="saved"][data-mobile-view] > .notebook-workspace-grid {
     grid-template-columns: minmax(0, 1fr);
   }

@@ -9,7 +9,11 @@ const globalV6 = parseCidr("2000::/3");
 const redirects = new Set([301, 302, 303, 307, 308]);
 
 export class SavedMetadataError extends Error {
-  constructor(readonly retryable: boolean) {
+  constructor(
+    readonly retryable: boolean,
+    readonly reason: "destination" | "dns" | "redirect" | "http" | "mime" | "encoding" | "size",
+    readonly httpStatus?: number,
+  ) {
     super("Saved metadata request failed");
   }
 }
@@ -25,9 +29,9 @@ export function metadataUrl(value: string, base?: URL) {
   const host = url.hostname.replace(/\.$/u, "");
   if (!["http:", "https:"].includes(url.protocol) || url.username || url.password || url.port
     || /(?:^|\.)(?:localhost|local|internal|home\.arpa)$/iu.test(host)
-    || (!host.includes(".") && !host.startsWith("["))) throw new SavedMetadataError(false);
+    || (!host.includes(".") && !host.startsWith("["))) throw new SavedMetadataError(false, "destination");
   const literal = host.replace(/^\[|\]$/gu, "");
-  if (isIP(literal) && !publicMetadataAddress(literal)) throw new SavedMetadataError(false);
+  if (isIP(literal) && !publicMetadataAddress(literal)) throw new SavedMetadataError(false, "destination");
   url.hash = "";
   return url;
 }
@@ -39,9 +43,9 @@ export async function metadataTarget(url: URL, resolve: Resolver = host => looku
   const host = url.hostname.replace(/^\[|\]$/gu, "");
   const family = isIP(host);
   const addresses = family ? [{ address: host, family }] : await resolve(host);
-  if (!addresses.length) throw new SavedMetadataError(true);
+  if (!addresses.length) throw new SavedMetadataError(true, "dns");
   if (addresses.some(target => ![4, 6].includes(target.family) || isIP(target.address) !== target.family
-    || !publicMetadataAddress(target.address))) throw new SavedMetadataError(false);
+    || !publicMetadataAddress(target.address))) throw new SavedMetadataError(false, "destination");
   return addresses[0];
 }
 
@@ -85,21 +89,22 @@ export async function fetchSavedMetadataResource(value: string, options: Options
     try {
       const status = response.statusCode ?? 0;
       if (redirects.has(status)) {
-        if (hop === 3 || !response.headers.location) throw new SavedMetadataError(false);
+        if (hop === 3 || !response.headers.location) throw new SavedMetadataError(false, "redirect");
         url = metadataUrl(response.headers.location, url);
         continue;
       }
-      if (status !== 200) throw new SavedMetadataError(status === 408 || status === 429 || status >= 500);
+      if (status !== 200) throw new SavedMetadataError(status === 408 || status === 429 || status >= 500, "http", status);
       const contentType = response.headers["content-type"] ?? "";
       const mimeType = contentType.split(";")[0].trim().toLowerCase();
       const encoding = response.headers["content-encoding"]?.trim().toLowerCase();
-      if (!options.types.includes(mimeType) || (encoding && encoding !== "identity")
-        || Number(response.headers["content-length"]) > options.maxBytes) throw new SavedMetadataError(false);
+      if (!options.types.includes(mimeType)) throw new SavedMetadataError(false, "mime");
+      if (encoding && encoding !== "identity") throw new SavedMetadataError(false, "encoding");
+      if (Number(response.headers["content-length"]) > options.maxBytes) throw new SavedMetadataError(false, "size");
       const chunks: Buffer[] = [];
       let bytes = 0;
       for await (const chunk of response) {
         bytes += chunk.byteLength;
-        if (bytes > options.maxBytes) throw new SavedMetadataError(false);
+        if (bytes > options.maxBytes) throw new SavedMetadataError(false, "size");
         chunks.push(chunk);
       }
       return { body: Buffer.concat(chunks, bytes), mimeType, contentType, url };
@@ -107,5 +112,5 @@ export async function fetchSavedMetadataResource(value: string, options: Options
       response.destroy();
     }
   }
-  throw new SavedMetadataError(false);
+  throw new SavedMetadataError(false, "redirect");
 }

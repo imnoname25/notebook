@@ -30,6 +30,12 @@ const detail = (page: Page) => page.getByRole("region", { name: "Материа�
 const card = (page: Page, title: string) => list(page).getByRole("button", { name: new RegExp(title) });
 const destination = (page: Page) => page.locator(".notebook-sidebar").getByRole("button", { name: "Сохранённое", exact: true });
 
+async function mobileAction(page: Page, name: string) {
+  await detail(page).getByRole("button", { name: "Действия с материалом" }).click();
+  const action = page.getByRole("menuitem", { name, exact: true });
+  await action.click();
+}
+
 async function compact(page: Page, width: number) {
   await page.setViewportSize({ width, height: 900 });
   await expect.poll(() => page.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(width);
@@ -63,13 +69,13 @@ test("mobile capture, search, archive, restore, transfer and delete", async ({ p
   await expect(detail(page).getByRole("heading", { name: "Билеты и заметки" })).toBeVisible();
   await expect(detail(page).getByRole("link", { name: "билеты.pdf · PDF" })).toBeVisible();
   await expect(list(page)).toBeHidden();
-  await detail(page).getByRole("button", { name: "Изменить", exact: true }).click();
+  await mobileAction(page, "Изменить");
   const edit = page.getByRole("dialog", { name: "Изменить материал" });
   await edit.getByLabel("Название", { exact: true }).fill("Маршрут и билеты");
   await edit.getByRole("button", { name: "Применить", exact: true }).click();
   await expect(detail(page).getByRole("heading", { name: "Маршрут и билеты" })).toBeVisible();
-  await detail(page).getByRole("button", { name: "Отметить разобранным" }).click();
-  await expect(detail(page).getByRole("button", { name: "Отметить неразобранным" })).toBeVisible();
+  await mobileAction(page, "Отметить разобранным");
+  await expect(detail(page).getByText("Разобрано", { exact: true })).toBeVisible();
   await detail(page).getByRole("button", { name: "Назад", exact: true }).click();
   await expect(list(page)).toBeVisible();
   await list(page).getByRole("button", { name: "Неразобранное", exact: true }).click();
@@ -91,6 +97,7 @@ test("mobile capture, search, archive, restore, transfer and delete", async ({ p
   await page.screenshot({ path: info.outputPath("saved-fold-840.png") });
   await compact(page, 1920);
   await expect(list(page)).toBeVisible();
+  await expect(detail(page).getByRole("button", { name: "Действия с материалом" })).toBeHidden();
   await page.screenshot({ path: info.outputPath("saved-desktop-1920.png") });
   await detail(page).getByRole("button", { name: "Архивировать", exact: true }).click();
   await expect(detail(page).getByRole("button", { name: "Восстановить", exact: true })).toBeVisible();
@@ -160,9 +167,10 @@ test("server paginates the feed and the running worker preserves blocked links",
   for (let index = 0; index < 26; index++) {
     await capture(page, baseURL!, `Пакетматериалов ${String(index).padStart(2, "0")}`);
   }
+  const longTitle = "Как выбрать инструменты для небольшой домашней мастерской и подобрать комплект для ремонта ".repeat(2).trim();
   const blocked = await page.request.post("/api/saved-items", {
     headers: { origin: baseURL!, "idempotency-key": `e2e-${crypto.randomUUID()}` },
-    data: { title: "Локальный адрес", text: "Исходный текст остаётся доступен", url: "http://127.0.0.1/" },
+    data: { title: longTitle, text: "Исходный текст остаётся доступен", url: "http://127.0.0.1/" },
   });
   expect(blocked.status()).toBe(201);
   const { item } = await blocked.json();
@@ -177,9 +185,20 @@ test("server paginates the feed and the running worker preserves blocked links",
   await expect(list(page).getByRole("listitem")).toHaveCount(26);
   await expect(list(page).getByRole("button", { name: "Показать ещё" })).toHaveCount(0);
   await page.goto(`/app?view=saved&item=${item.id}`);
-  await expect(detail(page).getByText("Метаданные недоступны.", { exact: true })).toBeVisible({ timeout: 15_000 });
+  await expect(detail(page).getByText("Ссылка сохранена. Не удалось получить данные для превью.", { exact: true })).toBeVisible({ timeout: 15_000 });
+  await compact(page, 360);
+  const heading = detail(page).getByRole("heading", { name: longTitle, exact: true });
+  const headingLines = () => heading.evaluate(element => element.clientHeight / parseFloat(getComputedStyle(element).lineHeight));
+  await expect.poll(headingLines).toBeCloseTo(3);
+  await detail(page).getByRole("button", { name: "Показать весь заголовок" }).click();
+  await expect.poll(headingLines).toBeGreaterThan(3);
+  await detail(page).getByRole("button", { name: "Свернуть заголовок" }).click();
+  await expect.poll(headingLines).toBeCloseTo(3);
   await expect(detail(page).getByText("Исходный текст остаётся доступен", { exact: true })).toBeVisible();
   await expect(detail(page).getByRole("link", { name: "Открыть источник" })).toHaveAttribute("href", "http://127.0.0.1/");
+  await detail(page).getByRole("button", { name: "Действия с материалом" }).click();
+  await expect(page.getByRole("menuitem", { name: "Повторить получение превью" })).toBeVisible();
+  await page.keyboard.press("Escape");
   await page.evaluate(() => (window as typeof window & { __NOTEBOOK_ANDROID_BACK__?: () => string }).__NOTEBOOK_ANDROID_BACK__?.());
   await expect(page).toHaveURL(/\/app\?view=saved$/);
   await expect(list(page)).toBeVisible();

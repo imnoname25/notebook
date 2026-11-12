@@ -1,7 +1,8 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import { Archive, ArrowLeft, ArrowUpRight, Bookmark, FileText, ImageIcon, Link2, Plus, Search } from "lucide-react";
+import { Archive, ArrowLeft, ArrowUpRight, Bookmark, Ellipsis, FileText, ImageIcon, Link2, Plus, Search } from "lucide-react";
+import * as DropdownMenu from "@radix-ui/react-dropdown-menu";
 import { Button, buttonVariants } from "@/components/ui/button";
 import { api, jsonOptions } from "@/lib/client-api";
 import { cn } from "@/lib/utils";
@@ -27,7 +28,7 @@ function MaterialPreview({ item, className }: { item: SavedItem; className?: str
 function SavedFacts({ item }: { item: SavedItem }) {
   const host = savedSource(item);
   return <span className="flex min-w-0 flex-wrap items-center gap-x-2 gap-y-0.5 text-xs text-muted-foreground">
-    {item.metadata.siteName && item.metadata.siteName !== host && <span className="max-w-full break-words">{item.metadata.siteName}</span>}
+    {item.metadata.siteName && item.metadata.siteName !== host && <span className="notebook-saved-site-name max-w-full break-words">{item.metadata.siteName}</span>}
     {host && <span className="max-w-full break-all">{host}</span>}
     <time dateTime={item.createdAt}>{date.format(new Date(item.createdAt))}</time>
     <span>{item.reviewStatus === "pending" ? "Неразобранное" : "Разобрано"}</span>
@@ -64,20 +65,66 @@ function SavedDetail({ item, busy, onTag, onDialog, onPatch, onRetry, onPage }: 
   onRetry(): void; onPage(id: string): void;
 }) {
   const heading = useRef<HTMLHeadingElement>(null);
+  const title = savedTitle(item);
+  const [expanded, setExpanded] = useState(false);
+  const [canExpand, setCanExpand] = useState(false);
   useEffect(() => { heading.current?.focus({ preventScroll: true }); }, []);
-  return <article className="min-w-0 space-y-4">
+  useEffect(() => {
+    const element = heading.current;
+    if (!element) return;
+    function measure() {
+      if (!element) return;
+      const lineHeight = parseFloat(getComputedStyle(element).lineHeight);
+      setCanExpand(element.scrollHeight > lineHeight * 3 + 1);
+    }
+    const observer = new ResizeObserver(measure);
+    observer.observe(element);
+    measure();
+    return () => observer.disconnect();
+  }, [title, expanded]);
+  const pageId = item.convertedPageId;
+  const pageAction = pageId
+    ? { label: "Открыть страницу", run: () => onPage(pageId) }
+    : !item.convertedAt ? { label: "Перенести в страницу", run: () => onDialog({ type: "convert", item }) } : null;
+  const review = { label: item.reviewStatus === "pending" ? "Отметить разобранным" : "Отметить неразобранным",
+    run: () => onPatch({ reviewStatus: item.reviewStatus === "pending" ? "reviewed" : "pending" }), disabled: busy };
+  const archive = { label: item.archivedAt ? "Восстановить" : "Архивировать",
+    run: () => onPatch({ archived: !item.archivedAt }), disabled: busy };
+  const edit = { label: "Изменить", run: () => onDialog({ type: "edit", item }) };
+  const remove = { label: "Удалить", run: () => onDialog({ type: "delete", item }) };
+  const retry = { label: "Повторить получение превью", run: onRetry, disabled: busy };
+  const menuActions = [
+    ...(pageAction && item.url ? [pageAction] : []), edit, review, archive,
+    ...(item.metadataStatus === "failed" ? [retry] : []), remove,
+  ];
+  return <article className="notebook-saved-material min-w-0 space-y-4">
     <div className="space-y-2">
-      <h2 ref={heading} tabIndex={-1} className="break-words text-2xl font-semibold tracking-tight outline-none">{savedTitle(item)}</h2>
+      <h2 id="saved-material-title" ref={heading} tabIndex={-1} data-expanded={expanded} className="notebook-saved-heading break-words text-2xl font-semibold tracking-tight outline-none">{title}</h2>
+      {canExpand && <Button variant="ghost" className="notebook-saved-mobile min-h-11 px-2" aria-controls="saved-material-title" aria-expanded={expanded} onClick={() => setExpanded(value => !value)}>
+        {expanded ? "Свернуть заголовок" : "Показать весь заголовок"}
+      </Button>}
       <SavedFacts item={item}/>
     </div>
-    <SavedTags item={item} onTag={onTag}/>
-    <div className="flex flex-wrap gap-2">
-      {item.url && <a className={cn(buttonVariants({ variant: "outline" }), "min-h-11")} href={item.url} target="_blank" rel="noopener noreferrer">Открыть источник <ArrowUpRight size={16}/></a>}
-      {item.convertedPageId && <Button variant="outline" className="min-h-11" onClick={() => onPage(item.convertedPageId!)}>Открыть страницу</Button>}
-      {!item.convertedAt && <Button variant="outline" className="min-h-11" onClick={() => onDialog({ type: "convert", item })}>Перенести в страницу</Button>}
+    <div className="notebook-saved-material-tags"><SavedTags item={item} onTag={onTag}/></div>
+    <div className="notebook-saved-actions flex flex-wrap items-center gap-2">
+      {item.url && <a className={cn(buttonVariants({ variant: "outline" }), "notebook-saved-source min-h-11")} href={item.url} target="_blank" rel="noopener noreferrer">Открыть источник <ArrowUpRight size={16}/></a>}
+      {pageAction && <Button variant="outline" className={cn("min-h-11", item.url && "notebook-saved-desktop")} onClick={pageAction.run}>{pageAction.label}</Button>}
+      <DropdownMenu.Root>
+        <DropdownMenu.Trigger asChild>
+          <Button variant="outline" className="notebook-saved-mobile size-11 px-0" aria-label="Действия с материалом"><Ellipsis size={20}/></Button>
+        </DropdownMenu.Trigger>
+        <DropdownMenu.Portal>
+          <DropdownMenu.Content align="end" sideOffset={4} className="z-[80] max-w-[calc(100vw-1rem)] rounded-xl border border-border bg-popover p-1.5 text-sm text-popover-foreground shadow-xl">
+            {menuActions.map(action => <DropdownMenu.Item key={action.label} disabled={"disabled" in action && action.disabled === true} onSelect={action.run} className={cn(
+              "flex min-h-11 items-center rounded-lg px-3 py-1 outline-none data-[disabled]:opacity-50 data-[highlighted]:bg-accent",
+              action === remove && "text-destructive",
+            )}>{action.label}</DropdownMenu.Item>)}
+          </DropdownMenu.Content>
+        </DropdownMenu.Portal>
+      </DropdownMenu.Root>
     </div>
-    {item.metadataStatus === "queued" && <p role="status" className="text-sm text-muted-foreground">Получаем метаданные…</p>}
-    {item.metadataStatus === "failed" && <div className="flex flex-wrap items-center gap-2 text-sm text-muted-foreground"><p>Метаданные недоступны.</p><Button variant="ghost" className="min-h-11" disabled={busy} onClick={onRetry}>Повторить</Button></div>}
+    {item.metadataStatus === "queued" && <p role="status" className="text-sm text-muted-foreground">Ссылка сохранена. Получаем данные для превью…</p>}
+    {item.metadataStatus === "failed" && <div className="flex flex-wrap items-center gap-2 text-sm text-muted-foreground"><p role="status">Ссылка сохранена. Не удалось получить данные для превью.</p><Button variant="ghost" className="notebook-saved-desktop min-h-11" disabled={busy} onClick={onRetry}>Повторить</Button></div>}
     {item.metadata.hasPreview && !item.attachments.some(file => file.mimeType.startsWith("image/")) && <MaterialPreview item={item} className="max-h-64 max-w-full rounded-xl object-contain"/>}
     {item.metadata.description && <p className="whitespace-pre-wrap break-words text-muted-foreground">{item.metadata.description}</p>}
     {item.text && <p className="whitespace-pre-wrap break-words">{item.text}</p>}
@@ -92,15 +139,15 @@ function SavedDetail({ item, busy, onTag, onDialog, onPatch, onRetry, onPage }: 
         </a>
       </li>)}
     </ul>}
-    <div className="flex flex-wrap gap-1 border-t border-border/60 pt-3">
-      <Button variant="ghost" className="min-h-11" onClick={() => onDialog({ type: "edit", item })}>Изменить</Button>
-      <Button variant="ghost" className="min-h-11" disabled={busy} onClick={() => onPatch({ reviewStatus: item.reviewStatus === "pending" ? "reviewed" : "pending" })}>
-        {item.reviewStatus === "pending" ? "Отметить разобранным" : "Отметить неразобранным"}
+    <div className="notebook-saved-desktop flex flex-wrap gap-1 border-t border-border/60 pt-3">
+      <Button variant="ghost" className="min-h-11" onClick={edit.run}>{edit.label}</Button>
+      <Button variant="ghost" className="min-h-11" disabled={busy} onClick={review.run}>
+        {review.label}
       </Button>
-      <Button variant="ghost" className="min-h-11" disabled={busy} onClick={() => onPatch({ archived: !item.archivedAt })}>
-        <Archive size={16}/>{item.archivedAt ? "Восстановить" : "Архивировать"}
+      <Button variant="ghost" className="min-h-11" disabled={busy} onClick={archive.run}>
+        <Archive size={16}/>{archive.label}
       </Button>
-      <Button variant="ghost" className="min-h-11 text-destructive" onClick={() => onDialog({ type: "delete", item })}>Удалить</Button>
+      <Button variant="ghost" className="min-h-11 text-destructive" onClick={remove.run}>{remove.label}</Button>
     </div>
   </article>;
 }
