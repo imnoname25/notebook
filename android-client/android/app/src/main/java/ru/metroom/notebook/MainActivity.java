@@ -17,17 +17,25 @@ public class MainActivity extends BridgeActivity {
     private static final String BACK_TAG = "NotebookBack";
     private static final String HANDLED = "HANDLED";
     private static final String APP_INFO_ACTION = "ru.metroom.notebook.APP_INFO";
+    private static final String SHARE_QUEUE_ACTION = "ru.metroom.notebook.SAVED_SHARE_QUEUE";
     private static final String WEB_BACK_HANDLER =
             "(function(){try{var h=window.__NOTEBOOK_ANDROID_BACK__;if(typeof h!=='function')return 'MISSING';var r=h();return r==='HANDLED'?'HANDLED':'UNHANDLED';}catch(error){return 'ERROR';}})()";
     private boolean backRequestPending = false;
+    private NotebookShareManager shares;
+    private NotebookShareDialogs shareDialogs;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
+        Intent incoming = getIntent();
+        boolean shared = NotebookShareIntent.accepts(incoming);
+        if (shared) setIntent(new Intent(Intent.ACTION_MAIN));
+        shares = NotebookShareManager.get(this);
+        shareDialogs = new NotebookShareDialogs(this, shares);
         registerPlugin(NotebookSessionPlugin.class);
         registerPlugin(NotebookSharePlugin.class);
         registerPlugin(NotebookAppInfoPlugin.class);
         super.onCreate(savedInstanceState);
-        handleShareIntent(getIntent());
+        if (shared && savedInstanceState == null) shares.receive(new Intent(incoming));
         handleAppInfoIntent(getIntent());
 
         CookieManager.getInstance().setAcceptCookie(true);
@@ -58,9 +66,20 @@ public class MainActivity extends BridgeActivity {
 
     @Override
     protected void onNewIntent(Intent intent) {
+        if (NotebookShareIntent.accepts(intent)) {
+            // Capacitor sees only the sanitized launcher Intent.
+            Intent launcher = new Intent(Intent.ACTION_MAIN);
+            super.onNewIntent(launcher);
+            setIntent(launcher);
+            shares.receive(new Intent(intent));
+            return;
+        }
         super.onNewIntent(intent);
         setIntent(intent);
-        handleShareIntent(intent);
+        if (intent != null && SHARE_QUEUE_ACTION.equals(intent.getAction())) {
+            setIntent(new Intent(Intent.ACTION_MAIN));
+            getWindow().getDecorView().post(this::showShareQueue);
+        }
         handleAppInfoIntent(intent);
     }
 
@@ -77,21 +96,17 @@ public class MainActivity extends BridgeActivity {
                 .setPositiveButton(android.R.string.ok, null).show());
     }
 
-    private void handleShareIntent(Intent intent) {
-        if (intent == null || !Intent.ACTION_SEND.equals(intent.getAction()) || !"text/plain".equals(intent.getType())) return;
-        String text = intent.getStringExtra(Intent.EXTRA_TEXT);
-        String title = intent.getStringExtra(Intent.EXTRA_SUBJECT);
-        if (text == null || text.trim().isEmpty()) return;
-        if (text.length() > 10000) text = text.substring(0, 10000);
-        if (title != null && title.length() > 120) title = title.substring(0, 120);
-        NotebookSharePlugin.setPending(text, title);
-        if (bridge != null && bridge.getWebView() != null) {
-            bridge.getWebView().evaluateJavascript("window.dispatchEvent(new Event('notebook:native-share'))", null);
-        }
+    void showShareQueue() { shareDialogs.showQueue(); }
+
+    @Override
+    public void onResume() {
+        super.onResume();
+        shares.resume(shareDialogs);
     }
 
     @Override
     public void onPause() {
+        shares.pause(shareDialogs);
         CookieManager.getInstance().flush();
         super.onPause();
     }
@@ -100,6 +115,12 @@ public class MainActivity extends BridgeActivity {
     public void onStop() {
         CookieManager.getInstance().flush();
         super.onStop();
+    }
+
+    @Override
+    public void onDestroy() {
+        shareDialogs.close();
+        super.onDestroy();
     }
 
     private String decodeJavascriptResult(String rawResult) {

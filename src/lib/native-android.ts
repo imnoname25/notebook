@@ -1,7 +1,7 @@
 import { androidAppInfoSchema } from "./android-app-info";
 
 type NotebookSessionPlugin = { flushCookies(): Promise<void> };
-type NotebookSharePlugin = { consume(): Promise<{ text?: string; title?: string }> };
+type NotebookSharePlugin = { showQueue?(): Promise<void> };
 type CapacitorRuntime = {
   isNativePlatform?(): boolean;
   Plugins?: { NotebookSession?: NotebookSessionPlugin; NotebookShare?: NotebookSharePlugin; NotebookAppInfo?: { getInfo(): Promise<unknown> } };
@@ -11,15 +11,16 @@ function capacitorRuntime() {
   return (globalThis as typeof globalThis & { Capacitor?: CapacitorRuntime }).Capacitor;
 }
 
-export async function consumeNativeShare() {
-  const plugin = capacitorRuntime()?.Plugins?.NotebookShare;
-  if (!plugin) return null;
-  try {
-    const value = await plugin.consume();
-    return value.text?.trim() ? { text: value.text, title: value.title?.trim() ?? "" } : null;
-  } catch {
-    return null;
-  }
+export function hasNativeShareQueue() {
+  const runtime = capacitorRuntime();
+  return Boolean(runtime?.isNativePlatform?.() && typeof runtime.Plugins?.NotebookShare?.showQueue === "function");
+}
+
+export async function openNativeShareQueue() {
+  const runtime = capacitorRuntime();
+  const plugin = runtime?.Plugins?.NotebookShare;
+  if (!runtime?.isNativePlatform?.() || !plugin?.showQueue) return;
+  await plugin.showQueue();
 }
 
 export function isNativeAndroidClient() {

@@ -4,4 +4,5 @@
     <string name="title_activity_main">Notebook</string>
     <string name="package_name">ru.metroom.notebook</string>
     <string name="custom_url_scheme">ru.metroom.notebook</string>
+    <string name="share_queue_shortcut">Очередь отправки</string>
 </resources>

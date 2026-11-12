@@ -64,16 +64,21 @@ describe("Android and mobile shell contract", () => {
     expect(stickers).toContain('"notebook:close-editor-overlay"');
   });
 
-  it("opens explicitly shared Android text in Quick Capture without persisting it natively", () => {
+  it("keeps Android shares in the private native queue and passes no payload to WebView", () => {
     const activity = readFileSync("android-client/android/app/src/main/java/ru/metroom/notebook/MainActivity.java", "utf8");
     const manifest = readFileSync("android-client/android/app/src/main/AndroidManifest.xml", "utf8");
     const plugin = readFileSync("android-client/android/app/src/main/java/ru/metroom/notebook/NotebookSharePlugin.java", "utf8");
-    expect(activity).toContain("Intent.ACTION_SEND");
-    expect(activity).toContain("NotebookSharePlugin.setPending");
-    expect(activity).not.toContain("Log.d(BACK_TAG, text");
-    expect(manifest).toContain('android.intent.action.SEND');
-    expect(manifest).toContain('android:mimeType="text/plain"');
-    expect(plugin).toContain("pendingText = null");
-    expect(plugin).not.toContain("SharedPreferences");
+    const manager = readFileSync("android-client/android/app/src/main/java/ru/metroom/notebook/NotebookShareManager.java", "utf8");
+    const app = readFileSync("src/components/notebook/notebook-app.tsx", "utf8");
+    expect(activity).toContain("NotebookShareIntent.accepts");
+    expect(activity).toContain("super.onNewIntent(launcher)");
+    expect(activity).toContain("shares.receive(new Intent(intent))");
+    expect(manifest).toContain("android.intent.action.SEND_MULTIPLE");
+    expect(manifest).toContain('android:mimeType="application/pdf"');
+    expect(manager).toContain("getNoBackupFilesDir()");
+    expect(plugin).toContain("allowsQueue");
+    expect(plugin).toContain("call.resolve()");
+    expect(plugin).not.toContain("void consume");
+    expect(app).not.toContain("consumeNativeShare");
   });
 });

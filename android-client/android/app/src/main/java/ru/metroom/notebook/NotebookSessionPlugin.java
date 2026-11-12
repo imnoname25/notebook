@@ -23,6 +23,8 @@ public class NotebookSessionPlugin extends Plugin {
                     webView.clearHistory();
                     clearBootstrapHistory = false;
                 }
+                var shares = NotebookShareManager.get(getContext());
+                if (shares.allowsQueue(webView.getUrl(), getBridge().getLocalUrl())) shares.requestSync();
             }
         });
     }
@@ -37,6 +39,7 @@ public class NotebookSessionPlugin extends Plugin {
                 return;
             }
             clearBootstrapHistory = true;
+            NotebookShareManager.get(getContext()).selectServer(NotebookShareServer.fromLaunch(target));
             call.resolve();
             // No JavaScript initiator: retain Strict cookies without reading/copying tokens.
             webView.loadUrl(target);
@@ -47,6 +50,8 @@ public class NotebookSessionPlugin extends Plugin {
     public void flushCookies(PluginCall call) {
         getActivity().runOnUiThread(() -> {
             CookieManager.getInstance().flush();
+            var shares = NotebookShareManager.get(getContext());
+            if (shares.allowsQueue(getBridge().getWebView().getUrl(), getBridge().getLocalUrl())) shares.requestSync();
             JSObject result = new JSObject();
             result.put("flushed", true);
             call.resolve(result);

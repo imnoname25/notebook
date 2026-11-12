@@ -2,6 +2,7 @@
 
 import {
   BookOpen,
+  Inbox,
   LogOut,
   Menu,
   Monitor,
@@ -37,6 +38,7 @@ type MobileAppHeaderProps = {
   onSettings(): void;
   onTheme(): void;
   onChangeServer(): void;
+  onShareQueue?(): void;
   onLogout(): void;
   onLogoutAll(): void;
   onError(error: unknown): void;
@@ -150,6 +152,15 @@ export function MobileAppHeader(props: MobileAppHeaderProps) {
               <ThemeIcon size={18} />
               <span>Тема: {themeLabel(props.theme)}</span>
             </button>
+            {props.onShareQueue && (
+              <button
+                className="flex min-h-12 w-full items-center gap-3 rounded-lg px-3 text-base hover:bg-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                onClick={() => { close(); props.onShareQueue?.(); }}
+              >
+                <Inbox size={20} />
+                <span>Очередь отправки</span>
+              </button>
+            )}
             {props.androidClient && (
               <button
                 className="flex min-h-12 w-full items-center gap-3 rounded-lg px-3 text-base hover:bg-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"

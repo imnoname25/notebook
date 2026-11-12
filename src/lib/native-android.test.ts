@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { flushNativeAuthCookies, isNativeAndroidClient } from "./native-android";
+import { flushNativeAuthCookies, hasNativeShareQueue, isNativeAndroidClient, openNativeShareQueue } from "./native-android";
 
 type TestGlobal = typeof globalThis & { Capacitor?: unknown };
 
@@ -23,5 +23,15 @@ describe("native Android session bridge", () => {
   it("is a no-op in a regular browser", async () => {
     expect(isNativeAndroidClient()).toBe(false);
     await expect(flushNativeAuthCookies()).resolves.toBeUndefined();
+  });
+
+  it("only asks Android to open its native queue and passes no material", async () => {
+    const showQueue = vi.fn().mockResolvedValue(undefined);
+    (globalThis as TestGlobal).Capacitor = {
+      isNativePlatform: () => true, Plugins: { NotebookShare: { showQueue } },
+    };
+    expect(hasNativeShareQueue()).toBe(true);
+    await openNativeShareQueue();
+    expect(showQueue).toHaveBeenCalledExactlyOnceWith();
   });
 });

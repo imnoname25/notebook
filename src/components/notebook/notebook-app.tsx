@@ -84,7 +84,7 @@ import {
   type MobileView,
 } from "@/lib/mobile-navigation";
 import { t } from "@/lib/i18n/messages";
-import { consumeNativeShare, flushNativeAuthCookies } from "@/lib/native-android";
+import { flushNativeAuthCookies, hasNativeShareQueue, openNativeShareQueue } from "@/lib/native-android";
 import type { PaletteCommand } from "@/lib/command-palette";
 import type { PageOutlineItem } from "@/lib/page-outline";
 import { createReversibleAction, type ReversibleAction } from "@/lib/reversible-action";
@@ -233,7 +233,6 @@ function NotebookWorkspace({ user, initialLocation }: NotebookAppProps) {
   const [tagBrowserTag, setTagBrowserTag] = useState<string | null>(null);
   const [editorOverlayOpen, setEditorOverlayOpen] = useState(false);
   const [tabsSheetOpen, setTabsSheetOpen] = useState(false);
-  const [sharedCapture, setSharedCapture] = useState<{ title: string; text: string } | null>(null);
   const [focusMode, setFocusMode] = useState(false);
   const [authLeaving, setAuthLeaving] = useState(false);
   useWorkspaceViewport();
@@ -327,16 +326,6 @@ function NotebookWorkspace({ user, initialLocation }: NotebookAppProps) {
     }
   }, [report]);
 
-  useEffect(() => {
-    const receive = () => void consumeNativeShare().then((value) => {
-      if (!value) return;
-      setSharedCapture(value);
-      setQuickNotesOpen(true);
-    });
-    receive();
-    window.addEventListener("notebook:native-share", receive);
-    return () => window.removeEventListener("notebook:native-share", receive);
-  }, []);
   useEffect(() => {
     const listener = (event: Event) => setEditorOverlayOpen(Boolean((event as CustomEvent<boolean>).detail));
     window.addEventListener("notebook:editor-overlay", listener);
@@ -1452,6 +1441,7 @@ function NotebookWorkspace({ user, initialLocation }: NotebookAppProps) {
           )
         }
         onChangeServer={changeAndroidServer}
+        onShareQueue={androidClient && hasNativeShareQueue() ? () => void openNativeShareQueue().catch(report) : undefined}
         onLogout={() => void logout()}
         onLogoutAll={() => void logoutAll()}
         onError={report}
@@ -1645,11 +1635,8 @@ function NotebookWorkspace({ user, initialLocation }: NotebookAppProps) {
       </div>
       <CommandPalette open={searchOpen} onOpenChange={setSearchOpen} commands={paletteCommands}/>
       <QuickCapture
-        key={sharedCapture ? `share:${sharedCapture.title}:${sharedCapture.text.length}` : "capture"}
         open={quickNotesOpen}
-        initialTitle={sharedCapture?.title}
-        initialBody={sharedCapture?.text}
-        onOpenChange={(open) => { setQuickNotesOpen(open); if (!open) setSharedCapture(null); }}
+        onOpenChange={setQuickNotesOpen}
         onError={report}
         onSaved={note => {
           setStickerToReveal(note.id);

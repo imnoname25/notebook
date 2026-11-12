@@ -28,6 +28,18 @@
                 <action android:name="android.intent.action.SEND" />
                 <category android:name="android.intent.category.DEFAULT" />
                 <data android:mimeType="text/plain" />
+                <data android:mimeType="image/jpeg" />
+                <data android:mimeType="image/png" />
+                <data android:mimeType="image/gif" />
+                <data android:mimeType="image/webp" />
+                <data android:mimeType="image/avif" />
+                <data android:mimeType="application/pdf" />
+            </intent-filter>
+            <intent-filter>
+                <action android:name="android.intent.action.SEND_MULTIPLE" />
+                <category android:name="android.intent.category.DEFAULT" />
+                <!-- Mixed images and PDFs are advertised as */* by Android senders. The receiver validates each file. -->
+                <data android:mimeType="*/*" />
             </intent-filter>
 
         </activity>
@@ -46,4 +58,5 @@
     <!-- Cleartext is enabled only to support explicitly confirmed LAN/debug URLs. The setup UI warns before use. -->
 
     <uses-permission android:name="android.permission.INTERNET" />
+    <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />
 </manifest>

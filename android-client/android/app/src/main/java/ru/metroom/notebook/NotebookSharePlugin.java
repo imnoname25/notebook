@@ -1,30 +1,28 @@
 package ru.metroom.notebook;
 
-import com.getcapacitor.JSObject;
+import androidx.webkit.WebViewFeature;
 import com.getcapacitor.Plugin;
 import com.getcapacitor.PluginCall;
 import com.getcapacitor.PluginMethod;
 import com.getcapacitor.annotation.CapacitorPlugin;
 
+/** The bridge can open a native dialog. No queue data or file handle crosses it. */
 @CapacitorPlugin(name = "NotebookShare")
 public class NotebookSharePlugin extends Plugin {
-    private static String pendingText;
-    private static String pendingTitle;
-
-    public static synchronized void setPending(String text, String title) {
-        pendingText = text;
-        pendingTitle = title;
-    }
-
     @PluginMethod
-    public void consume(PluginCall call) {
-        JSObject result = new JSObject();
-        synchronized (NotebookSharePlugin.class) {
-            if (pendingText != null) result.put("text", pendingText);
-            if (pendingTitle != null) result.put("title", pendingTitle);
-            pendingText = null;
-            pendingTitle = null;
-        }
-        call.resolve(result);
+    public void showQueue(PluginCall call) {
+        getActivity().runOnUiThread(() -> {
+            var bridge = getBridge();
+            var manager = NotebookShareManager.get(getContext());
+            if (!(getActivity() instanceof MainActivity)
+                    || !WebViewFeature.isFeatureSupported(WebViewFeature.WEB_MESSAGE_LISTENER)
+                    || bridge.getConfig().isUsingLegacyBridge()
+                    || !manager.allowsQueue(bridge.getWebView().getUrl(), bridge.getLocalUrl())) {
+                call.reject("Откройте очередь через ярлык приложения.");
+                return;
+            }
+            ((MainActivity) getActivity()).showShareQueue();
+            call.resolve();
+        });
     }
 }

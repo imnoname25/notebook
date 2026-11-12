@@ -33,6 +33,19 @@ const bootstrap = document.querySelector("#bootstrap");
 const bootstrapStatus = document.querySelector("#bootstrapStatus");
 const retry = document.querySelector("#retry");
 const change = document.querySelector("#change");
+const sharePlugin = globalThis.Capacitor?.Plugins?.NotebookShare;
+if (typeof sharePlugin?.showQueue === "function") {
+  for (const button of document.querySelectorAll("[data-share-queue]")) {
+    button.hidden = false;
+    button.addEventListener("click", () => {
+      void sharePlugin.showQueue().catch(() => {
+        const status = button.parentElement.querySelector("[data-share-queue-status]");
+        status.textContent = "Откройте очередь через ярлык приложения.";
+        status.hidden = false;
+      });
+    });
+  }
+}
 const isNewerVersion = (candidate, current) => candidate.split(".").map(Number).some((value, index, parts) => value > (current.split(".").map(Number)[index] || 0) && parts.slice(0, index).every((part, previous) => part === (current.split(".").map(Number)[previous] || 0)));
 
 function notebookUrl(server) {

@@ -3,4 +3,7 @@
     <shortcut android:shortcutId="app-info" android:enabled="true" android:shortcutShortLabel="@string/build_info_shortcut">
         <intent android:action="ru.metroom.notebook.APP_INFO" android:targetPackage="ru.metroom.notebook" android:targetClass="ru.metroom.notebook.MainActivity" />
     </shortcut>
+    <shortcut android:shortcutId="saved-share-queue" android:enabled="true" android:shortcutShortLabel="@string/share_queue_shortcut">
+        <intent android:action="ru.metroom.notebook.SAVED_SHARE_QUEUE" android:targetPackage="ru.metroom.notebook" android:targetClass="ru.metroom.notebook.MainActivity" />
+    </shortcut>
 </shortcuts>
