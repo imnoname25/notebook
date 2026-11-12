@@ -30,6 +30,7 @@ import {
 } from "@/lib/notebook-appearance";
 import { cn } from "@/lib/utils";
 import { SortableItem, SortableList } from "./sortable";
+import { NativeRowDragHandle, RowSelect } from "./row-actions";
 import type { Notebook, Section } from "./types";
 import type { SectionAccentIntensity } from "@/lib/content-appearance";
 import { SectionIcon } from "./section-icon";
@@ -38,6 +39,7 @@ import { ensureExpandedNotebook, toggleExpandedNotebook } from "@/lib/notebook-t
 
 type Props = {
   notebooks: Notebook[];
+  nativeAndroid: boolean;
   loading?: boolean;
   error?: string;
   onRetry?(): void;
@@ -81,6 +83,8 @@ function SectionTree({
   onReorder,
   intensity,
   notebookColor,
+  nativeAndroid,
+  actionsMode,
   depth = 0,
 }: {
   notebookId: string;
@@ -93,6 +97,8 @@ function SectionTree({
   onReorder(notebookId: string, parentId: string | null, ids: string[]): void;
   intensity: SectionAccentIntensity;
   notebookColor: string;
+  nativeAndroid: boolean;
+  actionsMode: boolean;
   depth?: number;
 }) {
   const siblings = sections
@@ -139,9 +145,13 @@ function SectionTree({
                 )}
                 style={{ "--notebook-section-depth": depth } as CSSProperties}
               >
-                <button
+                {nativeAndroid && <NativeRowDragHandle listeners={listeners} />}
+                <RowSelect
                   {...attributes}
-                  {...listeners}
+                  listeners={listeners}
+                  nativeAndroid={nativeAndroid}
+                  actionsMode={actionsMode}
+                  onActions={() => onMenu(section)}
                   data-nav-select
                   title={section.title}
                   className="flex min-h-11 min-w-0 flex-1 items-center gap-2 px-1 py-1 text-left md:min-h-9"
@@ -162,8 +172,8 @@ function SectionTree({
                     )}
                   />
                   <span className="truncate">{section.title}</span>
-                </button>
-                <button
+                </RowSelect>
+                {!nativeAndroid && <><button
                   className="flex size-11 shrink-0 items-center justify-center rounded opacity-100 hover:bg-background md:size-7 md:opacity-0 md:group-hover:opacity-100 md:focus-visible:opacity-100"
                   aria-label={`Действия раздела ${section.title}`}
                   onClick={() => onMenu(section)}
@@ -176,7 +186,7 @@ function SectionTree({
                   onClick={() => onAdd(section.id)}
                 >
                   <FolderPlus size={14} />
-                </button>
+                </button></>}
               </div>
               <SectionTree
                 notebookId={notebookId}
@@ -189,6 +199,8 @@ function SectionTree({
                 onReorder={onReorder}
                 intensity={intensity}
                 notebookColor={notebookColor}
+                nativeAndroid={nativeAndroid}
+                actionsMode={actionsMode}
                 depth={depth + 1}
               />
             </div>
@@ -225,6 +237,7 @@ export function NotebookSidebar(props: Props) {
 }
 const MemoNotebookSidebar = memo(NotebookSidebarTree);
 function NotebookSidebarTree(props: Props) {
+  const [actionsMode, setActionsMode] = useState(false);
   const ordered = [...props.notebooks].sort(
     (a, b) => a.sortOrder - b.sortOrder,
   );
@@ -291,6 +304,7 @@ function NotebookSidebarTree(props: Props) {
         <p className="text-[11px] font-semibold uppercase tracking-[0.12em] text-muted-foreground">
           {t("navigation.notebooks")}
         </p>
+        {props.nativeAndroid && <Button variant="ghost" size="sm" className="min-h-11 aria-pressed:bg-accent" aria-pressed={actionsMode} onClick={() => setActionsMode(value => !value)}>Действия разделов</Button>}
         <Button
           variant="ghost"
           size="icon"
@@ -411,10 +425,12 @@ function NotebookSidebarTree(props: Props) {
                           onAdd={(parent) =>
                             props.onAddSection(notebook.id, parent)
                           }
-                          onMenu={props.onSectionMenu}
+                          onMenu={section => { setActionsMode(false); props.onSectionMenu(section); }}
                           onReorder={props.onSectionReorder}
                           intensity={props.sectionAccentIntensity ?? "moderate"}
                           notebookColor={notebook.color}
+                          nativeAndroid={props.nativeAndroid}
+                          actionsMode={actionsMode}
                         />
                         <button
                           className="ml-6 mt-0.5 flex min-h-11 items-center gap-2 rounded-md px-2 text-[13.5px] text-muted-foreground hover:bg-accent hover:text-foreground md:min-h-9"

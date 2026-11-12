@@ -17,6 +17,7 @@ import {
 import { AppearanceProvider, useNotebookTheme } from "./appearance-provider";
 import { nextTheme, isStudioTheme } from "@/lib/themes";
 import { useRouter } from "next/navigation";
+import * as Dialog from "@radix-ui/react-dialog";
 import { api, jsonOptions } from "@/lib/client-api";
 import { cn } from "@/lib/utils";
 import { EditorPane } from "./editor-pane";
@@ -84,7 +85,7 @@ import {
   type MobileView,
 } from "@/lib/mobile-navigation";
 import { t } from "@/lib/i18n/messages";
-import { flushNativeAuthCookies, hasNativeShareQueue, openNativeShareQueue } from "@/lib/native-android";
+import { flushNativeAuthCookies, hasNativeShareQueue, isNativeAndroidClient, openNativeShareQueue } from "@/lib/native-android";
 import type { PaletteCommand } from "@/lib/command-palette";
 import type { PageOutlineItem } from "@/lib/page-outline";
 import { createReversibleAction, type ReversibleAction } from "@/lib/reversible-action";
@@ -135,13 +136,8 @@ const noClientSubscription = () => () => undefined;
 const clientMountedSnapshot = () => true;
 const serverMountedSnapshot = () => false;
 const androidClientSnapshot = () => {
-  const capacitor = (
-    globalThis as typeof globalThis & {
-      Capacitor?: { isNativePlatform?(): boolean };
-    }
-  ).Capacitor;
   return Boolean(
-    capacitor?.isNativePlatform?.() ||
+    isNativeAndroidClient() ||
     new URLSearchParams(window.location.search).get("client") === "android",
   );
 };
@@ -184,6 +180,11 @@ function NotebookWorkspace({ user, initialLocation }: NotebookAppProps) {
   const [mobileView, setMobileView] = useState<MobileView>("navigation");
   const [error, setError] = useState("");
   const [actionTarget, setActionTarget] = useState<ActionTarget | null>(null);
+  const actionOpener = useRef<HTMLElement | null>(null);
+  function openActions(target: ActionTarget) {
+    actionOpener.current = document.activeElement instanceof HTMLElement ? document.activeElement : null;
+    setActionTarget(target);
+  }
   const [screen, setScreen] = useState<WorkspaceScreen>("workspace");
   const [startScreen, setStartScreen] = useState<"last" | "today" | "notebooks" | "inbox">("last");
   const [searchOpen, setSearchOpen] = useState(false);
@@ -242,6 +243,7 @@ function NotebookWorkspace({ user, initialLocation }: NotebookAppProps) {
     androidClientSnapshot,
     () => false,
   );
+  const nativeAndroid = useSyncExternalStore(noClientSubscription, isNativeAndroidClient, serverMountedSnapshot);
   const editorController = useRef<EditorSaveController | null>(null);
   const activePageRef = useRef<PageDocument | null>(null);
   const initialPageOpened = useRef(false);
@@ -1376,11 +1378,24 @@ function NotebookWorkspace({ user, initialLocation }: NotebookAppProps) {
     else { setScreen("workspace"); setMobileView("navigation"); }
   }
 
+  async function togglePageFavorite(item: PageSummary) {
+    try {
+      const { page } = await api<{ page: PageDocument }>(
+        `/api/pages/${item.id}`,
+        jsonOptions("PATCH", { isFavorite: !item.isFavorite }),
+      );
+      pageSaved(page);
+    } catch (cause) {
+      report(cause);
+    }
+  }
+
   const navigationSidebar = (
     <WorkspaceNavigation studio={studioTheme}
       open={navigationOpen} onOpenChange={setNavigationOpen}
       visible={screen === "workspace" && mobileView === "navigation"}>
       <NotebookSidebar
+        nativeAndroid={nativeAndroid}
         notebooks={notebooks}
         loading={notebooksLoading}
         error={notebooksError}
@@ -1393,9 +1408,12 @@ function NotebookWorkspace({ user, initialLocation }: NotebookAppProps) {
         onNotebookSelect={(id) => { setNavigationOpen(false); openNotebookOverview(id); }}
         onSectionSelect={(section) => { setNavigationOpen(false); openSection(section); }}
         onAddNotebook={() => { setNavigationOpen(false); void addNotebook(); }}
-        onNotebookMenu={(item) => { setNavigationOpen(false); setActionTarget({ type: "notebook", item }); }}
+        onNotebookMenu={(item) => { openActions({ type: "notebook", item }); setNavigationOpen(false); }}
         onAddSection={(id, parentId) => { setNavigationOpen(false); void addSection(id, parentId); }}
-        onSectionMenu={(item) => { setNavigationOpen(false); setActionTarget({ type: "section", item }); }}
+        onSectionMenu={(item) => {
+          openActions({ type: "section", item });
+          if (!nativeAndroid) setNavigationOpen(false);
+        }}
         onNotebookReorder={(ids) => void saveNotebookOrder(ids)}
         onSectionReorder={(notebookId, parentId, ids) => void saveSectionOrder(notebookId, parentId, ids)}
         onTrashOpen={() => { setNavigationOpen(false); void tabs.leave(() => setScreen("trash")); }}
@@ -1564,19 +1582,10 @@ function NotebookWorkspace({ user, initialLocation }: NotebookAppProps) {
                 onAdd={addPage}
                 onAddFromTemplate={() => setTemplatePickerOpen(true)}
                 onSelect={(page, mode) => { void openPageById(page.id, "push", mode); }}
-                onMenu={(item) => setActionTarget({ type: "page", item })}
+                nativeAndroid={nativeAndroid}
+                onMenu={(item) => openActions({ type: "page", item })}
                 onReorder={(ids) => void savePageOrder(ids)}
-                onFavorite={async (item) => {
-                  try {
-                    const { page } = await api<{ page: PageDocument }>(
-                      `/api/pages/${item.id}`,
-                      jsonOptions("PATCH", { isFavorite: !item.isFavorite }),
-                    );
-                    pageSaved(page);
-                  } catch (cause) {
-                    report(cause);
-                  }
-                }}
+                onFavorite={togglePageFavorite}
               />}
             </div>
 
@@ -1669,19 +1678,25 @@ function NotebookWorkspace({ user, initialLocation }: NotebookAppProps) {
           <StickyNote size={24}/>
         </button>
       )}
-      {actionTarget && (
-        <div
-          className="fixed inset-0 z-50 flex items-end justify-center bg-black/30 p-4 sm:items-center"
-          onMouseDown={() => setActionTarget(null)}
-        >
-          <div
-            className="notebook-action-sheet w-full max-w-xs rounded-2xl bg-card p-2 shadow-xl ring-1 ring-border"
-            onMouseDown={(e) => e.stopPropagation()}
+      <Dialog.Root open={Boolean(actionTarget)} onOpenChange={open => { if (!open) setActionTarget(null); }}>
+        {actionTarget && <Dialog.Portal>
+          <Dialog.Overlay className="fixed inset-0 z-50 bg-black/30" />
+          <Dialog.Content
+            aria-describedby={undefined}
+            className="notebook-action-sheet fixed bottom-4 left-1/2 z-50 max-h-[calc(100dvh-2rem)] w-[calc(100%-2rem)] max-w-xs -translate-x-1/2 overflow-y-auto rounded-2xl bg-card p-2 shadow-xl ring-1 ring-border sm:bottom-auto sm:top-1/2 sm:-translate-y-1/2"
+            onCloseAutoFocus={event => {
+              event.preventDefault();
+              if (document.activeElement === document.body) actionOpener.current?.focus({ preventScroll: true });
+            }}
           >
-            <p className="truncate px-3 py-2 text-sm font-semibold">
+            <Dialog.Title className="truncate px-3 py-2 text-sm font-semibold">
               {actionTarget.item.title}
-            </p>
+            </Dialog.Title>
             {actionTarget.type === "page" && <><button className="block min-h-11 w-full rounded-lg px-3 py-2 text-left text-sm hover:bg-accent" onClick={() => void runAction("open-tab")}>Открыть в новой вкладке</button>
+                <button className="block w-full rounded-lg px-3 py-2 text-left text-sm hover:bg-accent" onClick={() => {
+                  void togglePageFavorite(actionTarget.item);
+                  setActionTarget(null);
+                }}>{actionTarget.item.isFavorite ? "Убрать из избранного" : "Добавить в избранное"}</button>
                 <button className="block w-full rounded-lg px-3 py-2 text-left text-sm hover:bg-accent" onClick={() => void runAction("open-right")}>Открыть справа</button></>}
             <button
               className="block w-full rounded-lg px-3 py-2 text-left text-sm hover:bg-accent"
@@ -1825,9 +1840,9 @@ function NotebookWorkspace({ user, initialLocation }: NotebookAppProps) {
             >
               Отмена
             </button>
-          </div>
-        </div>
-      )}
+          </Dialog.Content>
+        </Dialog.Portal>}
+      </Dialog.Root>
       {appearanceNotebook && (
         <AppearanceDialog
           key={appearanceNotebook.id}

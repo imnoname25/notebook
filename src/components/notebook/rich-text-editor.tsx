@@ -523,6 +523,7 @@ export function RichTextEditor({
         onPasteCapture={(event) => {
           if (handleSharedEditorPaste(event, editor)) return;
           if (event.target instanceof HTMLInputElement || event.target instanceof HTMLTextAreaElement || event.target instanceof HTMLSelectElement) return;
+          if (event.clipboardData.types.includes("text/html") || event.clipboardData.types.includes("blocknote/html")) return;
           const url = parseSmartPasteUrl(event.clipboardData.getData("text/plain"));
           if (!url) return;
           const current = editor.getTextCursorPosition().block;

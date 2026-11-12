@@ -9,7 +9,8 @@ import { notebookEditorSchema, notebookSyntaxHighlighting, normalizeEditorBlocks
 import { EditorBlockActions } from "./editor-block-actions";
 import { NotebookSideMenu } from "./editor-block-menu";
 import { literalTextPasteHandler, plainTextLinesExtension } from "./editor-plain-text-paste";
-export const sharedEditorBaseOptions = { schema: notebookEditorSchema, dictionary: notebookBlockNoteDictionary, pasteHandler: literalTextPasteHandler, extensions: [notebookSyntaxHighlighting, plainTextLinesExtension()], tables: { headers: true, splitCells: true } };
+import { linkCopyExtension } from "./editor-link-copy";
+export const sharedEditorBaseOptions = { schema: notebookEditorSchema, dictionary: notebookBlockNoteDictionary, pasteHandler: literalTextPasteHandler, extensions: [notebookSyntaxHighlighting, plainTextLinesExtension(), linkCopyExtension()], tables: { headers: true, splitCells: true } };
 export function sharedEditorOptions(content: unknown[]) { return { ...sharedEditorBaseOptions, initialContent: normalizeEditorBlocks(content) }; }
 /** No autosave, uploads, page revision, recovery or navigation state belongs here. */
 export function SharedEditorMenus({ editor, mode = "page", pageId, onPagePicker, blockActionsHost, disabled = false }: { editor: NotebookEditor; mode?: "page" | "template"; pageId?: string; onPagePicker(): void; blockActionsHost?: HTMLDivElement | null; disabled?: boolean }) {

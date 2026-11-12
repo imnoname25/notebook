@@ -12,6 +12,7 @@ import {
   Star,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { useState } from "react";
 import Image from "next/image";
 import * as DropdownMenu from "@radix-ui/react-dropdown-menu";
 import {
@@ -21,6 +22,7 @@ import {
 import { cn } from "@/lib/utils";
 import { t } from "@/lib/i18n/messages";
 import { SortableItem, SortableList } from "./sortable";
+import { NativeRowDragHandle, RowSelect } from "./row-actions";
 import type { PageSummary, Section } from "./types";
 import type { PageListView } from "@/lib/content-appearance";
 import type { DocumentTab } from "@/lib/document-tabs";
@@ -30,6 +32,7 @@ type Props = {
   pages: PageSummary[];
   activePageId: string | null;
   loading: boolean;
+  nativeAndroid: boolean;
   error?: string;
   onRetry?(): void;
   density?: "comfortable" | "compact";
@@ -46,6 +49,7 @@ type Props = {
 };
 
 export function PageList(props: Props) {
+  const [actionsMode, setActionsMode] = useState(false);
   const ordered = [...props.pages].sort((a, b) => a.sortOrder - b.sortOrder);
   const viewMode = props.viewMode ?? "standard";
   return (
@@ -74,6 +78,7 @@ export function PageList(props: Props) {
             {ordered.length} стр.
           </p>
         </div>
+        {props.nativeAndroid && <Button variant="ghost" size="sm" className="min-h-11 aria-pressed:bg-accent" aria-pressed={actionsMode} onClick={() => setActionsMode(value => !value)}>Действия страниц</Button>}
         <div className="notebook-list-view-switch hidden md:flex">
           <DropdownMenu.Root>
             <DropdownMenu.Trigger asChild><button type="button" aria-label={t("appearance.pageListView")} title={t("appearance.pageListView")} className="notebook-list-view-trigger flex size-8 items-center justify-center rounded text-muted-foreground hover:bg-accent"><Rows3 size={15}/></button></DropdownMenu.Trigger>
@@ -170,9 +175,13 @@ export function PageList(props: Props) {
                       isOver && !isDragging && "ring-1 ring-primary/40",
                     )}
                   >
-                    <button
+                    {props.nativeAndroid && <NativeRowDragHandle listeners={listeners} />}
+                    <RowSelect
                       {...attributes}
-                      {...listeners}
+                      listeners={listeners}
+                      nativeAndroid={props.nativeAndroid}
+                      actionsMode={actionsMode}
+                      onActions={() => { setActionsMode(false); props.onMenu(page); }}
                       data-page-select
                       title={page.title}
                       className={cn(
@@ -244,8 +253,8 @@ export function PageList(props: Props) {
                           </span>
                         )}
                       </span>
-                    </button>
-                    <button
+                    </RowSelect>
+                    {!props.nativeAndroid && <><button
                       className="my-auto flex size-11 shrink-0 items-center justify-center rounded opacity-100 hover:bg-background md:size-7 md:opacity-0 md:group-hover:opacity-100 md:focus-visible:opacity-100"
                       onClick={() => props.onFavorite(page)}
                       aria-pressed={page.isFavorite}
@@ -259,7 +268,7 @@ export function PageList(props: Props) {
                       aria-label={`Действия страницы ${page.title}`}
                     >
                       <Ellipsis size={14} />
-                    </button>
+                    </button></>}
                   </div>
                 )}
               </SortableItem>
