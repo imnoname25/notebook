@@ -51,7 +51,7 @@ export function SavedItemDialog({ action, notebooks, onClose, onComplete }: {
           }));
         }
       } else if (action.type === "edit") {
-        onComplete(await api<{ item: SavedItem }>(savedItemEndpoint(action.item.id), jsonOptions("PATCH", { title, tags })));
+        onComplete(await api<{ item: SavedItem }>(savedItemEndpoint(action.item.id), jsonOptions("PATCH", { ...(title === action.item.title ? {} : { title }), tags })));
       } else if (action.type === "convert") {
         key.current ||= savedRequestKey();
         const body = { sectionId: form.get("sectionId") };
@@ -85,7 +85,7 @@ export function SavedItemDialog({ action, notebooks, onClose, onComplete }: {
         </header>
         <form onSubmit={submit} onChange={() => { key.current = ""; }} className="space-y-4">
           {(action.type === "create" || action.type === "edit") && <>
-            <label className="block space-y-1"><span>Название</span><input name="title" className={field} maxLength={200} defaultValue={item?.title} disabled={busy}/></label>
+            <label className="block space-y-1"><span>Название</span><input name="title" className={field} maxLength={200} defaultValue={item?.title} placeholder={item?.displayTitle} disabled={busy}/></label>
             {action.type === "create" && <>
               <label className="block space-y-1"><span>Ссылка</span><input name="url" type="url" inputMode="url" placeholder="https://" className={field} maxLength={2048} disabled={busy}/></label>
               <label className="block space-y-1"><span>Текст</span><textarea name="text" className={`${field} py-2`} rows={4} maxLength={50_000} disabled={busy}/></label>

@@ -105,7 +105,13 @@ final class NotebookShareDialogs implements NotebookShareManager.Listener {
         if (!entry.url.isEmpty()) label(fields, "Источник: " + entry.url);
         if (!entry.text.trim().isEmpty()) label(fields, excerpt(entry.text, 420));
         for (var file : entry.files) label(fields, file.name);
-        EditText title = edit(fields, "Название", entry.title, 200, false);
+        EditText title = edit(fields, "Название", entry.draftTitle(), 200, false);
+        var titleEdited = new java.util.concurrent.atomic.AtomicBoolean();
+        title.addTextChangedListener(new android.text.TextWatcher() {
+            @Override public void beforeTextChanged(CharSequence value, int start, int count, int after) {}
+            @Override public void onTextChanged(CharSequence value, int start, int before, int count) { titleEdited.set(true); }
+            @Override public void afterTextChanged(android.text.Editable value) {}
+        });
         EditText comment = edit(fields, "Комментарий (необязательно)", entry.comment, 2_000, true);
         EditText tags = edit(fields, "Теги через пробел или запятую", android.text.TextUtils.join(", ", entry.tags), 3_500, false);
         TextView target = label(fields, "");
@@ -135,7 +141,7 @@ final class NotebookShareDialogs implements NotebookShareManager.Listener {
                 if (combined > NotebookShareInput.MAX_TEXT) { comment.setError("Сократите комментарий: превышен лимит текста."); return; }
                 var labels = NotebookShareInput.tags(tags.getText().toString());
                 view.setEnabled(false);
-                manager.confirm(entry.id, NotebookShareInput.title(title.getText()), note, labels, offered[0], saved -> {
+                manager.confirm(entry.id, NotebookShareInput.title(title.getText()), titleEdited.get(), note, labels, offered[0], saved -> {
                     if (!dialog.isShowing()) return;
                     if (saved) dialog.dismiss();
                     else view.setEnabled(true);

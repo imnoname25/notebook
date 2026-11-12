@@ -152,6 +152,50 @@ describe.skipIf(!enabled)("v6 Saved Items backup, real PostgreSQL and ZIP", () =
     } finally { await imports.disposePreparedImport(prepared); }
   });
 
+  it("reads v6 saved titles from archives predating title provenance", async () => {
+    await saved.createSavedItem(owner, randomUUID(), savedItemCreateSchema.parse({ title: "Old title" }), []);
+    const { manifest, data } = await exports.buildPortableExport(owner, all);
+    for (const item of data.savedItems ?? []) {
+      delete item.titleOrigin;
+      delete item.sharedTitle;
+    }
+    const prepared = await imports.prepareImport(request(await writeFixture(manifest, data, new Map())));
+    try {
+      await imports.commitImport(other, prepared);
+      expect(await db.savedItem.findFirst({ where: { userId: other } })).toMatchObject({
+        title: "Old title", titleOrigin: "legacy", sharedTitle: null,
+      });
+    } finally { await imports.disposePreparedImport(prepared); }
+  });
+
+  it("round-trips share provenance through v6 independently of the feature flag", async () => {
+    const previousFlag = process.env.SAVED_ITEM_TITLE_ORIGINS;
+    try {
+      process.env.SAVED_ITEM_TITLE_ORIGINS = "1";
+      const { item } = await saved.createSavedItem(owner, randomUUID(), savedItemCreateSchema.parse({
+        sharedTitle: "Android title", url: "https://example.org/",
+      }), []);
+      await db.savedItem.update({ where: { id: item.id }, data: { metadataTitle: "Website title" } });
+      const prepared = await imports.prepareImport(request(await readZip(all)));
+      try {
+        expect(prepared.manifest?.version).toBe(6);
+        expect(prepared.data?.savedItems?.[0]).toMatchObject({
+          title: "Website title", titleOrigin: "share", sharedTitle: "Android title",
+        });
+        delete process.env.SAVED_ITEM_TITLE_ORIGINS;
+        await imports.commitImport(other, prepared);
+        process.env.SAVED_ITEM_TITLE_ORIGINS = "1";
+        await imports.commitImport(other, prepared);
+        expect(await db.savedItem.findMany({ where: { userId: other } })).toMatchObject(Array.from({ length: 2 }, () => ({
+          title: "", titleOrigin: "share", sharedTitle: "Android title", metadataTitle: "Website title",
+        })));
+      } finally { await imports.disposePreparedImport(prepared); }
+    } finally {
+      if (previousFlag === undefined) delete process.env.SAVED_ITEM_TITLE_ORIGINS;
+      else process.env.SAVED_ITEM_TITLE_ORIGINS = previousFlag;
+    }
+  });
+
   it("excludes Saved Items from notebook exports and drops unavailable page links", async () => {
     const { archived } = await capture();
     const notebookOnly = await exports.buildPortableExport(owner, { ...all, notebookId: notebook });

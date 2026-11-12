@@ -18,6 +18,13 @@ enum QuickNoteStatus {
   CONVERTED
 }
 
+enum SavedItemTitleOrigin {
+  system
+  manual
+  share
+  legacy
+}
+
 enum SavedItemReviewStatus {
   pending
   reviewed
@@ -356,6 +363,8 @@ model SavedItem {
   id              String                @id @default(cuid())
   userId          String
   title           String                @default("")
+  titleOrigin     SavedItemTitleOrigin  @default(system)
+  sharedTitle     String?
   text            String                @default("") @db.Text
   url             String?
   metadataTitle       String?

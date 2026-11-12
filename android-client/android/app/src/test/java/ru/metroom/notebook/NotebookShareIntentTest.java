@@ -20,9 +20,11 @@ public class NotebookShareIntentTest {
         var intent = new Intent(Intent.ACTION_SEND).setType("text/plain");
         intent.putExtra(Intent.EXTRA_TEXT, "Посмотри: https://youtu.be/demo?t=42");
         intent.putExtra(Intent.EXTRA_SUBJECT, "Видео");
+        intent.putExtra(Intent.EXTRA_TITLE, "Заголовок из приложения");
         assertTrue(NotebookShareIntent.accepts(intent));
         var share = NotebookShareIntent.parse(intent, OWN);
-        assertEquals("Видео", share.title);
+        assertEquals("Видео", share.subject);
+        assertEquals("Заголовок из приложения", share.extraTitle);
         assertEquals("https://youtu.be/demo?t=42", share.url);
         assertEquals("Посмотри: https://youtu.be/demo?t=42", share.text);
         assertTrue(share.files.isEmpty());

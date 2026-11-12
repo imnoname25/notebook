@@ -441,11 +441,14 @@ async function importSavedItems(
       tagIds.set(tag.normalized, id);
     }
     const metadata = item.metadata;
+    const titleOrigin = item.titleOrigin ?? (item.title ? "legacy" : "system");
     const hasMetadata = Object.values(metadata).some(value => value !== null);
     const { id } = await tx.savedItem.create({
       data: {
         userId,
-        title: item.title,
+        title: titleOrigin === "manual" || titleOrigin === "legacy" ? item.title : "",
+        titleOrigin,
+        sharedTitle: item.sharedTitle ?? null,
         text: item.text,
         url: item.url,
         reviewStatus: item.reviewStatus,

@@ -16,13 +16,15 @@ import java.util.List;
 import java.util.Locale;
 
 final class NotebookShareIntent {
-    final String title;
+    final String subject;
+    final String extraTitle;
     final String text;
     final String url;
     final List<Uri> files;
 
-    private NotebookShareIntent(String title, String text, String url, List<Uri> files) {
-        this.title = title;
+    private NotebookShareIntent(String subject, String extraTitle, String text, String url, List<Uri> files) {
+        this.subject = subject;
+        this.extraTitle = extraTitle;
         this.text = text;
         this.url = url;
         this.files = files;
@@ -56,10 +58,9 @@ final class NotebookShareIntent {
             throw new IllegalArgumentException("Поделитесь текстом, ссылкой, изображением или PDF.");
         }
         String url = NotebookShareInput.url(original);
-        CharSequence title = intent.getCharSequenceExtra(Intent.EXTRA_SUBJECT);
-        if (title == null) title = intent.getCharSequenceExtra(Intent.EXTRA_TITLE);
         return new NotebookShareIntent(
-                NotebookShareInput.title(title),
+                NotebookShareInput.title(intent.getCharSequenceExtra(Intent.EXTRA_SUBJECT)),
+                NotebookShareInput.title(intent.getCharSequenceExtra(Intent.EXTRA_TITLE)),
                 original.trim().equals(url) ? "" : original, url, new ArrayList<>(files));
     }
 

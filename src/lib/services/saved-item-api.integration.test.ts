@@ -64,8 +64,8 @@ describe.skipIf(!enabled)("saved item routes over HTTP with real sessions", () =
     expect((await request(itemPath, { headers: { cookie: otherCookie } })).status).toBe(404);
     expect((await request(itemPath, json(otherCookie, { archived: true }, undefined, "PATCH"))).status).toBe(404);
     expect((await request(`${itemPath}/convert`, json(otherCookie, { sectionId }, "http-transfer"))).status).toBe(404);
-    const patched = await request(itemPath, json(ownerCookie, { reviewStatus: "reviewed" }, undefined, "PATCH"));
-    expect(await patched.json()).toMatchObject({ item: { reviewStatus: "reviewed", archivedAt: null } });
+    const patched = await request(itemPath, json(ownerCookie, { title: "Edited through PATCH", reviewStatus: "reviewed" }, undefined, "PATCH"));
+    expect(await patched.json()).toMatchObject({ item: { titleOrigin: "manual", displayTitle: "Edited through PATCH", reviewStatus: "reviewed", archivedAt: null } });
     const transfer = json(ownerCookie, { sectionId }, "http-transfer");
     const transfers = await Promise.all([request(`${itemPath}/convert`, transfer), request(`${itemPath}/convert`, transfer)]);
     expect(transfers.map(response => response.status).sort()).toEqual([200, 201]);
@@ -103,9 +103,34 @@ describe.skipIf(!enabled)("saved item routes over HTTP with real sessions", () =
     expect(await ownFile.text()).toMatch(/^%PDF-/);
   }, 120_000);
 
+  it("accepts Android titles and adopts site metadata only on explicit PATCH for manual titles", async () => {
+    const key = randomUUID();
+    const payload = { title: "Manual title", sharedTitle: "Android title", text: "Source text" };
+    const created = await request(endpoint, json(ownerCookie, payload, key));
+    expect(created.status).toBe(201);
+    const { item } = await created.json();
+    expect(item).toMatchObject({ titleOrigin: "manual", sharedTitle: "Android title", displayTitle: "Manual title" });
+    await db.savedItem.update({ where: { id: item.id }, data: { metadataTitle: "Website title" } });
+    const retry = await request(endpoint, json(ownerCookie, payload, key));
+    expect(retry.status).toBe(200);
+    expect(await retry.json()).toMatchObject({ item: { id: item.id, displayTitle: "Manual title" } });
+    expect((await request(endpoint, json(ownerCookie, { ...payload, sharedTitle: "Changed" }, key))).status).toBe(409);
+    const itemPath = `${endpoint}/${item.id}`;
+    expect((await request(itemPath, json(otherCookie, { useWebsiteTitle: true }, undefined, "PATCH"))).status).toBe(404);
+    const response = await request(itemPath, json(ownerCookie, { useWebsiteTitle: true }, undefined, "PATCH"));
+    if (process.env.SAVED_ITEM_TITLE_ORIGINS !== "1") {
+      expect(response.status).toBe(409);
+    } else {
+      expect(response.status).toBe(200);
+      expect(await response.json()).toMatchObject({
+        item: { displayTitle: "Website title", title: "", titleOrigin: "system", sharedTitle: "Android title" },
+      });
+    }
+  }, 120_000);
+
   it("requires ownership for previews and refuses a private preview destination", async () => {
     const { id } = await db.savedItem.create({
-      data: { userId: userIds[0], title: "Private preview", metadataImageUrl: "http://127.0.0.1/preview.png" },
+      data: { userId: userIds[0], title: "Private preview", titleOrigin: "legacy", metadataImageUrl: "http://127.0.0.1/preview.png" },
       select: { id: true },
     });
     const path = `${endpoint}/${id}/preview`;

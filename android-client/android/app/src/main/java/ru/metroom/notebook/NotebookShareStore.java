@@ -47,6 +47,12 @@ final class NotebookShareStore {
 
     NotebookShareRecord capture(UUID id, long receivedAt, String title, String text, String url,
                                 List<Source> sources, NotebookShareServer selected, NotebookShareSync.Account account) throws IOException {
+        return capture(id, receivedAt, title, text, url, sources, selected, account, null, "");
+    }
+
+    NotebookShareRecord capture(UUID id, long receivedAt, String title, String text, String url,
+                                List<Source> sources, NotebookShareServer selected, NotebookShareSync.Account account,
+                                String sharedSubject, String sharedExtraTitle) throws IOException {
         if (sources.size() > NotebookShareInput.MAX_FILES) throw new IllegalArgumentException("Можно принять не больше четырёх файлов.");
         if (sources.isEmpty() && text.trim().isEmpty() && url.isEmpty()) throw new IllegalArgumentException("Материал пуст.");
         long remaining;
@@ -71,6 +77,8 @@ final class NotebookShareStore {
             var kind = files.isEmpty() ? (url.isEmpty() ? NotebookShareRecord.Kind.TEXT : NotebookShareRecord.Kind.LINK)
                     : text.isEmpty() && url.isEmpty() ? NotebookShareRecord.Kind.FILES : NotebookShareRecord.Kind.MIXED;
             var entry = new NotebookShareRecord(id, receivedAt, kind, title, text, url, files);
+            entry.sharedSubject = sharedSubject;
+            entry.sharedExtraTitle = sharedExtraTitle;
             if (selected != null) entry.server = selected.base;
             if (account != null && account.server.equals(selected)) {
                 entry.accountId = account.id;
@@ -137,7 +145,8 @@ final class NotebookShareStore {
         var props = new Properties();
         try (var reader = new InputStreamReader(new FileInputStream(new File(directory, DATA)), StandardCharsets.UTF_8)) {
             props.load(reader);
-            if (!"1".equals(props.getProperty("version"))) throw new IOException("Unsupported share queue version");
+            String version = props.getProperty("version");
+            if (!"1".equals(version) && !"2".equals(version)) throw new IOException("Unsupported share queue version");
             int count = Integer.parseInt(props.getProperty("files"));
             if (count < 0 || count > NotebookShareInput.MAX_FILES) throw new IOException("Invalid attachment count");
             var files = new ArrayList<NotebookShareRecord.Attachment>();
@@ -149,6 +158,11 @@ final class NotebookShareStore {
             var entry = new NotebookShareRecord(id, Long.parseLong(props.getProperty("receivedAt")),
                     NotebookShareRecord.Kind.valueOf(props.getProperty("kind")), props.getProperty("title", ""),
                     props.getProperty("text", ""), props.getProperty("url", ""), files);
+            if ("2".equals(version)) {
+                entry.sharedSubject = props.getProperty("sharedSubject", "");
+                entry.sharedExtraTitle = props.getProperty("sharedExtraTitle", "");
+                entry.titleEdited = Boolean.parseBoolean(props.getProperty("titleEdited"));
+            }
             entry.comment = props.getProperty("comment", "");
             String tags = props.getProperty("tags", "");
             if (!tags.isEmpty()) entry.tags = Arrays.asList(tags.split(","));
@@ -172,7 +186,12 @@ final class NotebookShareStore {
 
     private void write(File directory, NotebookShareRecord entry) throws IOException {
         var props = new Properties();
-        props.setProperty("version", "1");
+        props.setProperty("version", entry.sharedSubject == null ? "1" : "2");
+        if (entry.sharedSubject != null) {
+            props.setProperty("sharedSubject", entry.sharedSubject);
+            props.setProperty("sharedExtraTitle", entry.sharedExtraTitle);
+            props.setProperty("titleEdited", Boolean.toString(entry.titleEdited));
+        }
         props.setProperty("receivedAt", Long.toString(entry.receivedAt));
         props.setProperty("kind", entry.kind.name());
         props.setProperty("title", entry.title);

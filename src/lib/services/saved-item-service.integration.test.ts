@@ -1,7 +1,7 @@
 import { mkdtemp, readFile, readdir, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import path from "node:path";
-import { afterAll, beforeAll, beforeEach, describe, expect, it } from "vitest";
+import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
 import { savedItemCreateSchema, savedItemListSchema } from "@/lib/saved-item-validation";
 
 const databaseUrl = process.env.TEST_DATABASE_URL;
@@ -168,6 +168,50 @@ describe.skipIf(!enabled)("saved items on PostgreSQL with persistent files", () 
     expect(await saved.getSavedItem(owner, item.id)).toMatchObject({ metadataStatus: "failed", reviewStatus: "pending" });
     await saved.deleteSavedItem(owner, item.id);
     expect(await db.savedItemMetadataJob.count()).toBe(0);
+  });
+
+  it("resolves share, manual and legacy titles without changing create retries when the flag flips", async () => {
+    const shared = savedItemCreateSchema.parse({
+      sharedTitle: "Android SEO title", url: "https://example.org/article",
+    });
+    const key = "android-title";
+    vi.stubEnv("SAVED_ITEM_TITLE_ORIGINS", "0");
+    try {
+      const { item } = await saved.createSavedItem(owner, key, shared, []);
+      expect(item).toMatchObject({ title: "", titleOrigin: "share", displayTitle: "Android SEO title" });
+      const legacy = await db.savedItem.create({
+        data: { userId: owner, title: "Original legacy", titleOrigin: "legacy", metadataTitle: "Website title" },
+      });
+      const { processSavedMetadataJob } = await import("./saved-item-metadata-worker");
+      const { searchNotebook } = await import("./search-service");
+      const signal = new AbortController().signal;
+      expect(await processSavedMetadataJob(signal, async () => ({
+        metadataTitle: "Website title", metadataDescription: null, metadataSiteName: "Example", metadataImageUrl: null,
+      }))).toBe(true);
+      expect((await saved.getSavedItem(owner, item.id)).displayTitle).toBe("Android SEO title");
+      await expect(saved.updateSavedItem(owner, item.id, { useWebsiteTitle: true })).rejects.toMatchObject({ status: 409 });
+
+      vi.stubEnv("SAVED_ITEM_TITLE_ORIGINS", "1");
+      expect(await saved.createSavedItem(owner, key, shared, [])).toMatchObject({
+        replayed: true, item: { id: item.id, displayTitle: "Website title", sharedTitle: "Android SEO title" },
+      });
+      await expect(saved.createSavedItem(owner, key, { ...shared, sharedTitle: "Another share" }, []))
+        .rejects.toMatchObject({ status: 409 });
+      expect((await saved.getSavedItem(owner, legacy.id)).displayTitle).toBe("Original legacy");
+      expect((await saved.listSavedItems(owner, { ...list, q: "Android" })).items[0].displayTitle).toBe("Website title");
+      expect((await searchNotebook(owner, "Android")).results[0]).toMatchObject({ id: item.id, title: "Website title" });
+
+      expect(await saved.updateSavedItem(owner, item.id, { title: "My title" })).toMatchObject({ titleOrigin: "manual" });
+      await db.savedItem.update({ where: { id: item.id }, data: { metadataTitle: "Updated website title" } });
+      expect((await saved.getSavedItem(owner, item.id)).displayTitle).toBe("My title");
+      expect(await saved.updateSavedItem(owner, item.id, { useWebsiteTitle: true })).toMatchObject({
+        title: "", titleOrigin: "system", displayTitle: "Updated website title", sharedTitle: "Android SEO title",
+      });
+      const { pageId } = await saved.convertSavedItem(owner, item.id, sectionId, "convert-site-title");
+      expect(await db.page.findUnique({ where: { id: pageId } })).toMatchObject({ title: "Updated website title" });
+    } finally {
+      vi.unstubAllEnvs();
+    }
   });
 
   it("stores fetched metadata atomically and searches only owned, active materials", async () => {

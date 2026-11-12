@@ -1,4 +1,5 @@
 import { expect, test, type Page } from "@playwright/test";
+import { Client } from "pg";
 import { setTestTheme } from "./theme-fixture";
 
 async function login(page: Page) {
@@ -123,6 +124,35 @@ test("mobile capture, search, archive, restore, transfer and delete", async ({ p
   await detail(page).getByRole("button", { name: "Удалить", exact: true }).click();
   await deletion.getByRole("button", { name: "Удалить", exact: true }).click();
   await expect(page).toHaveURL(/\/app\?view=saved$/);
+});
+
+test("adopts the website title from the desktop and 360px detail", async ({ page, baseURL }) => {
+  test.skip(process.env.SAVED_ITEM_TITLE_ORIGINS !== "1", "Requires the SavedItem title origins flag");
+  test.setTimeout(120_000);
+  await login(page);
+  const fixtures = [
+    { width: 1920, original: "Desktop manual title", site: "Desktop website title" },
+    { width: 360, original: "Mobile manual title", site: "Mobile website title" },
+  ];
+  const client = new Client({ connectionString: process.env.E2E_DATABASE_URL });
+  await client.connect();
+  try {
+    for (const { width, original, site } of fixtures) {
+      const id = await capture(page, baseURL!, original);
+      await client.query('UPDATE "SavedItem" SET "metadataTitle" = $1 WHERE id = $2', [site, id]);
+      await page.setViewportSize({ width, height: 900 });
+      await page.goto("/app?view=saved");
+      await card(page, original).click();
+      await expect(detail(page).getByRole("heading", { name: original, exact: true })).toBeVisible();
+      if (width === 360) await mobileAction(page, "Использовать заголовок сайта");
+      else await detail(page).getByRole("button", { name: "Использовать заголовок сайта" }).click();
+      await expect(detail(page).getByRole("heading", { name: site, exact: true })).toBeVisible();
+      if (width === 360) await detail(page).getByRole("button", { name: "Назад", exact: true }).click();
+      await expect(card(page, site)).toBeVisible();
+    }
+  } finally {
+    await client.end();
+  }
 });
 
 test("Atelier opens an exact global result and retains both split panes on Back", async ({ page, baseURL }, info) => {

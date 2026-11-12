@@ -9,6 +9,8 @@ const nonNullText = (max: number) => z.string().max(max).refine(value => !value.
 const tag = z.string().trim().max(65).transform(value => hashtagQuery(`#${value.replace(/^#/, "")}`))
   .pipe(z.string());
 export const savedItemIdSchema = z.string().min(1).max(128).regex(/^[a-zA-Z0-9_-]+$/);
+export const savedItemTitleOriginSchema = z.enum(["system", "manual", "share", "legacy"]);
+export const sharedTitleSchema = nonNullText(200).transform(value => value.trim()).pipe(z.string().min(1));
 const fields = {
   title: nonNullText(200).transform(value => value.trim()),
   tags: z.array(tag).max(MAX_PAGE_TAGS).transform(tags => [...new Set(tags)].sort()),
@@ -18,6 +20,7 @@ export const savedItemCreateSchema = z.strictObject({
   ...fields,
   title: fields.title.default(""),
   tags: fields.tags.default([]),
+  sharedTitle: sharedTitleSchema.optional(),
   text: nonNullText(50_000).default(""),
   url: nonNullText(2048).transform(value => value.trim()).refine((value) => {
     try {
@@ -34,7 +37,8 @@ export const savedItemUpdateSchema = z.strictObject({
   ...fields,
   reviewStatus: savedItemReviewStatusSchema,
   archived: z.boolean(),
-}).partial().refine(value => Object.keys(value).length > 0);
+  useWebsiteTitle: z.literal(true),
+}).partial().refine(value => Object.keys(value).length > 0 && !(value.useWebsiteTitle && value.title !== undefined));
 
 export const savedItemListSchema = z.strictObject({
   archive: z.enum(["active", "archived", "all"]).default("active"),

@@ -61,7 +61,7 @@ function SavedCard({ item, selected, onSelect, onTag }: { item: SavedItem; selec
 
 function SavedDetail({ item, busy, onTag, onDialog, onPatch, onRetry, onPage }: {
   item: SavedItem; busy: boolean; onTag(tag: string): void; onDialog(action: SavedDialogAction): void;
-  onPatch(patch: { archived: boolean } | { reviewStatus: "pending" | "reviewed" }): void;
+  onPatch(patch: { archived: boolean } | { reviewStatus: "pending" | "reviewed" } | { useWebsiteTitle: true }): void;
   onRetry(): void; onPage(id: string): void;
 }) {
   const heading = useRef<HTMLHeadingElement>(null);
@@ -93,8 +93,11 @@ function SavedDetail({ item, busy, onTag, onDialog, onPatch, onRetry, onPage }: 
   const edit = { label: "Изменить", run: () => onDialog({ type: "edit", item }) };
   const remove = { label: "Удалить", run: () => onDialog({ type: "delete", item }) };
   const retry = { label: "Повторить получение превью", run: onRetry, disabled: busy };
+  const useWebsiteTitle = { label: "Использовать заголовок сайта",
+    run: () => onPatch({ useWebsiteTitle: true }), disabled: busy };
   const menuActions = [
-    ...(pageAction && item.url ? [pageAction] : []), edit, review, archive,
+    ...(pageAction && item.url ? [pageAction] : []), edit,
+    ...(item.canUseWebsiteTitle ? [useWebsiteTitle] : []), review, archive,
     ...(item.metadataStatus === "failed" ? [retry] : []), remove,
   ];
   return <article className="notebook-saved-material min-w-0 space-y-4">
@@ -141,6 +144,7 @@ function SavedDetail({ item, busy, onTag, onDialog, onPatch, onRetry, onPage }: 
     </ul>}
     <div className="notebook-saved-desktop flex flex-wrap gap-1 border-t border-border/60 pt-3">
       <Button variant="ghost" className="min-h-11" onClick={edit.run}>{edit.label}</Button>
+      {item.canUseWebsiteTitle && <Button variant="ghost" className="min-h-11" disabled={busy} onClick={useWebsiteTitle.run}>{useWebsiteTitle.label}</Button>}
       <Button variant="ghost" className="min-h-11" disabled={busy} onClick={review.run}>
         {review.label}
       </Button>

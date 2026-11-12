@@ -1,4 +1,5 @@
 import { Prisma } from "@/generated/prisma/client";
+import { resolveSavedItemTitle } from "@/lib/saved-item-title";
 import { db } from "@/lib/db";
 import type { SearchFilters } from "@/lib/workspace-search";
 import { hashtagQuery } from "@/lib/hashtags";
@@ -36,6 +37,7 @@ type SearchRow = {
   sectionTitle: string | null;
   snippet: string | null;
   updatedAt: Date;
+  savedTitleInput: Parameters<typeof resolveSavedItemTitle>[0] | null;
 };
 
 const START = "__NOTEBOOK_HIGHLIGHT_START__";
@@ -165,15 +167,29 @@ export async function searchNotebook(userId: string, rawQuery: string, limit = S
         ${until ? Prisma.sql`AND saved."updatedAt" < ${until}` : Prisma.empty}
         ${tags.length ? Prisma.join(tags.map(tag => Prisma.sql`AND EXISTS (SELECT 1 FROM "SavedItemTag" link JOIN "Tag" tag ON tag.id = link."tagId" WHERE link."savedItemId" = saved.id AND tag."userId" = ${userId} AND tag.normalized = ${tag})`), " ") : Prisma.empty}
     )
-    SELECT type, id, title, "notebookId", "notebookTitle", "notebookColor", "notebookIcon", "sectionId", "sectionTitle", snippet, "updatedAt"
-    FROM ranked ORDER BY priority DESC, score DESC, recency DESC, title ASC, id ASC
-    LIMIT ${take + 1} OFFSET ${skip}
+    SELECT result.*, CASE WHEN result.type = 'savedItem' THEN (
+      SELECT jsonb_build_object(
+        'title', saved.title, 'titleOrigin', saved."titleOrigin", 'sharedTitle', saved."sharedTitle",
+        'metadataTitle', saved."metadataTitle", 'text', saved.text, 'url', saved.url,
+        'fileName', (SELECT upload."originalName" FROM "SavedItemAttachment" attachment
+          JOIN "Upload" upload ON upload.id = attachment."uploadId" AND upload."userId" = saved."userId"
+          WHERE attachment."savedItemId" = saved.id ORDER BY attachment.position LIMIT 1)
+      ) FROM "SavedItem" saved WHERE saved.id = result.id AND saved."userId" = ${userId}
+    ) END AS "savedTitleInput"
+    FROM (
+      SELECT * FROM ranked ORDER BY priority DESC, score DESC, recency DESC, title ASC, id ASC
+      LIMIT ${take + 1} OFFSET ${skip}
+    ) result
+    ORDER BY priority DESC, score DESC, recency DESC, title ASC, id ASC
   `);
-  return { results: rows.slice(0, take).map((row): SearchResult => ({
-    type: row.type, id: row.id, title: row.title, titleParts: highlightTitle(row.title, query),
-    notebookId: row.notebookId, notebookTitle: row.notebookTitle, notebookColor: row.notebookColor, notebookIcon: row.notebookIcon,
-    ...(row.sectionId ? { sectionId: row.sectionId } : {}), ...(row.sectionTitle ? { sectionTitle: row.sectionTitle } : {}),
-    ...(row.updatedAt ? { updatedAt: row.updatedAt.toISOString() } : {}),
-    ...(row.snippet ? { snippet: row.snippet.replaceAll(START, "").replaceAll(STOP, ""), snippetParts: parseSearchHeadline(row.snippet) } : {}),
-  })), nextOffset: rows.length > take && skip + take <= 250 ? skip + take : null };
+  return { results: rows.slice(0, take).map((row): SearchResult => {
+    const title = row.savedTitleInput ? resolveSavedItemTitle(row.savedTitleInput) : row.title;
+    return {
+      type: row.type, id: row.id, title, titleParts: highlightTitle(title, query),
+      notebookId: row.notebookId, notebookTitle: row.notebookTitle, notebookColor: row.notebookColor, notebookIcon: row.notebookIcon,
+      ...(row.sectionId ? { sectionId: row.sectionId } : {}), ...(row.sectionTitle ? { sectionTitle: row.sectionTitle } : {}),
+      ...(row.updatedAt ? { updatedAt: row.updatedAt.toISOString() } : {}),
+      ...(row.snippet ? { snippet: row.snippet.replaceAll(START, "").replaceAll(STOP, ""), snippetParts: parseSearchHeadline(row.snippet) } : {}),
+    };
+  }), nextOffset: rows.length > take && skip + take <= 250 ? skip + take : null };
 }

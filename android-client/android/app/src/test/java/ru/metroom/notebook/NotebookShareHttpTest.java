@@ -48,7 +48,44 @@ public class NotebookShareHttpTest {
                 assertTrue(body.contains("name=\"payload\""));
                 assertTrue(body.contains("filename=\"билеты.pdf\""));
                 assertTrue(body.contains("%PDF-1.7"));
+                assertFalse(body.contains("sharedTitle"));
             }
+        }
+    }
+
+    @Test public void keepsLegacyDraftsAndRetriesNewTitlePayloadWithTheSameKey() throws Exception {
+        try (var wire = new MockWebServer()) {
+            wire.start(InetAddress.getByName("127.0.0.1"), 0);
+            var endpoint = NotebookShareServer.parse("http://127.0.0.1:" + wire.getPort());
+            var store = new NotebookShareStore(temp.newFolder(), new NotebookShareStoreTest.TestDisk());
+            var legacy = store.capture(UUID.randomUUID(), 1, "Legacy title", "Text", "", List.of(), endpoint, null);
+            assertEquals("Legacy title", store.read(legacy.id).draftTitle());
+            assertNull(store.read(legacy.id).sharedSubject);
+
+            var draft = store.capture(UUID.randomUUID(), 2, "", "Text", "", List.of(), endpoint, null, "Subject", "Extra title");
+            var queued = store.read(draft.id);
+            assertEquals("Subject", queued.draftTitle());
+            assertEquals("Extra title", queued.sharedExtraTitle);
+            queued.title = "Manual";
+            queued.titleEdited = true;
+            queued.status = NotebookShareRecord.Status.QUEUED;
+            store.update(queued);
+            var client = new NotebookShareHttp();
+            for (int attempt = 0; attempt < 2; attempt++) {
+                wire.enqueue(response(503, "text/plain", "retry"));
+                var persisted = store.read(draft.id);
+                assertTrue(persisted.titleEdited);
+                assertEquals(503, client.upload(endpoint, "notebook_session=abcdefghijklmnopqrstuv", store, persisted).code);
+            }
+            var first = wire.takeRequest();
+            var retry = wire.takeRequest();
+            assertEquals(draft.key(), first.getHeader("Idempotency-Key"));
+            assertEquals(first.getHeader("Idempotency-Key"), retry.getHeader("Idempotency-Key"));
+            String body = first.getBody().readUtf8();
+            assertEquals(body, retry.getBody().readUtf8());
+            var json = new org.json.JSONObject(body);
+            assertEquals("Manual", json.getString("title"));
+            assertEquals("Subject", json.getString("sharedTitle"));
         }
     }
 

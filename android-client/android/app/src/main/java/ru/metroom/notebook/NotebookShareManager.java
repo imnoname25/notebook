@@ -158,7 +158,8 @@ final class NotebookShareManager {
         disk.execute(() -> {
             try {
                 var payload = NotebookShareIntent.parse(intent, context.getPackageName());
-                store.capture(id, receivedAt, payload.title, payload.text, payload.url, payload.sources(context), server, account);
+                store.capture(id, receivedAt, "", payload.text, payload.url, payload.sources(context), server, account,
+                        payload.subject, payload.extraTitle);
                 main.post(() -> {
                     if (listener == null) recent.addLast(id);
                     else {
@@ -187,13 +188,14 @@ final class NotebookShareManager {
         });
     }
 
-    void confirm(UUID id, String title, String comment, List<String> tags, NotebookShareSync.Account recipient, Consumer<Boolean> finished) {
+    void confirm(UUID id, String title, boolean titleEdited, String comment, List<String> tags, NotebookShareSync.Account recipient, Consumer<Boolean> finished) {
         disk.execute(() -> {
             boolean saved = false;
             try {
                 var entry = store.read(id);
                 if (entry == null || entry.status != NotebookShareRecord.Status.DRAFT) return;
-                entry.title = title;
+                if (entry.sharedSubject == null || titleEdited) entry.title = title;
+                entry.titleEdited |= titleEdited;
                 entry.comment = comment;
                 entry.tags = tags;
                 if (entry.accountId.isEmpty() && recipient != null && stillVerified(recipient)) NotebookShareSync.bind(entry, recipient);

@@ -61,6 +61,7 @@ final class NotebookShareHttp {
         JSONObject payload = new JSONObject();
         try {
             payload.put("title", entry.title);
+            if (!entry.sharedTitle().isEmpty()) payload.put("sharedTitle", entry.sharedTitle());
             payload.put("text", entry.payloadText());
             payload.put("url", entry.url.isEmpty() ? JSONObject.NULL : entry.url);
             payload.put("tags", new JSONArray(entry.tags));

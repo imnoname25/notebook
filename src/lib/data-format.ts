@@ -4,7 +4,7 @@ import { TEMPLATE_ICONS } from "@/lib/template-icons";
 import { SECTION_ICONS } from "@/lib/section-icons";
 import { NOTEBOOK_COVER_GRADIENTS, NOTEBOOK_COVER_TYPES } from "@/lib/notebook-cover";
 import { hashtagQuery, MAX_PAGE_TAGS } from "@/lib/hashtags";
-import { MAX_SAVED_ATTACHMENTS, savedItemCreateSchema, savedItemReviewStatusSchema } from "@/lib/saved-item-validation";
+import { MAX_SAVED_ATTACHMENTS, savedItemCreateSchema, savedItemReviewStatusSchema, savedItemTitleOriginSchema, sharedTitleSchema } from "@/lib/saved-item-validation";
 import {
   ACCENT_COLORS,
   PAGE_APPEARANCE_PRESETS,
@@ -144,7 +144,10 @@ const portableTag = z.strictObject({
   hashtagQuery(`#${name}`) === normalized);
 const portableMetadataText = (max: number) => z.string().max(max).refine(value => !value.includes("\0")).nullable();
 const portableSavedItemSchema = z.strictObject({
-  ...savedItemCreateSchema.pick({ title: true, text: true, url: true }).required().shape,
+  ...savedItemCreateSchema.pick({ text: true, url: true }).required().shape,
+  title: z.string().max(200).refine(value => !value.includes("\0")),
+  titleOrigin: savedItemTitleOriginSchema.optional(),
+  sharedTitle: sharedTitleSchema.nullable().optional(),
   key: portableKey,
   reviewStatus: savedItemReviewStatusSchema,
   archivedAt: portableDate.nullable(),
@@ -160,7 +163,9 @@ const portableSavedItemSchema = z.strictObject({
     siteName: portableMetadataText(253),
     imageUrl: savedItemCreateSchema.shape.url,
   }),
-});
+}).refine(item => item.titleOrigin === undefined ? item.sharedTitle === undefined
+  : item.titleOrigin === "share" ? Boolean(item.sharedTitle)
+  : item.titleOrigin === "system" || Boolean(item.title));
 
 export const manifestSchema = z
   .object({

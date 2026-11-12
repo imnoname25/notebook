@@ -4,6 +4,7 @@ import path from "node:path";
 import type { Prisma } from "@/generated/prisma/client";
 import { db } from "@/lib/db";
 import { ApiError } from "@/lib/errors";
+import { resolveSavedItemTitle } from "@/lib/saved-item-title";
 import {
   BACKUP_FORMAT,
   archiveDataSchema,
@@ -133,7 +134,7 @@ export async function buildPortableExport(
     orderBy: [{ createdAt: "asc" }, { id: "asc" }],
     include: {
       tags: { where: { tag: { userId } }, orderBy: { tag: { normalized: "asc" } }, include: { tag: true } },
-      attachments: { orderBy: { position: "asc" } },
+      attachments: { orderBy: { position: "asc" }, include: { upload: { select: { originalName: true } } } },
     },
   });
   for (const item of savedItems) {
@@ -335,7 +336,9 @@ export async function buildPortableExport(
         ? {
             savedItems: savedItems.map((item, index) => ({
               key: `saved-item-${index + 1}`,
-              title: item.title,
+              title: resolveSavedItemTitle({ ...item, fileName: item.attachments[0]?.upload.originalName }),
+              ...(item.titleOrigin === "legacy" && !item.sharedTitle ? {}
+                : { titleOrigin: item.titleOrigin, sharedTitle: item.sharedTitle }),
               text: item.text,
               url: item.url,
               reviewStatus: item.reviewStatus,

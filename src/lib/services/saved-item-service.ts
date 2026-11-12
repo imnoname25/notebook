@@ -3,6 +3,7 @@ import { Prisma } from "@/generated/prisma/client";
 import type { SavedItemOperation } from "@/generated/prisma/client";
 import { db } from "@/lib/db";
 import { ApiError } from "@/lib/errors";
+import { resolveSavedItemTitle, savedItemTitleOriginsEnabled, websiteTitle } from "@/lib/saved-item-title";
 import { extractHashtags } from "@/lib/hashtags";
 import type { SavedItemCreateInput, SavedItemListInput, SavedItemUpdateInput } from "@/lib/saved-item-validation";
 import { createPageInTransaction } from "./page-service";
@@ -10,7 +11,7 @@ import { syncSavedItemTags } from "./tag-service";
 import { lockUserUploads, type PreparedUpload, withUploadWrites } from "./upload-service";
 
 const itemSelect = {
-  id: true, title: true, text: true, url: true, reviewStatus: true,
+  id: true, title: true, titleOrigin: true, sharedTitle: true, text: true, url: true, reviewStatus: true,
   metadataTitle: true, metadataDescription: true, metadataSiteName: true, metadataImageUrl: true,
   archivedAt: true, convertedAt: true, convertedPageId: true, createdAt: true, updatedAt: true,
   tags: { orderBy: { tag: { normalized: "asc" } }, select: { tag: { select: { name: true, normalized: true } } } },
@@ -21,9 +22,17 @@ type Item = Prisma.SavedItemGetPayload<{ select: typeof itemSelect }>;
 
 function attachmentUrl(id: string) { return `/api/uploads/${id}`; }
 
-function serializeItem({ attachments, tags, metadataJob, metadataTitle, metadataDescription, metadataSiteName, metadataImageUrl, ...item }: Item) {
+function displayTitle(item: Item) {
+  return resolveSavedItemTitle({ ...item, fileName: item.attachments[0]?.upload.originalName });
+}
+
+function serializeItem(record: Item) {
+  const { attachments, tags, metadataJob, metadataTitle, metadataDescription, metadataSiteName, metadataImageUrl, ...item } = record;
   return {
     ...item,
+    displayTitle: displayTitle(record),
+    canUseWebsiteTitle: savedItemTitleOriginsEnabled() && Boolean(websiteTitle(metadataTitle))
+      && item.titleOrigin !== "system",
     tags: tags.map(({ tag }) => tag),
     attachments: attachments.map(({ upload }) => ({ ...upload, url: attachmentUrl(upload.id) })),
     metadata: { title: metadataTitle, description: metadataDescription, siteName: metadataSiteName, hasPreview: Boolean(metadataImageUrl) },
@@ -92,9 +101,10 @@ export async function retrySavedItemMetadata(userId: string, id: string) {
 }
 
 export async function createSavedItem(userId: string, key: string, input: SavedItemCreateInput, files: PreparedUpload[]) {
-  const { title, text, url, tags } = input;
-  if (!title && !text.trim() && !url && !files.length) throw new ApiError(400, "Материал пуст");
-  const hash = fingerprint([title, text, url, tags, files.map(({ originalName, mimeType, size, sha256 }) => [originalName, mimeType, size, sha256])]);
+  const { title, sharedTitle, text, url, tags } = input;
+  if (!title && !sharedTitle && !text.trim() && !url && !files.length) throw new ApiError(400, "Материал пуст");
+  const payload = [title, text, url, tags, files.map(({ originalName, mimeType, size, sha256 }) => [originalName, mimeType, size, sha256])];
+  const hash = fingerprint(sharedTitle === undefined ? payload : [...payload, { sharedTitle }]);
   return withUploadWrites(userId, async (tx, store) => {
     const previousId = await previousResult(tx, userId, "create", key, hash);
     if (previousId) {
@@ -104,7 +114,11 @@ export async function createSavedItem(userId: string, key: string, input: SavedI
     }
 
     const { id } = await tx.savedItem.create({
-      data: { userId, title, text, url, ...(url ? { metadataJob: { create: {} } } : {}) },
+      data: {
+        userId, title, sharedTitle, text, url,
+        titleOrigin: title ? "manual" : sharedTitle ? "share" : "system",
+        ...(url ? { metadataJob: { create: {} } } : {}),
+      },
       select: { id: true },
     });
     await syncSavedItemTags(tx, userId, id, tags);
@@ -118,15 +132,22 @@ export async function createSavedItem(userId: string, key: string, input: SavedI
   });
 }
 
-export async function updateSavedItem(userId: string, id: string, { archived, tags, ...fields }: SavedItemUpdateInput) {
+export async function updateSavedItem(userId: string, id: string, { archived, tags, title, useWebsiteTitle, ...fields }: SavedItemUpdateInput) {
   return db.$transaction(async tx => {
-    const rows = await tx.$queryRaw<{ archivedAt: Date | null }[]>(Prisma.sql`
-      SELECT "archivedAt" FROM "SavedItem" WHERE id = ${id} AND "userId" = ${userId} FOR NO KEY UPDATE`);
+    const rows = await tx.$queryRaw<{ archivedAt: Date | null; metadataTitle: string | null }[]>(Prisma.sql`
+      SELECT "archivedAt", "metadataTitle" FROM "SavedItem" WHERE id = ${id} AND "userId" = ${userId} FOR NO KEY UPDATE`);
     const row = rows[0];
     if (!row) throw new ApiError(404, "Материал не найден");
+    if (useWebsiteTitle && (!savedItemTitleOriginsEnabled() || !websiteTitle(row.metadataTitle))) {
+      throw new ApiError(409, "Заголовок сайта недоступен");
+    }
     await tx.savedItem.update({
       where: { id },
-      data: { ...fields, updatedAt: new Date(), archivedAt: archived === undefined ? undefined : archived ? row.archivedAt ?? new Date() : null },
+      data: {
+        ...fields,
+        ...(useWebsiteTitle || title !== undefined ? { title: title ?? "", titleOrigin: title ? "manual" : "system" } : {}),
+        updatedAt: new Date(), archivedAt: archived === undefined ? undefined : archived ? row.archivedAt ?? new Date() : null,
+      },
     });
     if (tags) await syncSavedItemTags(tx, userId, id, tags);
     return serializeItem(await tx.savedItem.findUniqueOrThrow({ where: { id }, select: itemSelect }));
@@ -156,7 +177,7 @@ function conversionContent(item: Item): Prisma.InputJsonArray {
       props: { url: attachmentUrl(upload.id), name: upload.originalName },
     });
   }
-  const existingTags = new Set(extractHashtags(`${item.title} ${item.text} ${item.url ?? ""}`).map(tag => tag.normalized));
+  const existingTags = new Set(extractHashtags(`${displayTitle(item)} ${item.text} ${item.url ?? ""}`).map(tag => tag.normalized));
   const tagText = item.tags.filter(({ tag }) => !existingTags.has(tag.normalized)).map(({ tag }) => `#${tag.normalized}`).join(" ");
   if (tagText) content.push({ type: "paragraph", content: [textNode(tagText)] });
   return content.length ? content : [{ type: "paragraph", content: [] }];
@@ -187,7 +208,7 @@ export async function convertSavedItem(userId: string, id: string, sectionId: st
     if (item.convertedAt) throw new ApiError(410, "Созданная страница недоступна");
 
     const page = await createPageInTransaction(tx, userId, {
-      sectionId, title: item.title || "Сохранённый материал", content: conversionContent(item),
+      sectionId, title: displayTitle(item), content: conversionContent(item),
     });
     await tx.upload.updateMany({
       where: { userId, id: { in: item.attachments.map(({ upload }) => upload.id) } },

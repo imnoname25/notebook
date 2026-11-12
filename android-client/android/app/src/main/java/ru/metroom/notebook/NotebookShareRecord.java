@@ -26,6 +26,9 @@ final class NotebookShareRecord {
     final String url;
     final List<Attachment> files;
     String title;
+    String sharedSubject;
+    String sharedExtraTitle = "";
+    boolean titleEdited;
     String comment = "";
     List<String> tags = new ArrayList<>();
     String server = "";
@@ -53,8 +56,16 @@ final class NotebookShareRecord {
         return text.isEmpty() ? comment : text + "\n\n" + comment;
     }
 
+    String sharedTitle() {
+        return sharedSubject == null || sharedSubject.isEmpty() ? sharedExtraTitle : sharedSubject;
+    }
+
+    String draftTitle() {
+        return sharedSubject == null || titleEdited ? title : sharedTitle();
+    }
+
     String label() {
-        if (!title.trim().isEmpty()) return title;
+        if (!draftTitle().trim().isEmpty()) return draftTitle();
         if (!url.isEmpty()) return url;
         if (!files.isEmpty()) return files.get(0).name;
         return text.length() > 80 ? text.substring(0, 80) + "…" : text;

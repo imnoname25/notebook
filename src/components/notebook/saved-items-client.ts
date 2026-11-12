@@ -21,8 +21,7 @@ export function savedSource(item: SavedItem) {
 }
 
 export function savedTitle(item: SavedItem) {
-  return item.title || item.metadata.title || item.text.trim().slice(0, 100) || savedSource(item)
-    || item.attachments[0]?.originalName || "Сохранённый материал";
+  return item.displayTitle;
 }
 
 export function savedRequestKey() {
