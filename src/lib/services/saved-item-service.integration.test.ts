@@ -228,10 +228,19 @@ describe.skipIf(!enabled)("saved items on PostgreSQL with persistent files", () 
       await saved.createSavedItem(owner, key, { ...input, title: key }, [await prepareUpload(pdf(), true)])
     ).item));
     await saved.convertSavedItem(owner, converted.id, sectionId, "transfer");
-    const { writePortableArchive } = await import("./export-service");
+    const { buildPortableExport } = await import("./export-service");
+    const { createZipArchive } = await import("@/lib/archive");
     const { prepareImport, restoreBackupData, disposePreparedImport } = await import("./import-service");
     const archivePath = path.join(directory, "v5.zip");
-    await writePortableArchive(owner, archivePath, { includeDeleted: true, includeHistory: true, backup: true });
+    const built = await buildPortableExport(owner, { includeDeleted: true, includeHistory: true, backup: true });
+    const { savedItems, ...legacy } = built.data;
+    const convertedAttachment = savedItems!.find(item => item.title === "converted")!.attachmentKeys[0];
+    const files = legacy.attachments.filter(file => file.key === convertedAttachment);
+    await createZipArchive(archivePath, async zip => {
+      zip.append(JSON.stringify({ ...built.manifest, version: 5, attachmentCount: files.length }), { name: "manifest.json" });
+      zip.append(JSON.stringify({ ...legacy, attachments: files }), { name: "backup.json" });
+      for (const file of files) zip.file(built.attachmentFiles.get(file.archivePath!)!, { name: file.archivePath! });
+    });
     const prepared = await prepareImport(new Request("http://local/restore", {
       method: "POST", headers: { "content-type": "application/zip" }, body: await readFile(archivePath),
     }), "backup");

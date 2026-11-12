@@ -3,6 +3,8 @@ import { NOTEBOOK_COLORS, NOTEBOOK_ICONS } from "@/lib/notebook-appearance";
 import { TEMPLATE_ICONS } from "@/lib/template-icons";
 import { SECTION_ICONS } from "@/lib/section-icons";
 import { NOTEBOOK_COVER_GRADIENTS, NOTEBOOK_COVER_TYPES } from "@/lib/notebook-cover";
+import { hashtagQuery, MAX_PAGE_TAGS } from "@/lib/hashtags";
+import { MAX_SAVED_ATTACHMENTS, savedItemCreateSchema, savedItemReviewStatusSchema } from "@/lib/saved-item-validation";
 import {
   ACCENT_COLORS,
   PAGE_APPEARANCE_PRESETS,
@@ -13,7 +15,8 @@ import {
   PAGE_PATTERNS,
 } from "@/lib/content-appearance";
 
-export const DATA_FORMAT_VERSION = 5 as const;
+export const DATA_FORMAT_VERSION = 6 as const;
+const SECTION_ICONS_DATA_FORMAT_VERSION = 5 as const;
 export const LINKS_DATA_FORMAT_VERSION = 4 as const;
 export const APPEARANCE_DATA_FORMAT_VERSION = 3 as const;
 export const PREVIOUS_DATA_FORMAT_VERSION = 2 as const;
@@ -132,6 +135,33 @@ const portableQuickNoteSchema = z.object({
   updatedAt: portableDate,
 }).strict();
 
+const portableKey = z.string().min(1).max(100);
+const portableTag = z.strictObject({
+  name: z.string().min(1).max(128),
+  normalized: z.string().min(1).max(128),
+}).refine(({ name, normalized }) =>
+  !name.includes("\0") && hashtagQuery(`#${normalized}`) === normalized &&
+  hashtagQuery(`#${name}`) === normalized);
+const portableMetadataText = (max: number) => z.string().max(max).refine(value => !value.includes("\0")).nullable();
+const portableSavedItemSchema = z.strictObject({
+  ...savedItemCreateSchema.pick({ title: true, text: true, url: true }).required().shape,
+  key: portableKey,
+  reviewStatus: savedItemReviewStatusSchema,
+  archivedAt: portableDate.nullable(),
+  convertedAt: portableDate.nullable(),
+  convertedPageKey: portableKey.nullable(),
+  createdAt: portableDate,
+  updatedAt: portableDate,
+  tags: z.array(portableTag).max(MAX_PAGE_TAGS),
+  attachmentKeys: z.array(portableKey).max(MAX_SAVED_ATTACHMENTS),
+  metadata: z.strictObject({
+    title: portableMetadataText(300),
+    description: portableMetadataText(1000),
+    siteName: portableMetadataText(253),
+    imageUrl: savedItemCreateSchema.shape.url,
+  }),
+});
+
 export const manifestSchema = z
   .object({
     format: z.enum([EXPORT_FORMAT, BACKUP_FORMAT]),
@@ -140,6 +170,7 @@ export const manifestSchema = z
       z.literal(PREVIOUS_DATA_FORMAT_VERSION),
       z.literal(APPEARANCE_DATA_FORMAT_VERSION),
       z.literal(LINKS_DATA_FORMAT_VERSION),
+      z.literal(SECTION_ICONS_DATA_FORMAT_VERSION),
       z.literal(DATA_FORMAT_VERSION),
     ]),
     createdAt: portableDate,
@@ -155,6 +186,7 @@ export const archiveDataSchema = z
     attachments: z.array(portableAttachmentSchema).max(10_000),
     templates: z.array(portableTemplateSchema).max(500).optional(),
     quickNotes: z.array(portableQuickNoteSchema).max(10_000).optional(),
+    savedItems: z.array(portableSavedItemSchema).max(100_000).optional(),
   })
   .strict();
 export const pageExportSchema = z
@@ -164,8 +196,10 @@ export const pageExportSchema = z
         format: z.literal(PAGE_FORMAT),
         version: z.union([
           z.literal(LEGACY_DATA_FORMAT_VERSION),
+          z.literal(PREVIOUS_DATA_FORMAT_VERSION),
           z.literal(APPEARANCE_DATA_FORMAT_VERSION),
           z.literal(LINKS_DATA_FORMAT_VERSION),
+          z.literal(SECTION_ICONS_DATA_FORMAT_VERSION),
           z.literal(DATA_FORMAT_VERSION),
         ]),
         createdAt: portableDate,

@@ -1,4 +1,4 @@
-import { mkdir, rm, stat } from "node:fs/promises";
+import { mkdir, open, rm, stat } from "node:fs/promises";
 import { db } from "@/lib/db";
 import { ApiError } from "@/lib/errors";
 import { backupFilename, backupRoot, resolveBackupPath } from "@/lib/backup-storage";
@@ -15,7 +15,7 @@ function errorCategory(error: unknown) { if (error instanceof ApiError) return `
 export function serializeBackup(record: SerializableRecord) { const webdav = record.remoteCopies?.find((copy) => copy.provider === "webdav"); return { ...record, size: record.size === null ? null : Number(record.size), remoteStatus: webdav?.status ?? record.remoteStatus, remoteEtag: webdav?.etag ?? record.remoteEtag, errorCategory: webdav?.errorCategory ?? record.errorCategory, remoteCopies: (record.remoteCopies ?? []).map((copy) => ({ ...copy, size: copy.size === null ? null : Number(copy.size) })) }; }
 
 export async function enforceBackupRetention(now = new Date()) {
-  const settings = await getApplicationSettings(); const records = await db.backupRecord.findMany({ where: { status: "success", filename: { not: null } }, orderBy: { createdAt: "desc" }, include: { remoteCopies: true } }); const cutoff = now.getTime() - settings.backupRetentionDays * 86_400_000;
+  const settings = await getApplicationSettings(); const records = await db.backupRecord.findMany({ where: { status: "success", type: { not: "safety" }, filename: { not: null } }, orderBy: { createdAt: "desc" }, include: { remoteCopies: true } }); const cutoff = now.getTime() - settings.backupRetentionDays * 86_400_000;
   const remove = records.filter((record, index) => index >= settings.backupRetentionCount || record.createdAt.getTime() < cutoff);
   for (const record of remove) {
     if (record.filename) await rm(resolveBackupPath(record.filename), { force: true });
@@ -26,10 +26,16 @@ export async function enforceBackupRetention(now = new Date()) {
 }
 
 export async function createOperationalBackup(userId: string, type: BackupType, now = new Date()) {
-  const record = await db.backupRecord.create({ data: { type, status: "running", remoteStatus: "not_configured", createdAt: now } }); const filename = backupFilename(now, record.id.slice(-6)); const target = resolveBackupPath(filename); await mkdir(backupRoot(), { recursive: true });
+  const record = await db.backupRecord.create({ data: { type, status: "running", remoteStatus: "not_configured", createdAt: now } }); const filename = backupFilename(now, record.id.slice(-6)); const target = resolveBackupPath(filename);
   try {
+    await mkdir(backupRoot(), { recursive: true });
     await writePortableArchive(userId, target, { includeDeleted: true, includeHistory: true, backup: true }); const info = await stat(target); const sha256 = await sha256File(target);
-    await db.backupRecord.update({ where: { id: record.id }, data: { status: "success", filename, size: BigInt(info.size), sha256, completedAt: new Date() } });
+    if (type === "safety" && process.platform !== "win32") {
+      const directory = await open(backupRoot(), "r");
+      try { await directory.sync(); } finally { await directory.close(); }
+    }
+    const completed = await db.backupRecord.update({ where: { id: record.id }, data: { status: "success", filename, size: BigInt(info.size), sha256, completedAt: new Date() }, include: { remoteCopies: true } });
+    if (type === "safety") return completed;
     try { await uploadToRemoteTargets({ id: record.id, filename, size: BigInt(info.size), sha256 }); }
     catch { await createNotification({ type: "backup_remote_failed", severity: "warning", title: "Remote backup не настроен или недоступен", message: "Локальная резервная копия сохранена. Проверьте secret key и настройки remote providers.", dedupKey: "backup:remote:configuration" }); }
     await db.applicationSettings.update({ where: { id: "singleton" }, data: { backupConsecutiveFailures: 0, ...(type === "scheduled" ? { lastScheduledBackupAt: now } : {}) } });
@@ -38,6 +44,14 @@ export async function createOperationalBackup(userId: string, type: BackupType, 
     console.info("Notebook backup completed", { type, size: info.size });
     return db.backupRecord.findUniqueOrThrow({ where: { id: record.id }, include: { remoteCopies: true } });
   } catch (error) {
+    if (type === "safety") {
+      // If registration committed but its response was lost, preserve the recovery copy.
+      await db.backupRecord.updateMany({
+        where: { id: record.id, status: "running" },
+        data: { status: "failed", errorCategory: errorCategory(error), completedAt: new Date() },
+      }).then(({ count }) => count ? rm(target, { force: true }) : undefined).catch(() => undefined);
+      throw error;
+    }
     await rm(target, { force: true }); await db.backupRecord.update({ where: { id: record.id }, data: { status: "failed", errorCategory: errorCategory(error), completedAt: new Date() } });
     const settings = await db.applicationSettings.update({ where: { id: "singleton" }, data: { backupConsecutiveFailures: { increment: 1 }, ...(type === "scheduled" ? { lastScheduledBackupAt: now } : {}) } });
     if (type === "scheduled") {

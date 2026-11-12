@@ -1,11 +1,12 @@
 import { randomUUID } from "node:crypto";
-import { readFile, stat } from "node:fs/promises";
+import { lstat, open, readFile, rm, stat } from "node:fs/promises";
 import path from "node:path";
 import type { Prisma } from "@/generated/prisma/client";
 import { db } from "@/lib/db";
 import { ApiError } from "@/lib/errors";
 import {
   BACKUP_FORMAT,
+  archiveDataSchema,
   blockNoteContentSchema,
   DATA_FORMAT_VERSION,
   EXPORT_FORMAT,
@@ -27,7 +28,10 @@ import {
   sha256File,
 } from "@/lib/storage";
 import { blockNoteToMarkdown } from "@/lib/markdown-export";
-import { createDataTempDirectory, createZipArchive } from "@/lib/archive";
+import { assertSafeArchivePath, createDataTempDirectory, createZipArchive } from "@/lib/archive";
+import { MAX_IMPORT_ENTRIES, MAX_IMPORT_JSON_BYTES, maxImportArchiveBytes, maxImportUncompressedBytes } from "@/lib/data-limits";
+import { ATTACHMENT_EXTENSIONS, isValidAttachmentMime } from "@/lib/uploads";
+import { lockUserUploads } from "./upload-service";
 import { blockNoteToSafeHtml, standalonePageHtml } from "@/lib/html-export";
 import { TEMPLATE_ICONS, type TemplateIcon } from "@/lib/template-icons";
 import { portableTemplateReferences } from "@/lib/template-portability";
@@ -77,8 +81,9 @@ function portableBlocks(
 export async function buildPortableExport(
   userId: string,
   options: ExportOptions,
+  client: Prisma.TransactionClient = db,
 ): Promise<ExportBuild> {
-  const notebooks = await db.notebook.findMany({
+  const notebooks = await client.notebook.findMany({
     where: {
       userId,
       ...(options.notebookId ? { id: options.notebookId } : {}),
@@ -123,9 +128,20 @@ export async function buildPortableExport(
           );
       }
   }
-  const uploads = await db.upload.findMany({
+  const savedItems = options.notebookId ? [] : await client.savedItem.findMany({
+    where: { userId },
+    orderBy: [{ createdAt: "asc" }, { id: "asc" }],
+    include: {
+      tags: { where: { tag: { userId } }, orderBy: { tag: { normalized: "asc" } }, include: { tag: true } },
+      attachments: { orderBy: { position: "asc" } },
+    },
+  });
+  for (const item of savedItems) {
+    for (const attachment of item.attachments) attachmentIds.add(attachment.uploadId);
+  }
+  const uploads = await client.upload.findMany({
     where: options.backup
-      ? { userId, OR: [{ savedItems: { none: {} } }, { id: { in: [...attachmentIds] } }] }
+      ? { userId }
       : { userId, id: { in: [...attachmentIds] } },
     orderBy: { createdAt: "asc" },
   });
@@ -241,39 +257,52 @@ export async function buildPortableExport(
   }));
   const attachmentFiles = new Map<string, string>();
   const portableAttachments: PortableAttachment[] = [];
+  if (uploads.length + 2 > MAX_IMPORT_ENTRIES || uploads.reduce((sum, upload) => sum + upload.size, 0) > maxImportUncompressedBytes())
+    throw new ApiError(413, "Вложения превышают ограничения архива");
   for (const upload of uploads) {
     const key = uploadKey.get(upload.id)!;
     const source = resolveStoragePath(upload.storageName);
+    let hash: string;
     try {
-      const info = await stat(source);
+      const info = await lstat(source);
       if (!info.isFile() || info.size !== upload.size) throw new Error("size");
+      const handle = await open(source, "r");
+      const header = Buffer.alloc(12);
+      try {
+        const { bytesRead } = await handle.read(header);
+        if (!isValidAttachmentMime(upload.mimeType, header.subarray(0, bytesRead))) throw new Error("MIME");
+      } finally {
+        await handle.close();
+      }
+      hash = await sha256File(source);
+      if (upload.sha256 && upload.sha256 !== hash) throw new Error("SHA-256");
     } catch {
       throw new ApiError(
         409,
         `Файл вложения отсутствует или повреждён: ${upload.originalName}`,
       );
     }
-    const extension = path.extname(safeDownloadName(upload.originalName));
-    const archivePath = `attachments/${key}${extension}`;
+    const archivePath = `attachments/${key}.${ATTACHMENT_EXTENSIONS[upload.mimeType]}`;
+    assertSafeArchivePath(archivePath);
     portableAttachments.push({
       key,
       fileName: safeDownloadName(upload.originalName),
       mimeType: upload.mimeType,
       size: upload.size,
-      sha256: upload.sha256 ?? (await sha256File(source)),
+      sha256: hash,
       archivePath,
     });
     attachmentFiles.set(archivePath, source);
   }
   const templates = options.backup
-    ? await db.pageTemplate.findMany({
+    ? await client.pageTemplate.findMany({
         where: { userId, isBuiltIn: false },
         orderBy: { sortOrder: "asc" },
       })
     : [];
   const quickNotes = options.notebookId
     ? []
-    : await db.quickNote.findMany({
+    : await client.quickNote.findMany({
         where: { userId },
         orderBy: [{ isPinned: "desc" }, { updatedAt: "desc" }],
       });
@@ -304,6 +333,26 @@ export async function buildPortableExport(
         : {}),
       ...(!options.notebookId
         ? {
+            savedItems: savedItems.map((item, index) => ({
+              key: `saved-item-${index + 1}`,
+              title: item.title,
+              text: item.text,
+              url: item.url,
+              reviewStatus: item.reviewStatus,
+              archivedAt: item.archivedAt && date(item.archivedAt),
+              convertedAt: item.convertedAt && date(item.convertedAt),
+              convertedPageKey: item.convertedPageId ? pageKey.get(item.convertedPageId) ?? null : null,
+              createdAt: date(item.createdAt),
+              updatedAt: date(item.updatedAt),
+              tags: item.tags.map(({ tag: { name, normalized } }) => ({ name, normalized })),
+              attachmentKeys: item.attachments.map(({ uploadId }) => uploadKey.get(uploadId)!),
+              metadata: {
+                title: item.metadataTitle,
+                description: item.metadataDescription,
+                siteName: item.metadataSiteName,
+                imageUrl: item.metadataImageUrl,
+              },
+            })),
             quickNotes: quickNotes.map((note) => ({
               title: note.title,
               body: note.body,
@@ -328,18 +377,27 @@ export async function writePortableArchive(
   target: string,
   options: ExportOptions,
 ) {
-  const built = await buildPortableExport(userId, options);
-  await createZipArchive(target, async (archive) => {
-    archive.append(JSON.stringify(built.manifest, null, 2), {
-      name: "manifest.json",
+  return db.$transaction(async (tx) => {
+    await lockUserUploads(tx, userId);
+    const built = await buildPortableExport(userId, options, tx);
+    const manifest = JSON.stringify(built.manifest, null, 2);
+    const data = JSON.stringify(archiveDataSchema.parse(built.data));
+    const jsonBytes = Buffer.byteLength(data);
+    if (jsonBytes > MAX_IMPORT_JSON_BYTES ||
+        jsonBytes + Buffer.byteLength(manifest) + built.data.attachments.reduce((sum, file) => sum + file.size, 0) > maxImportUncompressedBytes())
+      throw new ApiError(413, "Данные превышают ограничения архива");
+    await createZipArchive(target, async (archive) => {
+      archive.append(manifest, { name: "manifest.json" });
+      archive.append(data, { name: options.backup ? "backup.json" : "notebook.json" });
+      for (const [archivePath, source] of built.attachmentFiles)
+        archive.file(source, { name: archivePath });
     });
-    archive.append(JSON.stringify(built.data), {
-      name: options.backup ? "backup.json" : "notebook.json",
-    });
-    for (const [archivePath, source] of built.attachmentFiles)
-      archive.file(source, { name: archivePath });
-  });
-  return built.manifest;
+    if ((await stat(target)).size > maxImportArchiveBytes()) {
+      await rm(target, { force: true });
+      throw new ApiError(413, "Архив превышает допустимый размер");
+    }
+    return built.manifest;
+  }, { timeout: 120_000 });
 }
 
 export async function exportPageJson(

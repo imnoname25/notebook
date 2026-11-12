@@ -358,7 +358,11 @@ WebDAV и S3 могут быть включены одновременно. У �
 
 Колокольчик в header показывает operational notifications: ошибки scheduled/local backup, повторные failures, WebDAV/S3 upload, критичный storage audit и результат restore. Активные одинаковые warnings deduplicated; success разрешает warning, прочитанные записи старше 90 дней и записи сверх 200 очищаются opportunistically. Email/webhook/realtime transport намеренно отсутствуют.
 
-Application backup v3 сохраняет custom templates и типизированное оформление страниц; restore продолжает принимать backup v1/v2. Обычный notebook/page export v3 не включает settings, sessions, notification/remote metadata, Vault или secrets, а importer по-прежнему принимает старый page export v1. Потеря `SETTINGS_ENCRYPTION_KEY` делает сохранённые WebDAV/S3 credentials и TOTP secret нерасшифровываемыми — храните ключ вместе с конфигурацией deployment, отдельно от backup archive.
+Полный экспорт и application backup v6 включают активное и архивное «Сохранённое», теги, метаданные ссылок и вложения с SHA-256. Связь с созданной страницей переносится по ключу страницы, когда она входит в архив. Экспорт отдельного блокнота или страницы не включает пространство «Сохранённое». Импорт добавляет материалы с новыми ID. Restore v6 заменяет «Сохранённое» текущего пользователя, а restore v1–v5 сохраняет его материалы, теги и файлы. Ссылки на удалённые при восстановлении страницы сбрасываются.
+
+Перед восстановлением проверяется весь архив. После проверки Notebook сохраняет локальную safety backup v6 в списке резервных копий. Она остаётся доступной после успеха или сбоя, исключена из автоматической очистки и удаляется администратором вручную. Если восстановление прервано до коммита PostgreSQL, старые записи и файлы сохраняются. Незарегистрированные файлы можно удалить штатной очисткой после проверки состояния хранилища.
+
+Архивы не содержат settings, sessions, notification/remote metadata, Vault или secrets. Потеря `SETTINGS_ENCRYPTION_KEY` делает сохранённые WebDAV/S3 credentials и TOTP secret нерасшифровываемыми — храните ключ вместе с конфигурацией deployment, отдельно от backup archive.
 
 ## Диагностика и health
 

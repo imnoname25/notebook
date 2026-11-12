@@ -2,7 +2,7 @@ import { setTestTheme } from "./theme-fixture";
 import { expect, test } from "@playwright/test";
 import { z } from "zod";
 import { Client } from "pg";
-import { readFile, readdir } from "node:fs/promises";
+import { readFile } from "node:fs/promises";
 import path from "node:path";
 import { createZipArchive, extractZipSafely } from "../src/lib/archive";
 const id = z.object({ id: z.string() });
@@ -56,7 +56,8 @@ for (const theme of ["studio-graphite", "studio-atelier"]) test(`${theme}: real 
     // Legacy fixture travels over real HTTP; raw IDs must become unavailable, including a default (non-alias) label.
     const archive = info.outputPath("export.zip");await import("node:fs/promises").then(fs => fs.writeFile(archive, bytes));const extracted = info.outputPath("extracted");await extractZipSafely(archive, extracted);
     const manifest = JSON.parse(await readFile(path.join(extracted, "manifest.json"), "utf8")) as Record<string, unknown>;manifest.version = 4;
-    const data = JSON.parse(await readFile(path.join(extracted, "backup.json"), "utf8")) as { templates: { name: string; content: unknown[] }[] };
+    const data = JSON.parse(await readFile(path.join(extracted, "backup.json"), "utf8")) as { templates: { name: string; content: unknown[] }[]; savedItems?: unknown[] };
+    delete data.savedItems;
     data.templates = [{ name: "Legacy", content: [{ type: "paragraph", content: [{ type: "pageLink", props: { pageId: target.id, text: "Старое отображаемое название", alias: false } }] }], ...{ description: null, icon: "file-text", sortOrder: 0 } }];
     const legacyPath = info.outputPath("legacy.zip");await createZipArchive(legacyPath, async zip => { zip.append(JSON.stringify(manifest), { name: "manifest.json" });zip.append(JSON.stringify(data), { name: "backup.json" }); });
     const legacy = await other.request.post("/api/data/restore", { headers: { "content-type": "application/zip", "x-notebook-confirmation": "RESTORE" }, data: await readFile(legacyPath) });expect(legacy.status()).toBe(200);expect(z.object({ warnings: z.array(z.string()) }).parse(await legacy.json()).warnings[0]).toContain("старый формат");
@@ -65,11 +66,11 @@ for (const theme of ["studio-graphite", "studio-atelier"]) test(`${theme}: real 
     const legacyPage = z.object({ page: note }).parse(await other.request.post("/api/pages", { data: { sectionId: restoredTree.notebooks[0]!.sections[0]!.id, templateId: legacyTemplate.id } }).then(r => r.json())).page;
     await other.goto(`/pages/${legacyPage.id}`);await expect(other.locator(".notebook-page-link")).toHaveText("Старое отображаемое название");await expect(other.locator(".notebook-page-link")).toHaveAttribute("data-unavailable", "true");
     await other.locator(".notebook-page-link").click();await expect(other).toHaveURL(`/pages/${legacyPage.id}`);
-    // Validation failure after restored pages were inserted must retain the safety archive and roll the transaction back.
-    const safetyDirectory = path.join(process.env.UPLOAD_DIR!, ".safety-backups");const safetyBefore = new Set(await readdir(safetyDirectory));
+    // Invalid templates must fail before creating a safety archive or changing the tree.
+    const safetyBefore = await other.request.get("/api/backups").then(r => r.json());
     data.templates[0]!.content = [{ type: "alien" }];const brokenPath = info.outputPath("invalid.zip");await createZipArchive(brokenPath, async zip => { zip.append(JSON.stringify(manifest), { name: "manifest.json" });zip.append(JSON.stringify(data), { name: "backup.json" }); });
-    const before = await other.request.get("/api/notebooks").then(r => r.json());const failed = await other.request.post("/api/data/restore", { headers: { "content-type": "application/zip", "x-notebook-confirmation": "RESTORE" }, data: await readFile(brokenPath) });expect(failed.status()).toBe(500);expect(await other.request.get("/api/notebooks").then(r => r.json())).toEqual(before);
-    const safety = (await readdir(safetyDirectory)).filter(name => name.endsWith(".zip") && !safetyBefore.has(name));expect(safety.length).toBeGreaterThan(0);
+    const before = await other.request.get("/api/notebooks").then(r => r.json());const failed = await other.request.post("/api/data/restore", { headers: { "content-type": "application/zip", "x-notebook-confirmation": "RESTORE" }, data: await readFile(brokenPath) });expect(failed.status()).toBe(400);expect(await other.request.get("/api/notebooks").then(r => r.json())).toEqual(before);
+    expect(await other.request.get("/api/backups").then(r => r.json())).toEqual(safetyBefore);
     // Inspect only the isolated test database: the source owner must survive all destination restores.
     const client = new Client({ connectionString: process.env.E2E_DATABASE_URL });await client.connect();try { expect((await client.query('SELECT id FROM "Page" WHERE id=$1', [target.id])).rowCount).toBe(1); } finally { await client.end(); }
   } finally { await otherContext.close(); }

@@ -2,7 +2,9 @@ import { createReadStream, createWriteStream } from "node:fs";
 import { mkdir, mkdtemp, readFile, rm, stat } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import path from "node:path";
+import { Readable, Transform } from "node:stream";
 import { pipeline } from "node:stream/promises";
+import { crc32 } from "node:zlib";
 import { ZipArchive, type Archiver } from "archiver";
 import yauzl, { type Entry, type ZipFile } from "yauzl";
 import { ApiError } from "@/lib/errors";
@@ -11,10 +13,11 @@ import { MAX_IMPORT_ENTRIES, MAX_IMPORT_JSON_BYTES, maxImportArchiveBytes, maxIm
 export async function createDataTempDirectory(prefix = "notebook-data-") { return mkdtemp(path.join(tmpdir(), prefix)); }
 
 export function assertSafeArchivePath(value: string) {
-  if (!value || value.includes("\0") || value.includes("\\") || path.posix.isAbsolute(value) || /^[A-Za-z]:/.test(value)) throw new ApiError(400, "Архив содержит небезопасный путь");
-  const normalized = path.posix.normalize(value);
-  if (normalized === ".." || normalized.startsWith("../") || normalized.split("/").includes("..")) throw new ApiError(400, "Архив содержит path traversal");
-  return normalized;
+  const name = value.replace(/\/$/u, "");
+  const reserved = /^(?:con|prn|aux|nul|com[0-9¹²³]|lpt[0-9¹²³])(?:\.|$)/iu;
+  if (name.split("/").some(part => !part || /[. ]$/u.test(part) || /[\\:\u0000-\u001f"<>|?*]/u.test(part) || reserved.test(part)))
+    throw new ApiError(400, "Архив содержит небезопасный путь");
+  return name;
 }
 
 export async function writeRequestToFile(request: Request, target: string) {
@@ -23,11 +26,13 @@ export async function writeRequestToFile(request: Request, target: string) {
   const maximum = maxImportArchiveBytes();
   if (declared > maximum) throw new ApiError(413, "Архив превышает допустимый размер");
   let total = 0;
-  const reader = request.body.getReader(); const output = createWriteStream(target, { flags: "wx" });
-  try {
-    while (true) { const chunk = await reader.read(); if (chunk.done) break; total += chunk.value.byteLength; if (total > maximum) throw new ApiError(413, "Архив превышает допустимый размер"); if (!output.write(chunk.value)) await new Promise<void>((resolve) => output.once("drain", resolve)); }
-    await new Promise<void>((resolve, reject) => output.end((error?: Error | null) => error ? reject(error) : resolve()));
-  } catch (error) { output.destroy(); await rm(target, { force: true }); throw error; }
+  await pipeline(Readable.fromWeb(request.body as Parameters<typeof Readable.fromWeb>[0]), new Transform({
+    transform(chunk: Buffer, _encoding, callback) {
+      total += chunk.length;
+      if (total > maximum) return callback(new ApiError(413, "Архив превышает допустимый размер"));
+      callback(null, chunk);
+    },
+  }), createWriteStream(target, { flags: "wx" }));
   return total;
 }
 
@@ -41,7 +46,8 @@ function openZip(filePath: string) { return new Promise<ZipFile>((resolve, rejec
 function entryStream(zip: ZipFile, entry: Entry) { return new Promise<NodeJS.ReadableStream>((resolve, reject) => zip.openReadStream(entry, (error, stream) => error || !stream ? reject(error ?? new Error("ZIP entry не прочитан")) : resolve(stream))); }
 
 export async function extractZipSafely(filePath: string, destination: string) {
-  const zip = await openZip(filePath); const seen = new Set<string>(); let entries = 0; let total = 0;
+  const zip = await openZip(filePath).catch(() => { throw new ApiError(400, "Некорректный ZIP"); });
+  const seen = new Set<string>(); let entries = 0; let total = 0;
   return new Promise<{ entries: number; uncompressedBytes: number }>((resolve, reject) => {
     let settled = false;
     const fail = (error: unknown) => { if (settled) return; settled = true; zip.close(); reject(error); };
@@ -49,13 +55,30 @@ export async function extractZipSafely(filePath: string, destination: string) {
     zip.on("end", () => { if (!settled) { settled = true; resolve({ entries, uncompressedBytes: total }); } });
     zip.on("entry", (entry) => { void (async () => {
       entries += 1; if (entries > MAX_IMPORT_ENTRIES) throw new ApiError(413, "В архиве слишком много файлов");
-      const name = assertSafeArchivePath(entry.fileName); if (seen.has(name)) throw new ApiError(400, "Архив содержит повторяющиеся пути"); seen.add(name);
+      const name = assertSafeArchivePath(entry.fileName);
+      const canonical = name.toLowerCase();
+      if (seen.has(canonical)) throw new ApiError(400, "Архив содержит повторяющиеся пути");
+      seen.add(canonical);
       if ((entry.generalPurposeBitFlag & 1) !== 0) throw new ApiError(400, "Зашифрованные ZIP entries не поддерживаются");
       const unixMode = (entry.externalFileAttributes >>> 16) & 0xffff; if ((unixMode & 0o170000) === 0o120000) throw new ApiError(400, "Symlink entries запрещены");
       total += entry.uncompressedSize; if (total > maxImportUncompressedBytes()) throw new ApiError(413, "Распакованный архив слишком большой");
       const target = path.resolve(destination, ...name.split("/")); if (!target.startsWith(`${path.resolve(destination)}${path.sep}`)) throw new ApiError(400, "Архив содержит path traversal");
       if (entry.fileName.endsWith("/")) await mkdir(target, { recursive: true });
-      else { await mkdir(path.dirname(target), { recursive: true }); const source = await entryStream(zip, entry); await pipeline(source, createWriteStream(target, { flags: "wx" })); }
+      else {
+        await mkdir(path.dirname(target), { recursive: true });
+        const source = await entryStream(zip, entry);
+        let checksum = 0;
+        const verify = new Transform({
+          transform(chunk: Buffer, _encoding, callback) {
+            checksum = crc32(chunk, checksum);
+            callback(null, chunk);
+          },
+          flush(callback) {
+            callback(checksum === entry.crc32 ? undefined : new ApiError(400, "Контрольная сумма ZIP не совпадает"));
+          },
+        });
+        await pipeline(source, verify, createWriteStream(target, { flags: "wx" }));
+      }
       zip.readEntry();
     })().catch(fail); });
     zip.readEntry();
@@ -69,11 +92,20 @@ export async function readJsonFile(filePath: string): Promise<unknown> {
 
 export async function createZipArchive(target: string, build: (archive: Archiver) => Promise<void>) {
   await mkdir(path.dirname(target), { recursive: true });
-  const output = createWriteStream(target, { flags: "wx" }); const archive = new ZipArchive({ zlib: { level: 6 } });
-  const done = new Promise<void>((resolve, reject) => { output.on("close", resolve); output.on("error", reject); archive.on("error", reject); });
-  archive.pipe(output);
-  try { await build(archive); await archive.finalize(); await done; }
-  catch (error) { archive.abort(); output.destroy(); await rm(target, { force: true }); throw error; }
+  const output = createWriteStream(target, { flags: "wx", flush: true });
+  const archive = new ZipArchive({ zlib: { level: 6 } });
+  archive.on("warning", error => archive.destroy(error));
+  let created = false;
+  output.on("open", () => { created = true; });
+  const done = pipeline(archive, output);
+  try { await Promise.all([done, (async () => { await build(archive); await archive.finalize(); })()]); }
+  catch (error) {
+    archive.abort();
+    output.destroy();
+    await done.catch(() => undefined);
+    if (created) await rm(target, { force: true });
+    throw error;
+  }
 }
 
 export { createReadStream };

@@ -28,6 +28,18 @@ export async function lockUserUploads(tx: Prisma.TransactionClient, userId: stri
   await tx.$queryRaw(Prisma.sql`SELECT 1 FROM pg_advisory_xact_lock(hashtextextended(${`notebook:uploads:${userId}`}, 0))`);
 }
 
+// If the commit result is unknown, only remove files PostgreSQL confirms are unreferenced.
+export async function discardUncommittedUploads(userId: string, written: string[]) {
+  if (!written.length) return;
+  await db.$transaction(async tx => {
+    await lockUserUploads(tx, userId);
+    const committed = await tx.upload.findMany({ where: { storageName: { in: written } }, select: { storageName: true } });
+    const retained = new Set(committed.map(file => file.storageName));
+    await Promise.allSettled(written.filter(name => !retained.has(name))
+      .map(name => rm(resolveStoragePath(name), { force: true })));
+  }).catch(() => undefined);
+}
+
 export async function withUploadWrites<T>(userId: string, write: (
   tx: Prisma.TransactionClient,
   store: (file: PreparedUpload, pageId?: string) => Promise<{ id: string }>,
@@ -48,15 +60,7 @@ export async function withUploadWrites<T>(userId: string, write: (
   } catch (error) {
     // A lost commit response can leave valid metadata. Leave files for audit if
     // the database cannot confirm the rollback.
-    if (written.length) {
-      await db.$transaction(async tx => {
-        await lockUserUploads(tx, userId);
-        const committed = await tx.upload.findMany({ where: { storageName: { in: written } }, select: { storageName: true } });
-        const retained = new Set(committed.map(file => file.storageName));
-        await Promise.allSettled(written.filter(name => !retained.has(name))
-          .map(name => rm(resolveStoragePath(name), { force: true })));
-      }).catch(() => undefined);
-    }
+    await discardUncommittedUploads(userId, written);
     throw error;
   }
 }

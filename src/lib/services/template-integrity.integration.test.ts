@@ -31,7 +31,11 @@ describe.skipIf(!enabled)("template integrity: real PostgreSQL and ZIP", () => {
   afterAll(async () => { if (db) await db.$disconnect();if (directory) await rm(directory, { recursive: true, force: true }); });
   async function zip(version?: number, invalid = false, missing = false, duplicate = false): Promise<PreparedImport> {
     const built = await exporter.buildPortableExport(owner, { backup: true, includeDeleted: true, includeHistory: true });
-    if (version) { built.manifest.version = version as typeof built.manifest.version;built.data.templates![0]!.content = content as NonNullable<typeof built.data.templates>[number]["content"]; }
+    if (version) {
+      built.manifest.version = version as typeof built.manifest.version;
+      delete built.data.savedItems;
+      if (version < 5) built.data.templates![0]!.content = content as NonNullable<typeof built.data.templates>[number]["content"];
+    }
     if (invalid) built.data.templates!.push({ name: "Invalid", description: null, icon: "file-text", sortOrder: 10, content: [{ type: "alien" }] });
     if (missing) built.data.notebooks[0]!.sections[0]!.pages.shift();
     if (duplicate) built.data.notebooks[0]!.sections[0]!.pages.push(built.data.notebooks[0]!.sections[0]!.pages[0]!);
@@ -40,10 +44,10 @@ describe.skipIf(!enabled)("template integrity: real PostgreSQL and ZIP", () => {
     const bytes = new Uint8Array(await readFile(file));
     return importer.prepareImport(new Request("http://test/restore", { method: "POST", headers: { "content-type": "application/zip" }, body: bytes }), "backup");
   }
-  it("restores v5 targets by key, preserves aliases/nesting, then creates backlinks only for real pages", async () => {
-    const prepared = await zip();
+  it.each([5, 6])("restores v%i targets by key, preserves aliases/nesting, then creates backlinks only for real pages", async version => {
+    const prepared = await zip(version === 5 ? version : undefined);
     try {
-      expect(prepared.manifest!.version).toBe(5);expect(prepared.summary.warnings).toEqual([]);
+      expect(prepared.manifest!.version).toBe(version);expect(prepared.summary.warnings).toEqual([]);
       const portableKey = [...internalPageIdsInContent(content)][0]!;
       expect(JSON.stringify(prepared.data!.templates)).not.toContain(portableKey);
       await importer.restoreBackupData(other, prepared);
@@ -71,21 +75,18 @@ describe.skipIf(!enabled)("template integrity: real PostgreSQL and ZIP", () => {
       expect(await db.pageLink.count()).toBe(0);
     } finally { await importer.disposePreparedImport(prepared); }
   });
-  it("rolls back pages, templates and derived indexes when template insertion fails after page restoration", async () => {
+  it("rejects invalid templates before restoring pages or derived indexes", async () => {
     const notebook = await db.notebook.create({ data: { userId: other, title: "Keep" } });
     const destination = await db.section.create({ data: { notebookId: notebook.id, title: "Keep" } });
     const keep = await pages.createPage(other, { sectionId: destination.id, title: "Keep page" });
     const saved = await pages.savePage(other, keep.id, { expectedRevision: keep.revision, content: [{ type: "paragraph", content: [{ type: "text", text: "#rollbacktag", styles: {} }] }] });
     const keepTemplate = await templates.createTemplate(other, { name: "Keep template", icon: "file-text" });
-    const prepared = await zip(undefined, true);
-    try {
-      await expect(importer.restoreBackupData(other, prepared)).rejects.toThrow("не поддерживается");
+      await expect(zip(undefined, true)).rejects.toThrow("не поддерживается");
       expect(await db.page.findUnique({ where: { id: keep.id } })).toEqual(saved);
       expect(await db.pageTemplate.findUnique({ where: { id: keepTemplate.id } })).not.toBeNull();
       expect(await db.page.count({ where: { section: { notebook: { userId: other } } } })).toBe(1);
       expect(await db.pageTag.count({ where: { pageId: keep.id } })).toBe(1);
       expect(await db.pageLink.count()).toBe(0);
-    } finally { await importer.disposePreparedImport(prepared); }
   });
   it("marks v5 absent targets unavailable without binding to source-owned or same-title pages", async () => {
     const prepared = await zip(undefined, false, true);

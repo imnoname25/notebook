@@ -25,6 +25,6 @@ describe.skipIf(!enabled)("template optimistic updates and native table history"
     await pages.savePage(user, created.id, { expectedRevision: created.revision, snapshotReason: "manual" });const history = await versions.listPageVersions(user, created.id, 1);const version = history.versions[0]!;
     const changed = await pages.savePage(user, created.id, { expectedRevision: created.revision, content: [{ type: "paragraph", content: [] }] });expect(await db.pageLink.count({ where: { sourcePageId: created.id } })).toBe(0);
     const restored = await versions.restorePageVersion(user, created.id, version.id, changed.revision);expect(restored.content).toEqual(created.content);expect(await db.pageLink.count({ where: { sourcePageId: created.id } })).toBe(1);
-    const exported = await exports.buildPortableExport(user, { backup: true, includeHistory: true, includeDeleted: true });expect(exported.manifest.version).toBe(5);expect(JSON.stringify(exported.data.templates)).toContain("notebook-page://");expect(JSON.stringify(exported.data.templates)).toContain('"columnWidths":[180,220,260]');
+    const exported = await exports.buildPortableExport(user, { backup: true, includeHistory: true, includeDeleted: true });expect(exported.manifest.version).toBe(6);expect(JSON.stringify(exported.data.templates)).toContain("notebook-page://");expect(JSON.stringify(exported.data.templates)).toContain('"columnWidths":[180,220,260]');
   });
 });
