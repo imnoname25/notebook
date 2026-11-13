@@ -57,22 +57,22 @@ export function useSavedArticle(id: string, enabled: boolean) {
   return { state, error, submitting, pending, request };
 }
 
-export function SavedArticleControls({ reader }: { reader: ReturnType<typeof useSavedArticle> }) {
+export function SavedArticleControls({ reader, canSave }: { reader: ReturnType<typeof useSavedArticle>; canSave: boolean }) {
   const { state, error, submitting, pending, request } = reader;
   const article = state?.article;
   const status = state?.job?.status;
   const failed = status === "fallback" || status === "failed";
   const partial = article?.blocks.some(block => block.type === "image" && !article.images.some(image => image.key === block.key));
-  return <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-sm text-muted-foreground">
-    <Button type="button" variant="outline" className="min-h-11" disabled={!state || submitting || pending} onClick={() => void request()}>
+  const statusText = error || (canSave && pending ? (article ? "Обновляем копию…" : "Сохраняем статью…")
+    : canSave && failed ? (state?.job?.accessLimited ? "Источник ограничил доступ к статье."
+      : article ? "Обновление не удалось. Доступна предыдущая копия." : "Не удалось сохранить статью.")
+    : partial ? "Часть изображений недоступна."
+    : canSave && !article ? (state ? "Статья ещё не сохранена." : "Проверяем сохранённую копию…") : "");
+  return <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-sm text-muted-foreground empty:hidden">
+    {canSave && <Button type="button" variant="outline" className="min-h-11" disabled={!state || submitting || pending} onClick={() => void request()}>
       {article ? "Обновить копию" : "Сохранить статью"}
-    </Button>
-    <span role="status">
-      {error || (pending ? (article ? "Обновляем копию…" : "Сохраняем статью…")
-        : failed ? (article ? "Обновление не удалось. Доступна предыдущая копия." : "Статью сохранить не удалось. Доступна закладка.")
-        : article ? (partial ? "Часть изображений недоступна." : "")
-        : state ? "Статья ещё не сохранена." : "Проверяем сохранённую копию…")}
-    </span>
+    </Button>}
+    {statusText && <span role="status">{statusText}</span>}
     {article && <span>Копия от <time dateTime={article.extractedAt}>{date.format(new Date(article.extractedAt))}</time></span>}
   </div>;
 }

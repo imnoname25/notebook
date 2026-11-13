@@ -3,6 +3,7 @@ import { Prisma } from "@/generated/prisma/client";
 import { db } from "@/lib/db";
 import { ApiError } from "@/lib/errors";
 import { savedArticleBlocks, SAVED_ARTICLE_CONTENT_VERSION, SAVED_ARTICLE_IMAGE_VERSION, type SavedArticleBlocks } from "@/lib/saved-article-format";
+import { classifySavedLink } from "@/lib/saved-link";
 import { metadataUrl } from "@/lib/saved-metadata-network";
 import type { PreparedArticleImage } from "./saved-article-images";
 import { withUploadWrites } from "./upload-service";
@@ -14,6 +15,7 @@ const MANUAL_COOLDOWN_MS = 60_000;
 
 export async function enqueueNewSavedArticle(tx: Prisma.TransactionClient, savedItemId: string, url: string | null, hasAttachments: boolean) {
   if (process.env.SAVED_ARTICLE_AUTO_EXTRACT !== "1" || !url || hasAttachments) return;
+  if (classifySavedLink(url).kind !== "article") return;
   try { metadataUrl(url); } catch { return; }
 
   await tx.$executeRaw`SAVEPOINT saved_article_capture`;
@@ -35,6 +37,7 @@ export async function enqueueSavedArticle(userId: string, savedItemId: string, {
       SELECT url FROM "SavedItem" WHERE id = ${savedItemId} AND "userId" = ${userId} FOR NO KEY UPDATE`);
     if (!item) throw new ApiError(404, "Материал не найден");
     if (!item.url) throw new ApiError(409, "У материала нет ссылки");
+    if (classifySavedLink(item.url).kind !== "article") throw new ApiError(409, "Для этой ссылки доступна карточка");
     try { metadataUrl(item.url); } catch { throw new ApiError(409, "Ссылка недоступна для извлечения"); }
 
     const now = new Date();

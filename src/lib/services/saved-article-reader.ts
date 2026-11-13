@@ -16,7 +16,7 @@ export async function readSavedArticle(userId: string, id: string) {
     where: { id, userId },
     select: {
       url: true,
-      articleJob: { select: { status: true, finishedAt: true } },
+      articleJob: { select: { status: true, finishedAt: true, reason: true } },
       article: { include: {
         images: { orderBy: { position: "asc" }, select: {
           imageKey: true, upload: { select: { userId: true, mimeType: true } },
@@ -25,7 +25,9 @@ export async function readSavedArticle(userId: string, id: string) {
     },
   });
   if (!item) throw new ApiError(404, "Материал не найден");
-  const job = item.articleJob;
+  const job = item.articleJob && {
+    status: item.articleJob.status, finishedAt: item.articleJob.finishedAt, accessLimited: item.articleJob.reason === "access",
+  };
   const article = item.article;
   if (!article || article.sourceUrl !== item.url ||
     ![SAVED_ARTICLE_CONTENT_VERSION, SAVED_ARTICLE_IMAGE_VERSION].includes(article.contentVersion)) return { article: null, job };

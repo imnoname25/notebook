@@ -4,6 +4,7 @@ import type { SavedItemOperation } from "@/generated/prisma/client";
 import { db } from "@/lib/db";
 import { ApiError } from "@/lib/errors";
 import { resolveSavedItemTitle, savedItemTitleOriginsEnabled, websiteTitle } from "@/lib/saved-item-title";
+import { classifySavedLink } from "@/lib/saved-link";
 import { extractHashtags } from "@/lib/hashtags";
 import type { SavedItemCreateInput, SavedItemListInput, SavedItemUpdateInput } from "@/lib/saved-item-validation";
 import { createPageInTransaction } from "./page-service";
@@ -17,7 +18,7 @@ const itemSelect = {
   archivedAt: true, convertedAt: true, convertedPageId: true, createdAt: true, updatedAt: true,
   tags: { orderBy: { tag: { normalized: "asc" } }, select: { tag: { select: { name: true, normalized: true } } } },
   attachments: { orderBy: { position: "asc" }, select: { upload: { select: { id: true, originalName: true, mimeType: true, size: true } } } },
-  metadataJob: { select: { finishedAt: true, failed: true } },
+  metadataJob: { select: { finishedAt: true, failed: true, failureReason: true } },
   article: { select: { sourceUrl: true } },
 } as const satisfies Prisma.SavedItemSelect;
 type Item = Prisma.SavedItemGetPayload<{ select: typeof itemSelect }>;
@@ -30,8 +31,10 @@ function displayTitle(item: Item) {
 
 function serializeItem(record: Item) {
   const { attachments, tags, metadataJob, metadataTitle, metadataDescription, metadataSiteName, metadataImageUrl, article, ...item } = record;
+  const hasMetadata = Boolean(metadataTitle || metadataDescription || metadataImageUrl);
   return {
     ...item,
+    linkKind: item.url ? classifySavedLink(item.url).kind : null,
     hasSavedArticle: article !== null && article.sourceUrl === item.url,
     displayTitle: displayTitle(record),
     canUseWebsiteTitle: savedItemTitleOriginsEnabled() && Boolean(websiteTitle(metadataTitle))
@@ -39,7 +42,9 @@ function serializeItem(record: Item) {
     tags: tags.map(({ tag }) => tag),
     attachments: attachments.map(({ upload }) => ({ ...upload, url: attachmentUrl(upload.id) })),
     metadata: { title: metadataTitle, description: metadataDescription, siteName: metadataSiteName, hasPreview: Boolean(metadataImageUrl) },
-    metadataStatus: !metadataJob ? "skipped" : !metadataJob.finishedAt ? "queued" : metadataJob.failed ? "failed" : "ready",
+    metadataStatus: !metadataJob ? "skipped" : !metadataJob.finishedAt ? "queued"
+      : metadataJob.failed ? "failed" : hasMetadata ? "ready" : "empty",
+    metadataFailure: metadataJob?.failed ? metadataJob.failureReason : null,
   };
 }
 
@@ -97,7 +102,7 @@ export async function retrySavedItemMetadata(userId: string, id: string) {
   if (!item.url) throw new ApiError(409, "У материала нет ссылки");
   const changed = await db.savedItemMetadataJob.updateMany({
     where: { savedItemId: id, savedItem: { userId }, finishedAt: { lte: new Date(Date.now() - 30_000) } },
-    data: { availableAt: new Date(), finishedAt: null, failed: false, leaseToken: null, attempts: 0 },
+    data: { availableAt: new Date(), finishedAt: null, failed: false, failureReason: null, leaseToken: null, attempts: 0 },
   });
   if (!changed.count) throw new ApiError(409, "Проверка уже в очереди или завершилась менее 30 секунд назад");
   return getSavedItem(userId, id);

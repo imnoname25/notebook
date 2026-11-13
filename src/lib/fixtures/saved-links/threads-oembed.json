@@ -1,0 +1,7 @@
+{
+  "version": "1.0",
+  "type": "rich",
+  "provider_name": "Threads",
+  "width": 658,
+  "html": "<blockquote class=\"text-post-media\">Текст для встроенного представления</blockquote><script src=\"https://www.threads.net/embed.js\"></script>"
+}

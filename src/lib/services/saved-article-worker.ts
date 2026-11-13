@@ -1,5 +1,6 @@
 import { fetchSavedArticle } from "@/lib/saved-article-extraction";
-import { SavedMetadataError } from "@/lib/saved-metadata-network";
+import { classifySavedLink } from "@/lib/saved-link";
+import { savedRequestFailure, SavedMetadataError } from "@/lib/saved-metadata-network";
 import { downloadSavedArticleImages } from "./saved-article-images";
 import {
   claimSavedArticleJob, MAX_ARTICLE_ATTEMPTS, settleSavedArticleJob, type SavedArticleOutcome,
@@ -12,21 +13,9 @@ type Worker = { abort: AbortController; timer?: ReturnType<typeof setTimeout> };
 const state = globalThis as typeof globalThis & { notebookSavedArticleWorker?: Worker; notebookSavedArticleSignals?: boolean };
 
 export function savedArticleRequestFailure(error: unknown, attempts: number): SavedArticleOutcome {
-  let reason = "request";
-  let retryable = false;
-  if (error instanceof SavedMetadataError) {
-    if (!error.retryable || [501, 505, 511].includes(error.httpStatus ?? 0)) {
-      const reason = error.reason === "challenge" || [401, 403, 511].includes(error.httpStatus ?? 0) ? "access"
-        : error.reason === "size" ? "limits" : error.reason;
-      return { status: "fallback", reason };
-    }
-    reason = error.reason;
-    retryable = true;
-  } else if (error instanceof Error && error.name === "TimeoutError") {
-    reason = "timeout";
-    retryable = true;
-  } else if (error instanceof Error && "code" in error && typeof error.code === "string") {
-    retryable = ["EAI_AGAIN", "ECONNRESET", "ECONNREFUSED", "ETIMEDOUT", "ERR_STREAM_PREMATURE_CLOSE"].includes(error.code);
+  const { reason, retryable } = savedRequestFailure(error);
+  if (!retryable && error instanceof SavedMetadataError) {
+    return { status: "fallback", reason: reason === "size" ? "limits" : reason };
   }
   if (retryable && attempts < MAX_ARTICLE_ATTEMPTS) {
     return { status: "retry", reason, retryAt: new Date(Date.now() + RETRY_BASE_MS * 2 ** (attempts - 1)) };
@@ -38,6 +27,10 @@ export async function processSavedArticleJob(signal: AbortSignal, extract = fetc
   if (signal.aborted) return false;
   const job = await claimSavedArticleJob();
   if (!job || signal.aborted) return false;
+  if (classifySavedLink(job.sourceUrl).kind !== "article") {
+    await settleSavedArticleJob(job, { status: "fallback", reason: "link-type" }, signal);
+    return true;
+  }
   let outcome: SavedArticleOutcome;
   try {
     const result = await extract(job.sourceUrl, signal);

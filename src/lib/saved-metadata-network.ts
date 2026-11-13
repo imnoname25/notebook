@@ -11,11 +11,37 @@ const redirects = new Set([301, 302, 303, 307, 308]);
 export class SavedMetadataError extends Error {
   constructor(
     readonly retryable: boolean,
-    readonly reason: "destination" | "dns" | "redirect" | "http" | "mime" | "encoding" | "size" | "challenge",
+    readonly reason: "destination" | "dns" | "redirect" | "http" | "mime" | "encoding" | "size" | "challenge" | "response",
     readonly httpStatus?: number,
   ) {
     super("Saved metadata request failed");
   }
+}
+
+export function savedRequestFailure(error: unknown): {
+  reason: Exclude<SavedMetadataError["reason"], "challenge"> | "access" | "tls" | "timeout" | "request";
+  retryable: boolean;
+  httpStatus?: number;
+} {
+  if (error instanceof SavedMetadataError) {
+    const status = error.httpStatus;
+    const httpStatus = status !== undefined && Number.isInteger(status) && status >= 100 && status <= 599 ? status : undefined;
+    if (error.reason === "challenge" || httpStatus === 401 || httpStatus === 403 || httpStatus === 451 || httpStatus === 511) {
+      return { reason: "access", retryable: false, httpStatus };
+    }
+    return { reason: error.reason, retryable: error.retryable && httpStatus !== 501 && httpStatus !== 505, httpStatus };
+  }
+  const code = error instanceof Error && "code" in error && typeof error.code === "string" ? error.code : "";
+  if ((error instanceof Error && error.name === "TimeoutError") || code === "ETIMEDOUT" || code === "ERR_SOCKET_CONNECTION_TIMEOUT") {
+    return { reason: "timeout", retryable: true };
+  }
+  if (["ENOTFOUND", "ENODATA", "EAI_NONAME", "EAI_NODATA", "EAI_AGAIN", "EAI_FAIL"].includes(code)) {
+    return { reason: "dns", retryable: code === "EAI_AGAIN" };
+  }
+  if (/^(?:ERR_TLS_|ERR_SSL_|CERT_|UNABLE_TO_|SELF_SIGNED_|DEPTH_ZERO_SELF_SIGNED_CERT$)/u.test(code)) {
+    return { reason: "tls", retryable: false };
+  }
+  return { reason: "request", retryable: ["ECONNRESET", "ECONNREFUSED", "ERR_STREAM_PREMATURE_CLOSE"].includes(code) };
 }
 
 export function publicMetadataAddress(address: string) {
@@ -25,7 +51,8 @@ export function publicMetadataAddress(address: string) {
 }
 
 export function metadataUrl(value: string, base?: URL) {
-  const url = new URL(value, base);
+  const url = URL.parse(value, base);
+  if (!url) throw new SavedMetadataError(false, "destination");
   const host = url.hostname.replace(/\.$/u, "");
   if (!["http:", "https:"].includes(url.protocol) || url.username || url.password || url.port
     || /(?:^|\.)(?:localhost|local|internal|home\.arpa)$/iu.test(host)
@@ -64,6 +91,7 @@ async function abortable<T>(work: Promise<T>, signal: AbortSignal) {
 
 type Options = {
   maxBytes: number; types: readonly string[]; signal?: AbortSignal; rejectChallenge?: boolean;
+  checkUrl?: (url: URL) => void;
   onBytes?: (bytes: number) => void;
 };
 type Response = Pick<http.IncomingMessage, "statusCode" | "headers"> & AsyncIterable<Buffer> & { destroy(): void };
@@ -81,12 +109,24 @@ function request(url: URL, target: Address, signal: AbortSignal, accept: string)
   });
 }
 
-export async function fetchSavedMetadataResource(value: string, options: Options, network?: { resolve: Resolver; request: typeof request }) {
+type Network = { resolve: Resolver; request: typeof request };
+
+export async function fetchSavedMetadataResource(value: string, options: Options, network?: Network) {
   const deadline = AbortSignal.timeout(8_000);
   const signal = options.signal ? AbortSignal.any([options.signal, deadline]) : deadline;
+  try {
+    return await readResource(value, options, signal, network);
+  } catch (error) {
+    signal.throwIfAborted();
+    throw error;
+  }
+}
+
+async function readResource(value: string, options: Options, signal: AbortSignal, network?: Network) {
   let url = metadataUrl(value);
   for (let hop = 0; hop <= 3; hop++) {
     signal.throwIfAborted();
+    options.checkUrl?.(url);
     const target = await abortable(metadataTarget(url, network?.resolve), signal);
     const response = await (network?.request ?? request)(url, target, signal, options.types.join(", "));
     try {

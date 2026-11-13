@@ -1,0 +1,9 @@
+{
+  "version": "1.0",
+  "type": "video",
+  "title": "Звук дождя в сосновом лесу",
+  "author_name": "Тихие маршруты",
+  "provider_name": "YouTube",
+  "thumbnail_url": "https://i.ytimg.com/vi/testVideo_1/hqdefault.jpg",
+  "html": "<iframe src=\"https://www.youtube.com/embed/testVideo_1\"></iframe>"
+}

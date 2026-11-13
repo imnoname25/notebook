@@ -433,6 +433,7 @@ model SavedItemMetadataJob {
   attempts    Int       @default(0)
   finishedAt  DateTime?
   failed      Boolean   @default(false)
+  failureReason String?
   savedItem   SavedItem @relation(fields: [savedItemId], references: [id], onDelete: Cascade)
 
   @@index([finishedAt, availableAt, savedItemId])

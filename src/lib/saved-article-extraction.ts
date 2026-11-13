@@ -4,7 +4,9 @@ import {
   MAX_ARTICLE_BLOCKS, MAX_ARTICLE_IMAGES, MAX_ARTICLE_INLINE, MAX_ARTICLE_INLINE_TEXT, MAX_ARTICLE_LIST_DEPTH,
   savedArticleBlocks, type SavedArticleBlocks,
 } from "./saved-article-format";
-import { fetchSavedMetadataResource, metadataUrl } from "./saved-metadata-network";
+import { fetchSavedMetadataResource, metadataUrl, SavedMetadataError } from "./saved-metadata-network";
+import { savedHtmlAccessGate, savedHtmlElementHidden as hidden } from "./saved-html-access";
+import { classifySavedLink } from "./saved-link";
 
 export const MAX_ARTICLE_HTML_BYTES = 512 * 1024;
 export const MAX_ARTICLE_DOM_NODES = 12_000;
@@ -85,31 +87,10 @@ function parseBounded(html: string, checkTime: () => void) {
   return parser.document;
 }
 
-function hidden(node: Element) {
-  return attr(node, "hidden") !== undefined || attr(node, "inert") !== undefined
-    || /(?:^|\s)(?:hidden|sr-only|visually-hidden|d-none)(?:\s|$)/iu.test(attr(node, "class") ?? "")
-    || attr(node, "aria-hidden")?.toLowerCase() === "true"
-    || /(?:^|;)\s*(?:display\s*:\s*none|visibility\s*:\s*hidden|opacity\s*:\s*0)\s*(?:!important\s*)?(?:;|$)/iu.test(attr(node, "style") ?? "");
-}
-
 function ignored(node: Element) {
   return node.namespaceURI !== htmlNamespace || blocked.has(node.tagName)
     || roles.has(attr(node, "role") ?? "") || hidden(node)
     || (node.tagName === "details" && attr(node, "open") === undefined);
-}
-
-function accessGate(node: Element) {
-  const markers = [attr(node, "id"), attr(node, "class"), attr(node, "src")].filter(Boolean).join(" ");
-  if (/(?:^|[^\w])(?:paywall|metered[-_]wall|g-recaptcha|h-captcha|hcaptcha|cf-turnstile|cf-challenge|challenge-form|challenge-platform|captcha)(?:[^\w]|$)/iu.test(markers)) return true;
-  if (attr(node, "data-paywall") !== undefined && attr(node, "data-paywall") !== "false") return true;
-  if (node.tagName === "title" || node.tagName === "h1") {
-    const label = node.childNodes.map(child => "value" in child ? child.value : "").join("").trim();
-    if (/^(?:sign[ -]?in|log[ -]?in|authentication required|вход|авторизация)(?:\s*[|–—:]|\s*$)/iu.test(label)
-      || /^(?:just a moment[. …]*|verify (?:that )?you (?:are|’re|'re) human|access denied)[.!…]*$/iu.test(label)) return true;
-  }
-  if (node.tagName === "input" && attr(node, "type")?.toLowerCase() === "password" && !hidden(node)) return true;
-  return node.tagName === "script" && attr(node, "type")?.toLowerCase() === "application/ld+json"
-    && node.childNodes.some(child => "value" in child && /"isAccessibleForFree"\s*:\s*(?:false|"false")/iu.test(child.value));
 }
 
 function safeLink(value: string | undefined, url: URL) {
@@ -232,7 +213,7 @@ export function extractSavedArticle(html: string, url: URL, signal?: AbortSignal
       const { node, depth } = scan.pop()!;
       checkTime();
       if (depth > MAX_ARTICLE_DOM_DEPTH) throw new ArticleLimit();
-      if ("tagName" in node && accessGate(node)) return { status: "fallback", reason: "access" };
+      if ("tagName" in node && savedHtmlAccessGate(node)) return { status: "fallback", reason: "access" };
       for (const child of elements(node)) scan.push({ node: child, depth: depth + 1 });
     }
     const main = selectMain(body, checkTime);
@@ -295,6 +276,9 @@ export function extractSavedArticle(html: string, url: URL, signal?: AbortSignal
 export async function fetchSavedArticle(url: string, signal: AbortSignal, fetchResource = fetchSavedMetadataResource) {
   const resource = await fetchResource(url, {
     signal, maxBytes: MAX_ARTICLE_HTML_BYTES, types: ["text/html", "application/xhtml+xml"], rejectChallenge: true,
+    checkUrl(target) {
+      if (classifySavedLink(target).kind !== "article") throw new SavedMetadataError(false, "redirect");
+    },
   });
   return extractSavedArticle(decodeHtml(resource.body, resource.contentType), resource.url, signal);
 }

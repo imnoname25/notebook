@@ -3,6 +3,8 @@ import { tmpdir } from "node:os";
 import path from "node:path";
 import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
 import { savedItemCreateSchema, savedItemListSchema } from "@/lib/saved-item-validation";
+import { fetchSavedMetadata } from "@/lib/saved-metadata";
+import { SavedMetadataError } from "@/lib/saved-metadata-network";
 
 const databaseUrl = process.env.TEST_DATABASE_URL;
 const enabled = Boolean(databaseUrl) && process.env.TEST_RESET_DATABASE === "1";
@@ -206,12 +208,12 @@ describe.skipIf(!enabled)("saved items on PostgreSQL with persistent files", () 
     const second = (await queue.claimSavedItemMetadataJob())!;
     expect(second.attempts).toBe(2);
     expect(second.leaseToken).not.toBe(first.leaseToken);
-    expect(await db.$transaction(tx => queue.settleSavedItemMetadataJob(tx, first, { status: "failed" }))).toBe(false);
+    expect(await db.$transaction(tx => queue.settleSavedItemMetadataJob(tx, first, { status: "failed", reason: "request" }))).toBe(false);
     expect(await db.$transaction(tx => queue.settleSavedItemMetadataJob(tx, second, { status: "retry", retryAt: new Date(Date.now() + 60_000) }))).toBe(true);
     expect(await queue.claimSavedItemMetadataJob()).toBeNull();
     await db.savedItemMetadataJob.update({ where: { savedItemId: item.id }, data: { availableAt: new Date(0) } });
     const third = (await queue.claimSavedItemMetadataJob())!;
-    expect(await db.$transaction(tx => queue.settleSavedItemMetadataJob(tx, third, { status: "failed" }))).toBe(true);
+    expect(await db.$transaction(tx => queue.settleSavedItemMetadataJob(tx, third, { status: "failed", reason: "request" }))).toBe(true);
     expect(await saved.getSavedItem(owner, item.id)).toMatchObject({ metadataStatus: "failed", reviewStatus: "pending" });
     await saved.deleteSavedItem(owner, item.id);
     expect(await db.savedItemMetadataJob.count()).toBe(0);
@@ -313,6 +315,59 @@ describe.skipIf(!enabled)("saved items on PostgreSQL with persistent files", () 
     const retries = await Promise.allSettled([saved.retrySavedItemMetadata(owner, item.id), saved.retrySavedItemMetadata(owner, item.id)]);
     expect(retries.filter(result => result.status === "fulfilled")).toHaveLength(1);
     expect(await queue.claimSavedItemMetadataJob()).toMatchObject({ savedItemId: item.id, attempts: 1 });
+  });
+
+  it("queues previews for video and social links and reserves article jobs for the HTML path", async () => {
+    vi.stubEnv("SAVED_ARTICLE_AUTO_EXTRACT", "1");
+    try {
+      const links = [
+        ["video", "https://youtu.be/testVideo_1"], ["video", "https://vk.com/clip-123_456"],
+        ["social", "https://threads.com/@notes/post/Cabc123"], ["article", "https://example.org/story"],
+      ];
+      for (const [index, [linkKind, url]] of links.entries()) {
+        const { item } = await saved.createSavedItem(owner, `capture-${index}`, { ...input, url }, []);
+        expect(item).toMatchObject({ linkKind, hasSavedArticle: false, metadataStatus: "queued" });
+        expect(Boolean(await db.savedArticleJob.findUnique({ where: { savedItemId: item.id } }))).toBe(linkKind === "article");
+      }
+    } finally { vi.unstubAllEnvs(); }
+  });
+
+  it.each([
+    ["dns", Object.assign(new Error("private response"), { code: "ENOTFOUND" })],
+    ["tls", Object.assign(new Error("private response"), { code: "CERT_HAS_EXPIRED" })],
+    ["timeout", new DOMException("private response", "TimeoutError")],
+    ["http", new SavedMetadataError(false, "http", 404)],
+    ["access", new SavedMetadataError(false, "http", 403)],
+    ["request", new Error("private response")],
+  ])("stores only the normalized %s failure and keeps the Android title", async (reason, failure) => {
+    const { processSavedMetadataJob } = await import("./saved-item-metadata-worker");
+    const url = "https://threads.com/@notes/post/Cabc123?secret=private";
+    const { item } = await saved.createSavedItem(owner, `failure-${reason}`, savedItemCreateSchema.parse({ url, sharedTitle: "Android title" }), []);
+    const where = { savedItemId: item.id };
+    await db.savedItemMetadataJob.update({ where, data: { attempts: queue.MAX_METADATA_ATTEMPTS - 1 } });
+    const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
+    try {
+      const signal = new AbortController().signal;
+      expect(await processSavedMetadataJob(signal, async () => { throw failure; })).toBe(true);
+      const httpStatus = failure instanceof SavedMetadataError ? failure.httpStatus : undefined;
+      expect(warn.mock.calls).toEqual([["Notebook saved metadata unavailable", { attempts: queue.MAX_METADATA_ATTEMPTS, reason, httpStatus }]]);
+      expect(await db.savedItemMetadataJob.findUniqueOrThrow({ where })).toMatchObject({ failureReason: reason, failed: true });
+      expect(await saved.getSavedItem(owner, item.id)).toMatchObject({
+        linkKind: "social", displayTitle: "Android title", sharedTitle: "Android title", metadataStatus: "failed", metadataFailure: reason,
+      });
+      await db.savedItemMetadataJob.update({ where, data: { finishedAt: new Date(0) } });
+      expect(await saved.retrySavedItemMetadata(owner, item.id)).toMatchObject({ metadataStatus: "queued", metadataFailure: null });
+    } finally { warn.mockRestore(); }
+  });
+
+  it("finishes a page without preview metadata and preserves the shared title", async () => {
+    const { processSavedMetadataJob } = await import("./saved-item-metadata-worker");
+    const url = "https://vk.com/clip-123_456";
+    const { item } = await saved.createSavedItem(owner, "no-preview", savedItemCreateSchema.parse({ url, sharedTitle: "Android title" }), []);
+    const body = await readFile(new URL("../fixtures/saved-links/no-preview.html", import.meta.url));
+    expect(await processSavedMetadataJob(new AbortController().signal, (source, signal) => fetchSavedMetadata(source, signal,
+      async target => ({ url: new URL(target), body, mimeType: "text/html", contentType: "text/html" })))).toBe(true);
+    expect(await saved.getSavedItem(owner, item.id)).toMatchObject({ displayTitle: "Android title", metadataStatus: "empty", metadataFailure: null });
   });
 
   it("preserves saved-only files on v5 restore and restores converted PDF references", async () => {

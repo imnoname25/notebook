@@ -1,6 +1,7 @@
 import { randomUUID } from "node:crypto";
 import { Prisma } from "@/generated/prisma/client";
 import { db } from "@/lib/db";
+import type { savedRequestFailure } from "@/lib/saved-metadata-network";
 
 const LEASE_SECONDS = 60;
 export const MAX_METADATA_ATTEMPTS = 3;
@@ -27,7 +28,8 @@ export async function claimSavedItemMetadataJob() {
   return job && !job.finishedAt ? { savedItemId: job.savedItemId, url: job.url, attempts: job.attempts, leaseToken } : null;
 }
 
-type MetadataOutcome = { status: "done" | "failed" } | { status: "retry"; retryAt: Date };
+type FailureReason = ReturnType<typeof savedRequestFailure>["reason"];
+type MetadataOutcome = { status: "done" } | { status: "failed"; reason: FailureReason } | { status: "retry"; retryAt: Date };
 
 // The caller can commit metadata and acknowledge its lease in the same transaction.
 export async function settleSavedItemMetadataJob(
@@ -36,11 +38,12 @@ export async function settleSavedItemMetadataJob(
   outcome: MetadataOutcome,
 ) {
   const retryAt = outcome.status === "retry" ? outcome.retryAt.toISOString() : null;
+  const reason = outcome.status === "failed" ? outcome.reason : null;
   const updated = await tx.$executeRaw(Prisma.sql`
     UPDATE "SavedItemMetadataJob" SET "leaseToken" = NULL,
       "finishedAt" = CASE WHEN ${outcome.status === "retry"} THEN NULL ELSE (clock_timestamp() AT TIME ZONE 'UTC') END,
       "availableAt" = COALESCE(${retryAt}::timestamptz AT TIME ZONE 'UTC', "availableAt"),
-      failed = ${outcome.status === "failed"}
+      failed = ${outcome.status === "failed"}, "failureReason" = ${reason}
     WHERE "savedItemId" = ${job.savedItemId} AND "leaseToken" = ${job.leaseToken}
       AND "availableAt" > (clock_timestamp() AT TIME ZONE 'UTC') AND "finishedAt" IS NULL`);
   return updated === 1;

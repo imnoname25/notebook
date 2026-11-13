@@ -223,6 +223,29 @@ describe.skipIf(!enabled)("Saved Articles portable backup v7", () => {
     } finally { await imports.disposePreparedImport(prepared); }
   });
 
+  it("restores a video card with an older local copy and omits operational metadata diagnostics from v7", async () => {
+    const url = "https://youtu.be/testVideo_1";
+    await db.savedItem.update({ where: { id: itemId }, data: {
+      url, metadataSiteName: "YouTube · Channel", metadataJob: { create: { failed: true, failureReason: "access", finishedAt: timestamp } },
+      article: { update: { sourceUrl: url } },
+    } });
+    const fetch = vi.spyOn(globalThis, "fetch").mockRejectedValue(new Error("Network must stay offline"));
+    const prepared = await prepare(await archive());
+    try {
+      expect(prepared.manifest?.version).toBe(7);
+      expect(prepared.data!.savedItems![0]).toMatchObject({ url, metadata: { siteName: "YouTube · Channel" }, article: { sourceUrl: url } });
+      expect(JSON.stringify(prepared.data)).not.toMatch(/failureReason|metadataJob/);
+      await imports.restoreBackupData(owner, prepared);
+      const restored = await restoredItem();
+      const saved = await import("./saved-item-service");
+      expect(await saved.getSavedItem(owner, restored.id)).toMatchObject({
+        linkKind: "video", hasSavedArticle: true, metadataStatus: "ready", metadataFailure: null,
+      });
+      expect(await db.savedArticleJob.findUnique({ where: { savedItemId: restored.id } })).toBeNull();
+      expect(fetch).not.toHaveBeenCalled();
+    } finally { await imports.disposePreparedImport(prepared); }
+  });
+
   it("operational restore replaces v7 Saved Items and fences an active old worker", async () => {
     const prepared = await prepare(await archive());
     const token = "old-token";

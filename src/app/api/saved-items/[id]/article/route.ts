@@ -26,6 +26,6 @@ export async function POST(request: NextRequest, { params }: Context) {
   try {
     const [user, { id }] = await Promise.all([requireSavedItemMutation(request), params]);
     await enqueueSavedArticle(user.id, savedItemIdSchema.parse(id), { manual: true });
-    return NextResponse.json({ job: { status: "queued", finishedAt: null } }, { status: 202, headers: savedArticlePrivateHeaders });
+    return NextResponse.json({ job: { status: "queued", finishedAt: null, accessLimited: false } }, { status: 202, headers: savedArticlePrivateHeaders });
   } catch (error) { return privateError(error); }
 }

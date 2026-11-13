@@ -50,8 +50,7 @@
 }
 
 @media (max-width: 1199px) {
-  .notebook-saved-material .notebook-saved-desktop,
-  .notebook-saved-material .notebook-saved-site-name {
+  .notebook-saved-material .notebook-saved-desktop {
     display: none;
   }
 

@@ -2,6 +2,7 @@ import { expect, test, type Page } from "@playwright/test";
 import { createHash } from "node:crypto";
 import { Client } from "pg";
 import sharp from "sharp";
+import youtube from "../src/lib/fixtures/saved-links/youtube.json";
 import { setTestTheme } from "./theme-fixture";
 
 async function login(page: Page) {
@@ -351,7 +352,8 @@ test("server paginates the feed and the running worker preserves blocked links",
   await expect(list(page).getByRole("listitem")).toHaveCount(26);
   await expect(list(page).getByRole("button", { name: "Показать ещё" })).toHaveCount(0);
   await page.goto(`/app?view=saved&item=${item.id}`);
-  await expect(detail(page).getByText("Ссылка сохранена. Не удалось получить данные для превью.", { exact: true })).toBeVisible({ timeout: 15_000 });
+  await expect(detail(page).getByText("Ошибка получения превью", { exact: true })).toBeVisible({ timeout: 15_000 });
+  await expect(detail(page).getByText("Сохранена карточка", { exact: true })).toBeVisible();
   await compact(page, 360);
   const heading = detail(page).getByRole("heading", { name: longTitle, exact: true });
   const headingLines = () => heading.evaluate(element => element.clientHeight / parseFloat(getComputedStyle(element).lineHeight));
@@ -368,4 +370,94 @@ test("server paginates the feed and the running worker preserves blocked links",
   await page.evaluate(() => (window as typeof window & { __NOTEBOOK_ANDROID_BACK__?: () => string }).__NOTEBOOK_ANDROID_BACK__?.());
   await expect(page).toHaveURL(/\/app\?view=saved$/);
   await expect(list(page)).toBeVisible();
+});
+
+test("shows provider cards, restricted sources and older copies on desktop and 360 px mobile", async ({ page }, info) => {
+  test.setTimeout(120_000);
+  await login(page);
+  await setTestTheme(page, "studio-atelier");
+  const cases = [
+    { name: "youtube", url: "https://youtu.be/testVideo_1", title: youtube.title, kind: "Видео",
+      siteName: `YouTube · ${youtube.author_name}`, cover: youtube.thumbnail_url },
+    { name: "vk-clip", url: "https://vk.com/clip-123_456", title: "Туман над озером", kind: "Видео",
+      siteName: "VK Клипы", cover: "https://covers.example.test/lake.webp", description: "Первые минуты рассвета на берегу озера." },
+    { name: "threads", url: "https://www.threads.net/@notes/post/Cabc123", title: "Наблюдения с берега", kind: "Публикация",
+      siteName: "Threads", description: "У воды уже появились первые следы весны." },
+    { name: "restricted", url: "https://threads.com/@notes/post/Cblocked1", title: "Полевые заметки с Android", kind: "Публикация", failure: "access" },
+    { name: "no-preview", url: "https://vk.com/clip-321_654", title: "Вечерний маршрут", kind: "Видео" },
+    { name: "old-copy", url: "https://youtu.be/oldVideo_12", title: "Старая запись о маршруте", kind: "Видео", hasArticle: true },
+    { name: "html", url: "https://field-notes.example.invalid/review/entry", title: "Маршрут к верховью ручья", kind: "Ссылка" },
+  ].map(fixture => ({ ...fixture, id: crypto.randomUUID() }));
+
+  const client = new Client({ connectionString: process.env.E2E_DATABASE_URL });
+  await client.connect();
+  try {
+    const { rows: [{ id: userId }] } = await client.query<{ id: string }>('SELECT id FROM "User" WHERE email = $1', ["admin@example.test"]);
+    for (const fixture of cases) {
+      const hasMetadata = fixture.siteName !== undefined;
+      await client.query(`INSERT INTO "SavedItem"(id,"userId",url,"titleOrigin","sharedTitle","metadataTitle",
+        "metadataDescription","metadataSiteName","metadataImageUrl","updatedAt")
+        VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,now())`, [fixture.id, userId, fixture.url, hasMetadata ? "system" : "share",
+        hasMetadata ? null : fixture.title, hasMetadata ? fixture.title : null, fixture.description, fixture.siteName, fixture.cover]);
+      await client.query(`INSERT INTO "SavedItemMetadataJob"("savedItemId","finishedAt",failed,"failureReason")
+        VALUES ($1,now(),$2,$3)`, [fixture.id, Boolean(fixture.failure), fixture.failure]);
+      if (fixture.hasArticle) {
+        const blocks = [{ type: "paragraph", content: [{ type: "text", text: "Этот текст доступен из старой локальной копии." }] }];
+        await client.query(`INSERT INTO "SavedArticle"("savedItemId","sourceUrl","contentVersion",blocks,"extractedAt")
+          VALUES ($1,$2,1,$3,now())`, [fixture.id, fixture.url, JSON.stringify(blocks)]);
+      }
+    }
+    // The browser uses local raster bytes through the app's preview path. Transport and ownership are tested separately.
+    const cover = await sharp(Buffer.from(`<svg xmlns="http://www.w3.org/2000/svg" width="720" height="405" viewBox="0 0 720 405">
+      <path fill="#d1d9ce" d="M0 0h720v405H0z"/><circle fill="#eee0ba" cx="543" cy="97" r="45"/>
+      <path fill="#85988b" d="M0 232 111 127l90 64 107-87 116 106 92-69 204 108v156H0Z"/>
+      <path fill="#47695d" d="M0 260q139-50 295-17 189 46 425-20v182H0Z"/>
+      <path fill="#98b2a7" d="M0 310q195-64 407-25 176 25 313-14v134H0Z"/>
+      <path fill="#27483e" d="M0 355q122-36 242 0 244 48 478-18v68H0Z"/>
+      <path fill="#27483e" d="m74 310 36-107 36 107zm-48 22 27-81 27 81zm542-15 43-133 43 133zm76 19 34-105 34 105z"/>
+    </svg>`)).webp().toBuffer();
+    await page.route(/\/api\/saved-items\/[^/]+\/preview$/u, route => route.fulfill({ contentType: "image/webp", body: cover }));
+    const articleReads = new Set<string>();
+    page.on("request", request => {
+      const article = new URL(request.url()).pathname.match(/^\/api\/saved-items\/([^/]+)\/article$/u);
+      if (article) articleReads.add(article[1]);
+    });
+    for (const width of [1440, 360]) {
+      await page.setViewportSize({ width, height: 900 });
+      for (const fixture of cases) {
+        await page.goto(`/app?view=saved&item=${fixture.id}`);
+        const material = detail(page);
+        await expect(material.getByRole("heading", { name: fixture.title })).toBeVisible();
+        await expect(material.getByText(fixture.kind, { exact: true })).toBeVisible();
+        await expect(material.getByRole("link", { name: "Открыть источник" })).toHaveAttribute("href", fixture.url);
+        await expect(material.getByText(fixture.hasArticle ? "Сохранена статья" : "Сохранена карточка", { exact: true })).toBeVisible();
+        if (fixture.kind === "Ссылка") await expect(material.getByRole("button", { name: "Сохранить статью" })).toBeEnabled();
+        else await expect(material.getByRole("button", { name: /Сохранить статью|Обновить копию/ })).toHaveCount(0);
+        if (fixture.siteName) await expect(material.getByText(fixture.siteName, { exact: true })).toBeVisible();
+        if (fixture.description) await expect(material.getByText(fixture.description, { exact: true })).toBeVisible();
+        if (fixture.cover) {
+          const image = material.locator(`img[src="/api/saved-items/${fixture.id}/preview"]`);
+          await expect.poll(() => image.evaluate(node => (node as HTMLImageElement).naturalWidth)).toBe(720);
+        }
+        if (fixture.failure) await expect(material.getByText("Источник ограничил доступ")).toBeVisible();
+        if (!fixture.siteName && !fixture.failure) await expect(material.getByText("Превью недоступно")).toBeVisible();
+        if (fixture.hasArticle) await expect(material.getByRole("region", { name: "Сохранённая статья" })).toBeVisible();
+        await expect(material.getByText("Получаем превью…")).toHaveCount(0);
+        await expect.poll(() => page.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(width);
+        if (["youtube", "vk-clip", "threads", "restricted", "old-copy"].includes(fixture.name)) {
+          await page.evaluate(() => document.fonts.ready);
+          await page.screenshot({ path: info.outputPath(`${fixture.name}-${width}.png`), animations: "disabled" });
+        }
+      }
+      if (width === 360) {
+        await expect(list(page)).toBeHidden();
+        await detail(page).getByRole("button", { name: "Назад", exact: true }).click();
+        await expect(list(page)).toBeVisible();
+      }
+    }
+    expect([...articleReads].sort()).toEqual(cases.filter(fixture => fixture.hasArticle || fixture.kind === "Ссылка").map(fixture => fixture.id).sort());
+  } finally {
+    await client.query('DELETE FROM "SavedItem" WHERE id = ANY($1::text[])', [cases.map(fixture => fixture.id)]);
+    await client.end();
+  }
 });

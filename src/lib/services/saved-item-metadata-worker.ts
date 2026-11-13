@@ -2,7 +2,7 @@ import { Prisma } from "@/generated/prisma/client";
 import { db } from "@/lib/db";
 import { lockUserUploads } from "./upload-service";
 import { fetchSavedMetadata } from "@/lib/saved-metadata";
-import { SavedMetadataError } from "@/lib/saved-metadata-network";
+import { savedRequestFailure } from "@/lib/saved-metadata-network";
 import { claimSavedItemMetadataJob, MAX_METADATA_ATTEMPTS, settleSavedItemMetadataJob } from "./saved-item-metadata-queue";
 
 const IDLE_MS = 3_000;
@@ -19,22 +19,13 @@ export async function processSavedMetadataJob(signal: AbortSignal, fetchMetadata
     metadata = await fetchMetadata(job.url, signal);
   } catch (error) {
     if (signal.aborted) return false;
-    const retryable = error instanceof SavedMetadataError ? error.retryable : !(error instanceof TypeError);
+    const { reason, retryable, httpStatus } = savedRequestFailure(error);
     const shouldRetry = retryable && job.attempts < MAX_METADATA_ATTEMPTS;
     const settled = await db.$transaction(tx => settleSavedItemMetadataJob(tx, job, shouldRetry
       ? { status: "retry", retryAt: new Date(Date.now() + RETRY_BASE_MS * 2 ** (job.attempts - 1)) }
-      : { status: "failed" }));
+      : { status: "failed", reason }));
     if (settled && !shouldRetry) {
-      const code = error instanceof Error && "code" in error && typeof error.code === "string" ? error.code : "";
-      const reason = error instanceof SavedMetadataError ? error.reason
-        : error instanceof Error && error.name === "TimeoutError" ? "timeout"
-        : ["ENOTFOUND", "EAI_AGAIN"].includes(code) ? "dns"
-        : /^(?:ERR_TLS_|CERT_|UNABLE_TO_VERIFY_|SELF_SIGNED_|DEPTH_ZERO_SELF_SIGNED_CERT)/u.test(code) ? "tls"
-        : "request";
-      console.warn("Notebook saved metadata unavailable", {
-        savedItemId: job.savedItemId, attempts: job.attempts, reason,
-        httpStatus: error instanceof SavedMetadataError ? error.httpStatus : undefined,
-      });
+      console.warn("Notebook saved metadata unavailable", { attempts: job.attempts, reason, httpStatus });
     }
     return true;
   }

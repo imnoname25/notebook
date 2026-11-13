@@ -141,6 +141,26 @@ describe.skipIf(!enabled)("saved item routes over HTTP with real sessions", () =
     expect((await request(path, { headers: { cookie: ownerCookie } })).status).toBe(404);
   }, 120_000);
 
+  it("serves a restricted video card and an existing copy, and rejects new article capture for it", async () => {
+    const url = "https://youtu.be/testVideo_1";
+    const blocks = [{ type: "paragraph", content: [{ type: "text", text: "Local copy" }] }];
+    const { id } = await db.savedItem.create({ data: {
+      userId: ownerId, url, titleOrigin: "share", sharedTitle: "Android video",
+      metadataJob: { create: { finishedAt: new Date(), failed: true, failureReason: "access" } },
+      article: { create: { contentVersion: 1, blocks, sourceUrl: url, extractedAt: new Date() } },
+    } });
+    const path = `${endpoint}/${id}`;
+    const item = await request(path, { headers: { cookie: ownerCookie } });
+    expect(await item.json()).toMatchObject({ item: { linkKind: "video", displayTitle: "Android video",
+      hasSavedArticle: true, metadataStatus: "failed", metadataFailure: "access" } });
+    const article = await request(`${path}/article`, { headers: { cookie: ownerCookie } });
+    expect(article.headers.get("cache-control")).toBe("private, no-store");
+    expect(await article.json()).toMatchObject({ article: { blocks } });
+    expect((await request(`${path}/article`, json(otherCookie, {}))).status).toBe(404);
+    expect((await request(`${path}/article`, json(ownerCookie, {}))).status).toBe(409);
+    expect(await db.savedArticleJob.findUnique({ where: { savedItemId: id } })).toBeNull();
+  }, 120_000);
+
   it("enforces private article and image access, Origin and manual throttling", async () => {
     const { createHash } = await import("node:crypto");
     const { default: sharp } = await import("sharp");

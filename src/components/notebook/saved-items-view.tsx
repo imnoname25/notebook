@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import { Archive, ArrowLeft, ArrowUpRight, Bookmark, Ellipsis, FileText, ImageIcon, Link2, Plus, Search } from "lucide-react";
+import { Archive, ArrowLeft, ArrowUpRight, Bookmark, Ellipsis, FileText, ImageIcon, Link2, MessageSquare, Plus, Search, Video } from "lucide-react";
 import * as DropdownMenu from "@radix-ui/react-dropdown-menu";
 import { Button, buttonVariants } from "@/components/ui/button";
 import { api, jsonOptions } from "@/lib/client-api";
@@ -15,21 +15,34 @@ import type { Notebook } from "./types";
 const views = [{ id: "all", name: "Все" }, { id: "pending", name: "Неразобранное" }, { id: "archive", name: "Архив" }] as const;
 type View = (typeof views)[number]["id"];
 const date = new Intl.DateTimeFormat("ru", { day: "numeric", month: "short", year: "numeric" });
+const linkKinds = { article: { label: "Ссылка", icon: Link2 }, video: { label: "Видео", icon: Video }, social: { label: "Публикация", icon: MessageSquare } };
 
-function MaterialPreview({ item, className, allowRemote = true }: { item: SavedItem; className?: string; allowRemote?: boolean }) {
-  const attachment = item.attachments.find(file => file.mimeType.startsWith("image/"));
-  const source = attachment?.url ?? (allowRemote && !item.hasSavedArticle && item.metadata.hasPreview ? `${savedItemEndpoint(item.id)}/preview` : null);
-  const [failed, setFailed] = useState<string | null>(null);
-  if (!source || failed === source) return null;
+function metadataPreview(item: SavedItem) {
+  // A saved local copy can be opened without contacting the source.
+  return !item.hasSavedArticle && item.metadata.hasPreview ? `${savedItemEndpoint(item.id)}/preview` : undefined;
+}
+
+function MaterialPreview({ source, className }: { source: string; className: string }) {
+  const [failed, setFailed] = useState(false);
+  if (failed) return null;
   // Both sources are authenticated routes with validated bytes and no public cache.
   // eslint-disable-next-line @next/next/no-img-element
-  return <img src={source} alt="" loading="lazy" decoding="async" className={className} onError={() => setFailed(source)}/>;
+  return <img src={source} alt="" loading="lazy" decoding="async" className={className} onError={() => setFailed(true)}/>;
+}
+
+function metadataStatusLabel(item: SavedItem) {
+  if (item.metadataStatus === "queued") return "Получаем превью…";
+  if (item.metadataStatus === "failed") return item.metadataFailure === "access" ? "Источник ограничил доступ" : "Ошибка получения превью";
+  if (item.metadataStatus === "empty") return "Превью недоступно";
+  return null;
 }
 
 function SavedFacts({ item }: { item: SavedItem }) {
-  const host = savedSource(item);
+  const host = savedSource(item).replace(/^www\./u, "");
+  const siteName = item.metadata.siteName;
   return <span className="flex min-w-0 flex-wrap items-center gap-x-2 gap-y-0.5 text-xs text-muted-foreground">
-    {item.metadata.siteName && item.metadata.siteName !== host && <span className="notebook-saved-site-name max-w-full break-words">{item.metadata.siteName}</span>}
+    {item.linkKind && <span className="font-medium text-foreground">{linkKinds[item.linkKind].label}</span>}
+    {siteName && siteName.replace(/^www\./u, "") !== host && <span className="max-w-full [overflow-wrap:anywhere]">{siteName}</span>}
     {host && <span className="max-w-full break-all">{host}</span>}
     <time dateTime={item.createdAt}>{date.format(new Date(item.createdAt))}</time>
     <span>{item.reviewStatus === "pending" ? "Неразобранное" : "Разобрано"}</span>
@@ -44,17 +57,19 @@ function SavedTags({ item, onTag }: { item: SavedItem; onTag(tag: string): void 
 }
 
 function SavedCard({ item, selected, onSelect, onTag }: { item: SavedItem; selected: boolean; onSelect(): void; onTag(tag: string): void }) {
-  const Icon = item.url ? Link2 : item.attachments.some(file => file.mimeType.startsWith("image/")) ? ImageIcon : FileText;
+  const attachment = item.attachments.find(file => file.mimeType.startsWith("image/"));
+  const Icon = item.linkKind ? linkKinds[item.linkKind].icon : attachment ? ImageIcon : FileText;
   const excerpt = item.metadata.description || item.text;
+  const source = attachment?.url ?? (selected ? undefined : metadataPreview(item));
+  const metadataLabel = metadataStatusLabel(item);
   return <li className={cn("notebook-surface min-w-0 rounded-xl px-3 pb-2", selected && "ring-2 ring-primary/50")}>
     <button type="button" aria-current={selected ? "true" : undefined} onClick={onSelect} className="block min-h-11 w-full min-w-0 rounded-lg py-3 text-left focus-visible:outline-2 focus-visible:outline-ring">
-      <MaterialPreview item={item} allowRemote={!selected} className="mb-2 aspect-[2.5] w-full rounded-lg bg-muted object-cover"/>
+      {source && <MaterialPreview key={`${source}:${item.updatedAt}`} source={source} className="mb-2 aspect-[2.5] w-full rounded-lg bg-muted object-cover"/>}
       <span className="mb-1 flex items-start gap-2"><Icon size={16} className="mt-0.5 shrink-0 text-muted-foreground"/><strong className="line-clamp-2 min-w-0 break-words text-sm font-semibold">{savedTitle(item)}</strong></span>
       <SavedFacts item={item}/>
       {excerpt && <span className="mt-2 line-clamp-2 break-words text-sm text-muted-foreground">{excerpt}</span>}
       {item.attachments.some(file => file.mimeType === "application/pdf") && <span className="mt-2 inline-flex items-center gap-1 text-xs text-muted-foreground"><FileText size={13}/>PDF</span>}
-      {item.metadataStatus === "queued" && <span className="mt-2 block text-xs text-muted-foreground">Получаем метаданные…</span>}
-      {item.metadataStatus === "failed" && <span className="mt-2 block text-xs text-muted-foreground">Метаданные недоступны</span>}
+      {metadataLabel && <span className="mt-2 block text-xs text-muted-foreground">{metadataLabel}</span>}
     </button>
     <SavedTags item={item} onTag={onTag}/>
   </li>;
@@ -66,8 +81,14 @@ function SavedDetail({ item, busy, onTag, onDialog, onPatch, onRetry, onPage }: 
   onRetry(): void; onPage(id: string): void;
 }) {
   const heading = useRef<HTMLHeadingElement>(null);
-  const reader = useSavedArticle(item.id, Boolean(item.url));
+  const canSaveArticle = item.linkKind === "article";
+  const readsArticle = canSaveArticle || item.hasSavedArticle;
+  const reader = useSavedArticle(item.id, readsArticle);
   const article = reader.state?.article;
+  const preview = !article && metadataPreview(item);
+  const metadataLabel = metadataStatusLabel(item);
+  const savedLabel = article ? "Сохранена статья"
+    : item.hasSavedArticle && !reader.state && !reader.error ? null : "Сохранена карточка";
   const articleHeading = savedArticleHeading(article);
   const protectedTitle = item.titleOrigin === "manual" || item.titleOrigin === "legacy";
   const title = protectedTitle ? savedTitle(item) : articleHeading.title || savedTitle(item);
@@ -115,7 +136,7 @@ function SavedDetail({ item, busy, onTag, onDialog, onPatch, onRetry, onPage }: 
     </div>
     <div className="notebook-saved-material-tags"><SavedTags item={item} onTag={onTag}/></div>
     <div className="notebook-saved-actions flex flex-wrap items-center gap-2">
-      {item.url && <a className={cn(buttonVariants({ variant: "outline" }), "notebook-saved-source min-h-11")} href={item.url} target="_blank" rel="noopener noreferrer">{article ? "Открыть оригинал" : "Открыть источник"} <ArrowUpRight size={16}/></a>}
+      {item.url && <a className={cn(buttonVariants({ variant: canSaveArticle ? "outline" : "default" }), "notebook-saved-source min-h-11")} href={item.url} target="_blank" rel="noopener noreferrer">{canSaveArticle && article ? "Открыть оригинал" : "Открыть источник"} <ArrowUpRight size={16}/></a>}
       {pageAction && <Button variant="outline" className={cn("min-h-11", item.url && "notebook-saved-desktop")} onClick={pageAction.run}>{pageAction.label}</Button>}
       <DropdownMenu.Root>
         <DropdownMenu.Trigger asChild>
@@ -131,11 +152,16 @@ function SavedDetail({ item, busy, onTag, onDialog, onPatch, onRetry, onPage }: 
         </DropdownMenu.Portal>
       </DropdownMenu.Root>
     </div>
-    {item.url && <SavedArticleControls reader={reader}/>}
+    {item.url && (savedLabel || metadataLabel) && <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-sm text-muted-foreground">
+      <p role="status" className="flex flex-wrap gap-x-3 gap-y-1">
+        {savedLabel && <span className="font-medium text-foreground">{savedLabel}</span>}
+        {metadataLabel && <span>{metadataLabel}</span>}
+      </p>
+      {item.metadataStatus === "failed" && <Button variant="ghost" className="notebook-saved-desktop min-h-11" disabled={busy} onClick={onRetry}>{retry.label}</Button>}
+    </div>}
+    {readsArticle && <SavedArticleControls reader={reader} canSave={canSaveArticle}/>}
     {article && <SavedArticleReader article={article} headingIndex={title === articleHeading.title ? articleHeading.index : -1}/>}
-    {!article && item.metadataStatus === "queued" && <p role="status" className="text-sm text-muted-foreground">Ссылка сохранена. Получаем данные для превью…</p>}
-    {!article && item.metadataStatus === "failed" && <div className="flex flex-wrap items-center gap-2 text-sm text-muted-foreground"><p role="status">Ссылка сохранена. Не удалось получить данные для превью.</p><Button variant="ghost" className="notebook-saved-desktop min-h-11" disabled={busy} onClick={onRetry}>Повторить</Button></div>}
-    {!article && reader.state && item.metadata.hasPreview && !item.attachments.some(file => file.mimeType.startsWith("image/")) && <MaterialPreview item={item} className="max-h-64 max-w-full rounded-xl object-contain"/>}
+    {preview && <MaterialPreview key={`${preview}:${item.updatedAt}`} source={preview} className="max-h-72 max-w-full rounded-xl object-contain"/>}
     {!article && item.metadata.description && <p className="whitespace-pre-wrap break-words text-muted-foreground">{item.metadata.description}</p>}
     {item.text && <p className="whitespace-pre-wrap break-words">{item.text}</p>}
     {item.attachments.length > 0 && <ul className="space-y-2" aria-label="Вложения">

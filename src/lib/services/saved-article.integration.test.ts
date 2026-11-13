@@ -74,6 +74,23 @@ describe.skipIf(!enabled)("SavedArticle durable PostgreSQL jobs", () => {
     await expect(queue.enqueueSavedArticle(owner, textOnly.id)).rejects.toMatchObject({ status: 409 });
   });
 
+  it.each([
+    "https://youtu.be/testVideo_1", "https://vk.com/clip-123_456", "https://www.threads.net/@notes/post/Cabc123",
+  ])("settles an old article job for %s without fetching or discarding an existing copy", async sourceUrl => {
+    await db.savedItem.update({ where: { id: savedItemId }, data: { url: sourceUrl } });
+    const blocks = [{ type: "paragraph", content: [{ type: "text", text: "Previously saved text" }] }];
+    await db.savedArticle.create({ data: { savedItemId, sourceUrl, blocks, contentVersion: 1, extractedAt: new Date() } });
+    await db.savedArticleJob.create({ data: { savedItemId, sourceUrl, generation: "legacy" } });
+    const extract = vi.fn(async () => article("Unexpected"));
+    await expect(enqueue()).rejects.toMatchObject({ status: 409 });
+    await expect(queue.enqueueSavedArticle(other, savedItemId, { manual: true })).rejects.toMatchObject({ status: 404 });
+    expect(await processJob(signal(), extract)).toBe(true);
+    expect(extract).not.toHaveBeenCalled();
+    expect(await state()).toMatchObject({ article: { sourceUrl }, job: { status: "fallback", reason: "link-type" } });
+    const { readSavedArticle } = await import("./saved-article-reader");
+    expect(await readSavedArticle(owner, savedItemId)).toMatchObject({ article: { blocks } });
+  });
+
   it("gives a job to only one competing handler and makes an expired lease recoverable", async () => {
     await enqueue();
     const claims = await Promise.all([queue.claimSavedArticleJob(), queue.claimSavedArticleJob()]);
