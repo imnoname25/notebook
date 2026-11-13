@@ -23,12 +23,19 @@ describe("portable Saved Article v7 contracts", () => {
   it("represents an unavailable image without a fabricated attachment", () => {
     expect(portableArticleSchema.parse(article()).images[0].attachmentKey).toBeNull();
   });
+  it.each([2, 3, 8])("allows %i blocks to reference one image resource", count => {
+    const source = article();
+    const blocks = Array.from({ length: count }, (_, index) => ({ ...source.blocks[0], alt: `Reference ${index}` }));
+    expect(portableArticleSchema.parse({ ...source, blocks })).toMatchObject({ blocks, images: source.images });
+  });
   it.each([
     { contentVersion: 1 }, { sourceUrl: null }, { sourceUrl: "javascript:alert(1)" },
     { sourceUrl: "https://user:secret@example.org/" }, { extractedAt: "invalid" },
     { images: [] }, { images: [...article().images, ...article().images] },
     { blocks: [{ type: "script", content: "alert(1)" }] }, { leaseToken: "never portable" },
-    { blocks: [...article().blocks, ...article().blocks] },
+    { blocks: [{ type: "image", key: "b".repeat(64), alt: "Unknown" }] },
+    { images: [...article().images, { ...article().images[0], imageKey: "b".repeat(64) }] },
+    { images: [...article().images, { ...article().images[0], imageKey: "b".repeat(64), position: 1 }] },
   ])("rejects malformed content and transient worker fields %#", fields => {
     expect(portableArticleSchema.safeParse({ ...article(), ...fields }).success).toBe(false);
   });

@@ -158,12 +158,12 @@ export const portableArticleSchema = z.strictObject({
     attachmentKey: portableKey.nullable(),
   })).max(MAX_ARTICLE_IMAGES),
 }).superRefine((article, ctx) => {
-  const keys = article.blocks.flatMap(block => block.type === "image" ? [block.key] : []);
+  const keys = new Set(article.blocks.flatMap(block => block.type === "image" ? [block.key] : []));
   const images = new Set(article.images.map(image => image.imageKey));
-  if (images.size !== article.images.length || new Set(keys).size !== keys.length ||
+  if (images.size !== article.images.length ||
       new Set(article.images.map(image => image.position)).size !== article.images.length ||
-      keys.length !== images.size || keys.some(key => !images.has(key)) ||
-      (article.contentVersion === 1 && keys.length))
+      keys.size !== images.size || [...keys].some(key => !images.has(key)) ||
+      (article.contentVersion === 1 && keys.size))
     ctx.addIssue({ code: "custom", message: "Invalid article image references" });
 });
 const portableSavedItemSchema = z.strictObject({

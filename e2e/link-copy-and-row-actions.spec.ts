@@ -23,18 +23,6 @@ async function fixture(page: Page) {
   return { notebook, section, note };
 }
 
-async function selectText(locator: Locator) {
-  await locator.evaluate(element => {
-    element.closest<HTMLElement>(".bn-editor")?.focus();
-    const range = document.createRange();
-    range.selectNodeContents(element);
-    const selection = window.getSelection()!;
-    selection.removeAllRanges();
-    selection.addRange(range);
-    document.dispatchEvent(new Event("selectionchange"));
-  });
-}
-
 test("Ctrl+C copies the link URL and Ctrl+V preserves the styled link", async ({ page, context }) => {
   await context.grantPermissions(["clipboard-read", "clipboard-write"]);
   const { note } = await fixture(page);
@@ -50,7 +38,15 @@ test("Ctrl+C copies the link URL and Ctrl+V preserves the styled link", async ({
   await page.goto(`/pages/${note.id}`);
   const link = page.locator(`.bn-editor a[href="${address}"]`);
   await expect(link).toHaveText("Named link");
-  await selectText(link);
+  const plain = page.locator('[data-id="copy-plain"] .bn-inline-content');
+  await plain.click();
+  await page.keyboard.press("Home");
+  await page.keyboard.press("ArrowUp");
+  await page.keyboard.press("End");
+  await page.keyboard.press("Shift+Home");
+  const toolbar = page.locator(".bn-formatting-toolbar");
+  await expect(toolbar).toBeVisible();
+  await expect.poll(() => page.evaluate(() => window.getSelection()?.toString())).toBe("Named link");
   await page.keyboard.press("ControlOrMeta+c");
   await expect.poll(() => page.evaluate(() => navigator.clipboard.readText())).toBe(address);
 
@@ -65,20 +61,32 @@ test("Ctrl+C copies the link URL and Ctrl+V preserves the styled link", async ({
   expect(copied.internal).toContain(address);
 
   const input = page.getByRole("textbox", { name: "Название страницы", exact: true });
-  await input.focus();
+  await input.click();
+  await expect(input).toBeFocused();
+  await expect(toolbar).toBeHidden();
   await page.keyboard.press("ControlOrMeta+a");
   await page.keyboard.press("ControlOrMeta+v");
   await expect(input).toHaveValue(address);
+  await expect(toolbar).toBeHidden();
 
-  const plain = page.locator('[data-id="copy-plain"] .bn-inline-content');
-  await plain.click();
-  await page.keyboard.press("End");
+  const plainBox = await plain.boundingBox();
+  expect(plainBox).not.toBeNull();
+  await plain.click({ position: { x: plainBox!.width - 2, y: plainBox!.height / 2 } });
+  await expect.poll(() => plain.evaluate(element => {
+    const selection = window.getSelection();
+    return selection?.isCollapsed && selection.focusNode === element.lastChild &&
+      selection.focusOffset === element.textContent?.length;
+  })).toBe(true);
   await page.keyboard.press("Enter");
+  await expect(plain).toHaveText("Ordinary text");
   await page.keyboard.press("ControlOrMeta+v");
   await expect(link).toHaveCount(2);
   await expect(link.last()).toHaveText("Named link");
   await expect(page.locator(`.bn-editor strong a[href="${address}"]`)).toHaveCount(2);
-  await selectText(plain);
+  await plain.click();
+  await page.keyboard.press("End");
+  await page.keyboard.press("Shift+Home");
+  await expect.poll(() => page.evaluate(() => window.getSelection()?.toString())).toBe("Ordinary text");
   await page.keyboard.press("ControlOrMeta+c");
   await expect.poll(() => page.evaluate(async () => (await navigator.clipboard.readText()).trimEnd())).toBe("Ordinary text");
 });

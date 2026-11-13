@@ -45,7 +45,7 @@ test(`${theme}: mobile shell keeps a compact safe-area-aware header`, async ({ p
   await page.getByTestId("mobile-app-header").getByRole("button", { name: "Ещё", exact: true }).click();
   const menu = page.getByRole("dialog", { name: "Меню приложения", exact: true });
   await expect(menu).toBeVisible();
-  await expect(menu.getByRole("button", { name: "Уведомления", exact: true })).toBeVisible();
+  await expect(menu.getByRole("button", { name: /^Уведомления(?: \d+)?$/ })).toBeVisible();
   await expect(menu.getByRole("button", { name: "Настройки", exact: true })).toBeVisible();
   await expect(menu.getByRole("button", { name: "Переключить тему", exact: true })).toBeVisible();
   await expect(menu.getByRole("button", { name: "Выйти на всех устройствах", exact: true })).toBeVisible();

@@ -7,6 +7,7 @@ import { resolveSavedItemTitle, savedItemTitleOriginsEnabled, websiteTitle } fro
 import { extractHashtags } from "@/lib/hashtags";
 import type { SavedItemCreateInput, SavedItemListInput, SavedItemUpdateInput } from "@/lib/saved-item-validation";
 import { createPageInTransaction } from "./page-service";
+import { enqueueNewSavedArticle } from "./saved-article-queue";
 import { syncSavedItemTags } from "./tag-service";
 import { lockUserUploads, type PreparedUpload, withUploadWrites } from "./upload-service";
 
@@ -129,6 +130,7 @@ export async function createSavedItem(userId: string, key: string, input: SavedI
       await tx.savedItemAttachment.create({ data: { savedItemId: id, uploadId: upload.id, position } });
     }
     await tx.savedItemRequest.create({ data: { userId, operation: "create", key, fingerprint: hash, resultId: id } });
+    await enqueueNewSavedArticle(tx, id, url, files.length > 0);
     const item = await tx.savedItem.findUniqueOrThrow({ where: { id }, select: itemSelect });
     return { item: serializeItem(item), replayed: false };
   });

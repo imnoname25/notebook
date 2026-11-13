@@ -103,12 +103,16 @@ function assertPortableReferences(data: ArchiveData, manifest: DataManifest) {
   const imageAttachments = new Set<string>();
   const attachmentByKey = new Map(data.attachments.map(file => [file.key, file]));
   const pageKeys = new Set(keys[2]);
+  // Validate persisted state rather than capture rules: a title can be cleared after creation.
   for (const item of data.savedItems ?? []) {
     if (manifest.version < ARTICLES_DATA_FORMAT_VERSION && item.article !== undefined)
       throw new ApiError(400, "Статьи требуют формат v7");
     if (manifest.version >= ARTICLES_DATA_FORMAT_VERSION &&
         (item.article === undefined || item.titleOrigin === undefined || item.sharedTitle === undefined))
       throw new ApiError(400, "Неполная запись Saved Item v7");
+    if (manifest.version >= ARTICLES_DATA_FORMAT_VERSION &&
+        (item.titleOrigin === "system" || item.titleOrigin === "share") && item.title !== "")
+      throw new ApiError(400, "Некорректное происхождение заголовка Saved Item v7");
     for (const image of item.article?.images ?? []) {
       if (image.attachmentKey === null) continue;
       const attachment = attachmentByKey.get(image.attachmentKey);
@@ -118,8 +122,6 @@ function assertPortableReferences(data: ArchiveData, manifest: DataManifest) {
     }
     if (item.convertedPageKey && !pageKeys.has(item.convertedPageKey))
       throw new ApiError(400, "Некорректная ссылка на преобразованную страницу");
-    if (!item.title && !item.text.trim() && !item.url && !item.attachmentKeys.length)
-      throw new ApiError(400, "Пустой материал в архиве");
     if (new Set(item.tags.map(tag => tag.normalized)).size !== item.tags.length ||
         new Set(item.attachmentKeys).size !== item.attachmentKeys.length ||
         item.attachmentKeys.some(key => !available.has(key)))

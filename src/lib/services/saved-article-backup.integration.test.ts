@@ -1,4 +1,4 @@
-import { createHash } from "node:crypto";
+import { createHash, randomUUID } from "node:crypto";
 import * as fs from "node:fs/promises";
 import { tmpdir } from "node:os";
 import path from "node:path";
@@ -6,6 +6,7 @@ import sharp from "sharp";
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
 import { createZipArchive } from "@/lib/archive";
 import { type ArchiveData, type DataManifest } from "@/lib/data-format";
+import { savedItemCreateSchema } from "@/lib/saved-item-validation";
 import * as storage from "@/lib/storage";
 
 vi.mock("node:fs/promises", async importOriginal => {
@@ -104,6 +105,90 @@ describe.skipIf(!enabled)("Saved Articles portable backup v7", () => {
       tags: { include: { tag: true } }, attachments: true, article: { include: { images: { orderBy: { position: "asc" }, include: { upload: true } } } },
     } });
   }
+
+  it("round-trips share-only and title-cleared materials through import, restore and safety backup", async () => {
+    const saved = await import("./saved-item-service");
+    const capture = (data: unknown) => saved.createSavedItem(owner, randomUUID(), savedItemCreateSchema.parse(data), []);
+    await expect(capture({})).rejects.toMatchObject({ status: 400 });
+    const share = await capture({ sharedTitle: "Share only", tags: ["#shareonly"] });
+    const cleared = await capture({ title: "To be cleared", tags: ["#cleared"] });
+    expect(share.item).toMatchObject({ title: "", titleOrigin: "share", sharedTitle: "Share only" });
+    expect(await saved.updateSavedItem(owner, cleared.item.id, { title: "" })).toMatchObject({
+      title: "", titleOrigin: "system", sharedTitle: null,
+    });
+    const expected = expect.arrayContaining([
+      expect.objectContaining({ title: "", titleOrigin: "share", sharedTitle: "Share only", text: "", url: null, attachmentKeys: [] }),
+      expect.objectContaining({ title: "", titleOrigin: "system", sharedTitle: null, text: "", url: null, attachmentKeys: [],
+        tags: [expect.objectContaining({ normalized: "cleared" })] }),
+    ]);
+    const fullExport = path.join(directory, "retained-title-states.zip");
+    await exports.writePortableArchive(owner, fullExport, { ...options, backup: false });
+    const prepared = await prepare(fullExport, false);
+    try {
+      expect(prepared.manifest?.version).toBe(7);
+      expect(prepared.data?.savedItems).toEqual(expected);
+      const target = await db.user.create({ data: { email: "title-states@test.local", name: "Target", passwordHash: "unused" } });
+      await imports.commitImport(target.id, prepared);
+      expect((await exports.buildPortableExport(target.id, { ...options, backup: false })).data.savedItems).toEqual(expected);
+    } finally { await imports.disposePreparedImport(prepared); }
+
+    const backupFile = path.join(directory, "retained-title-backup.zip");
+    await exports.writePortableArchive(owner, backupFile, options);
+    const { restoreUploadedBackup } = await import("./backup-restore-service");
+    const result = await restoreUploadedBackup(owner, new Request("http://localhost/restore", {
+      method: "POST", headers: { "content-type": "application/zip" }, body: new Uint8Array(await fs.readFile(backupFile)),
+    }));
+    expect((await exports.buildPortableExport(owner, options)).data.savedItems).toEqual(expected);
+    const backup = await import("./backup-service");
+    const safety = await prepare((await backup.backupRecordFile(result.safetyBackupId)).filePath);
+    try {
+      expect(safety.data?.savedItems).toEqual(expected);
+      await imports.restoreBackupData(owner, safety);
+      expect((await exports.buildPortableExport(owner, options)).data.savedItems).toEqual(expected);
+    } finally { await imports.disposePreparedImport(safety); }
+  });
+
+  it.each([2, 3, 6])("restores %i blocks sharing one image and cleans up its single file", async count => {
+    const blocks = Array.from({ length: count }, (_, index) => ({ type: "image", key: firstKey, alt: `Reference ${index}` }));
+    await db.$transaction([
+      db.savedArticleImage.delete({ where: { savedItemId_imageKey: { savedItemId: itemId, imageKey: missingKey } } }),
+      db.savedArticle.update({ where: { savedItemId: itemId }, data: { blocks } }),
+    ]);
+    const checkArchive = (data: ArchiveData | undefined) => {
+      expect(data?.attachments).toHaveLength(1);
+      expect(data?.savedItems?.[0].article).toMatchObject({ blocks, images: [{ imageKey: firstKey }] });
+      expect(data?.attachments[0].sha256).toBe(createHash("sha256").update(raster).digest("hex"));
+    };
+    const exported = path.join(directory, `repeated-${count}-export.zip`);
+    await exports.writePortableArchive(owner, exported, { ...options, backup: false });
+    const prepared = await prepare(exported, false);
+    const target = await db.user.create({ data: { email: "repeated-images@test.local", name: "Target", passwordHash: "unused" } });
+    try {
+      checkArchive(prepared.data);
+      await imports.commitImport(target.id, prepared);
+      checkArchive((await exports.buildPortableExport(target.id, options)).data);
+      expect(await db.upload.count({ where: { userId: target.id } })).toBe(1);
+    } finally { await imports.disposePreparedImport(prepared); }
+
+    const file = path.join(directory, `repeated-${count}-backup.zip`);
+    await exports.writePortableArchive(owner, file, options);
+    const { restoreUploadedBackup } = await import("./backup-restore-service");
+    await restoreUploadedBackup(owner, new Request("http://localhost/restore", {
+      method: "POST", headers: { "content-type": "application/zip" }, body: new Uint8Array(await fs.readFile(file)),
+    }));
+    const copy = await restoredItem();
+    expect(copy.article?.blocks).toEqual(blocks);
+    expect(copy.article?.images).toHaveLength(1);
+    const local = copy.article!.images[0].upload!;
+    expect(createHash("sha256").update(await fs.readFile(storage.resolveStoragePath(local.storageName))).digest("hex")).toBe(local.sha256);
+    expect(copy.attachments[0].uploadId).toBe(local.id);
+    const { cleanupStorage } = await import("./attachment-service");
+    expect(await cleanupStorage(owner)).toMatchObject({ removed: 0 });
+    await (await import("./saved-item-service")).deleteSavedItem(owner, copy.id);
+    expect(await cleanupStorage(owner)).toMatchObject({ removed: 1 });
+    expect(await db.upload.count({ where: { userId: owner } })).toBe(0);
+    await expect(fs.stat(storage.resolveStoragePath(local.storageName))).rejects.toMatchObject({ code: "ENOENT" });
+  });
 
   it("round-trips archived articles, provenance, tags, dates, user attachments and missing external images offline", async () => {
     const file = path.join(directory, "full-export.zip");

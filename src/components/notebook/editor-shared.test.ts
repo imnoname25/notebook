@@ -8,7 +8,7 @@ describe("shared editor boundary", () => {
   it("shares schema, dictionary, native table flags and highlighting without page lifecycle", () => {
     const options = sharedEditorOptions([{ type: "paragraph", content: [] }]);
     expect(options.schema).toBe(notebookEditorSchema);expect(options.dictionary).toBe(notebookBlockNoteDictionary);
-    expect(options.tables).toEqual({ headers: true, splitCells: true });expect(options.extensions).toHaveLength(3);
+    expect(options.tables).toEqual({ headers: true, splitCells: true });expect(options.extensions).toHaveLength(4);
     for (const key of ["pageId", "uploadFile", "revision", "autosave", "recovery"]) expect(options).not.toHaveProperty(key);
   });
   it("uses the same catalogue while hiding precisely the page/upload-dependent commands", () => {

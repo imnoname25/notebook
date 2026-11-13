@@ -28,7 +28,15 @@ for (const theme of ["studio-graphite", "studio-atelier"]) test(`${theme}: unifi
   await cell.click();await action("Добавить столбец");await expect(main.locator("tr").first().locator("td")).toHaveCount(4);await main.locator("tr").first().locator("td").nth(1).click();await action("Удалить столбец");await expect(main.locator("tr").first().locator("td")).toHaveCount(3);await expect(main).toContainText("Name");await expect(main).toContainText("TechnicalValue");
   await cell.click();await openTable();await tableMenu.getByRole("menuitemcheckbox", { name: "Строка заголовков", exact: true }).click();await expect(main.locator("th")).toHaveCount(3);await openTable();await tableMenu.getByRole("menuitemcheckbox", { name: "Строка заголовков", exact: true }).click();await expect(main.locator("th")).toHaveCount(0);if (await tableMenu.isVisible()) await page.keyboard.press("Escape");
   await cell.click();await action("Выделить строку");await expect(main.locator(".selectedCell")).toHaveCount(3);await action("Объединить ячейки");await expect(main.locator('[colspan="3"]')).toHaveCount(1);await action("Разделить ячейку");await expect(main.locator('[colspan="3"]')).toHaveCount(0);
-  const beforeMove = await main.locator("tr").first().locator("td").allTextContents();expect(beforeMove.join(" ")).toMatch(/Name.*Value.*Description/s);await cell.click();await action("Столбец вправо");await expect(main.locator("tr").first().locator("td").first()).toHaveText(beforeMove[1]);await page.keyboard.press("Control+z");await expect.poll(() => main.locator("tr").first().locator("td").allTextContents()).toEqual(beforeMove);
+  const firstRow = main.locator("tr").first().locator("td");
+  await expect(firstRow).toHaveCount(3);
+  const beforeMove = await firstRow.allTextContents();
+  expect(beforeMove.join(" ")).toMatch(/Name.*Value.*Description/s);
+  await cell.click();
+  await action("Столбец вправо");
+  await expect(firstRow).toHaveText([beforeMove[1], beforeMove[0], beforeMove[2]]);
+  await page.keyboard.press("Control+z");
+  await expect(firstRow).toHaveText(beforeMove);
   const edge = (await cell.boundingBox())!;await page.mouse.move(edge.x + edge.width - 2, edge.y + edge.height / 2);await expect(page.locator(".column-resize-handle").first()).toBeVisible();await page.mouse.down();await page.mouse.move(edge.x + edge.width + 50, edge.y + edge.height / 2, { steps: 8 });await page.mouse.up();
   const get = async () => z.object({ page: z.object({ revision: z.number(), content: z.array(z.record(z.string(), z.unknown())) }) }).parse(await page.request.get(`/api/pages/${note.id}`).then(r => r.json())).page;
   await expect.poll(async () => z.object({ columnWidths: z.array(z.number().nullable()) }).parse((await get()).content.find(b => b.id === "control-table")!.content).columnWidths[0]).toBeGreaterThan(180);

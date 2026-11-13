@@ -12,6 +12,20 @@ const LEASE_SECONDS = 30;
 const utcNow = Prisma.sql`(clock_timestamp() AT TIME ZONE 'UTC')`;
 const MANUAL_COOLDOWN_MS = 60_000;
 
+export async function enqueueNewSavedArticle(tx: Prisma.TransactionClient, savedItemId: string, url: string | null, hasAttachments: boolean) {
+  if (process.env.SAVED_ARTICLE_AUTO_EXTRACT !== "1" || !url || hasAttachments) return;
+  try { metadataUrl(url); } catch { return; }
+
+  await tx.$executeRaw`SAVEPOINT saved_article_capture`;
+  try {
+    await tx.savedArticleJob.create({ data: { savedItemId, sourceUrl: url, generation: randomUUID() } });
+  } catch {
+    await tx.$executeRaw`ROLLBACK TO SAVEPOINT saved_article_capture`;
+    console.warn("Notebook could not queue automatic article extraction for a new bookmark");
+  }
+  await tx.$executeRaw`RELEASE SAVEPOINT saved_article_capture`;
+}
+
 export async function enqueueSavedArticle(userId: string, savedItemId: string, { manual = false } = {}) {
   return db.$transaction(async tx => {
     if (manual) {

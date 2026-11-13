@@ -101,6 +101,53 @@ describe.skipIf(!enabled)("saved items on PostgreSQL with persistent files", () 
     expect(await files.cleanupStorage(owner)).toMatchObject({ removed: 1 });
   });
 
+  it("queues only eligible new bookmarks when automatic extraction is enabled", async () => {
+    const shared = savedItemCreateSchema.parse({ url: "https://example.org/story", sharedTitle: "Shared title" });
+    try {
+      vi.stubEnv("SAVED_ARTICLE_AUTO_EXTRACT", "0");
+      const old = await saved.createSavedItem(owner, "old-bookmark", shared, []);
+      vi.stubEnv("SAVED_ARTICLE_AUTO_EXTRACT", "1");
+      const [one, two] = await Promise.all([
+        saved.createSavedItem(owner, "android-capture", shared, []),
+        saved.createSavedItem(owner, "android-capture", shared, []),
+      ]);
+      expect(one.item.id).toBe(two.item.id);
+      expect([one.replayed, two.replayed].sort()).toEqual([false, true]);
+      expect((await saved.createSavedItem(owner, "old-bookmark", shared, [])).item.id).toBe(old.item.id);
+      await saved.createSavedItem(owner, "with-attachment", shared, [await prepareUpload(pdf(), true)]);
+      await saved.createSavedItem(owner, "without-url", input, []);
+      await saved.createSavedItem(owner, "private-url", { ...shared, url: "http://127.0.0.1/story" }, []);
+      expect(await db.savedArticleJob.findMany()).toMatchObject([
+        { savedItemId: one.item.id, sourceUrl: shared.url, status: "queued" },
+      ]);
+    } finally { vi.unstubAllEnvs(); }
+  });
+
+  it("commits the bookmark and its idempotency record if automatic queue insertion fails", async () => {
+    vi.stubEnv("SAVED_ARTICLE_AUTO_EXTRACT", "1");
+    const warning = vi.spyOn(console, "warn").mockImplementation(() => {});
+    const source = savedItemCreateSchema.parse({ url: "https://example.org/queue-failure", tags: ["#Inbox"] });
+    try {
+      await db.$executeRaw`CREATE FUNCTION reject_test_article_capture() RETURNS trigger LANGUAGE plpgsql AS $$
+        BEGIN RAISE EXCEPTION 'test queue failure'; END $$`;
+      await db.$executeRaw`CREATE TRIGGER reject_test_article_capture BEFORE INSERT ON "SavedArticleJob"
+        FOR EACH ROW EXECUTE FUNCTION reject_test_article_capture()`;
+      const { item } = await saved.createSavedItem(owner, "queue-error", source, []);
+      expect(item.tags).toMatchObject([{ normalized: "inbox" }]);
+      expect(await db.savedArticleJob.count()).toBe(0);
+      expect(await saved.getSavedItem(owner, item.id)).toMatchObject({ url: source.url });
+      expect(await saved.createSavedItem(owner, "queue-error", source, [])).toMatchObject({
+        item: { id: item.id }, replayed: true,
+      });
+      expect(warning).toHaveBeenCalledOnce();
+    } finally {
+      await db.$executeRaw`DROP TRIGGER IF EXISTS reject_test_article_capture ON "SavedArticleJob"`;
+      await db.$executeRaw`DROP FUNCTION IF EXISTS reject_test_article_capture()`;
+      warning.mockRestore();
+      vi.unstubAllEnvs();
+    }
+  });
+
   it("transfers once across parallel keys, indexes the new page and retains its files", async () => {
     const created = await saved.createSavedItem(owner, "capture", input, [await prepareUpload(pdf(), true)]);
     const id = created.item.id;

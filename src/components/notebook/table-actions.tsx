@@ -4,6 +4,7 @@ import { useShadCNComponentsContext } from "@blocknote/shadcn";
 import { useComponentsContext, useEditorChange, useEditorSelectionChange } from "@blocknote/react";
 import { addRowAfter, addRowBefore, addColumnAfter, addColumnBefore, deleteRow, deleteColumn, mergeCells, splitCell, CellSelection, selectionCell, isInTable, selectedRect, moveTableRow, moveTableColumn } from "prosemirror-tables";
 import type { Command } from "prosemirror-state";
+import { closeHistory } from "prosemirror-history";
 import type { NotebookEditor, NotebookFullBlock } from "./editor-schema";
 
 /** Preserve a cell/range in this table; a hovered different table starts at its first cell. */
@@ -22,7 +23,10 @@ export function TableActionItems({ editor, target }: { editor: NotebookEditor; t
   if (!Components || !ShadCN || block?.type !== "table") return null;
   const valid = editor.isEditable && isInTable(editor.prosemirrorState) && editor.getTextCursorPosition().block.id === block.id;
   const state = editor.prosemirrorState, rect = valid ? selectedRect(state) : null;
-  const run = (command: Command) => { if (valid) editor.exec((state, dispatch) => command(state, dispatch, editor.prosemirrorView)); };
+  const run = (command: Command, separateUndo: boolean) => {
+    if (!valid) return;
+    editor.exec((state, dispatch, view) => command(state, dispatch && (tr => dispatch(separateUndo ? closeHistory(tr) : tr)), view));
+  };
   const select = (orientation: "row" | "column"): Command => (state, dispatch) => { const cell = selectionCell(state);dispatch?.(state.tr.setSelection(orientation === "row" ? CellSelection.rowSelection(cell) : CellSelection.colSelection(cell)));return true; };
   const header = (key: "headerRows" | "headerCols") => {
     if (!valid) return;
@@ -31,7 +35,7 @@ export function TableActionItems({ editor, target }: { editor: NotebookEditor; t
     editor.exec((state, dispatch) => { dispatch?.(state.tr.setSelection(bookmark.resolve(state.doc)));return true; });
   };
   const Item = ShadCN.DropdownMenu.DropdownMenuItem, Checkbox = ShadCN.DropdownMenu.DropdownMenuCheckboxItem;
-  const item = (label: string, command: Command) => <Item key={label} disabled={!valid || !command(state)} onClick={() => run(command)}>{label}</Item>;
+  const item = (label: string, command: Command, separateUndo = false) => <Item key={label} disabled={!valid || !command(state)} onClick={() => run(command, separateUndo)}>{label}</Item>;
   // Keep header bands fixed; moving body rows/columns uses native span-aware commands.
   const row = rect?.top ?? 0, col = rect?.left ?? 0;
   return <>
@@ -45,10 +49,10 @@ export function TableActionItems({ editor, target }: { editor: NotebookEditor; t
     {item("Выделить строку", select("row"))}{item("Выделить столбец", select("column"))}
     {item("Объединить ячейки", mergeCells)}{item("Разделить ячейку", splitCell)}
     <Components.Generic.Menu.Divider/>
-    {row > (block.content.headerRows ?? 0) && item("Строку вверх", moveTableRow({ from: row, to: row - 1 }))}
-    {rect && row >= (block.content.headerRows ?? 0) && row + 1 < rect.map.height && item("Строку вниз", moveTableRow({ from: row, to: row + 1 }))}
-    {col > (block.content.headerCols ?? 0) && item("Столбец влево", moveTableColumn({ from: col, to: col - 1 }))}
-    {rect && col >= (block.content.headerCols ?? 0) && col + 1 < rect.map.width && item("Столбец вправо", moveTableColumn({ from: col, to: col + 1 }))}
+    {row > (block.content.headerRows ?? 0) && item("Строку вверх", moveTableRow({ from: row, to: row - 1 }), true)}
+    {rect && row >= (block.content.headerRows ?? 0) && row + 1 < rect.map.height && item("Строку вниз", moveTableRow({ from: row, to: row + 1 }), true)}
+    {col > (block.content.headerCols ?? 0) && item("Столбец влево", moveTableColumn({ from: col, to: col - 1 }), true)}
+    {rect && col >= (block.content.headerCols ?? 0) && col + 1 < rect.map.width && item("Столбец вправо", moveTableColumn({ from: col, to: col + 1 }), true)}
   </>;
 }
 
