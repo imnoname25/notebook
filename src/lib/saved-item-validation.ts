@@ -4,6 +4,8 @@ import { hashtagQuery, MAX_PAGE_TAGS } from "@/lib/hashtags";
 export const MAX_SAVED_ATTACHMENTS = 4;
 export const MAX_SAVED_JSON_BYTES = 512 * 1024;
 export const MAX_SAVED_MULTIPART_BYTES = 32 * 1024 * 1024;
+export const MAX_DEVICE_PREVIEW_BYTES = 2 * 1024 * 1024;
+export const DEVICE_PREVIEW_MIME = "image/webp";
 
 const nonNullText = (max: number) => z.string().max(max).refine(value => !value.includes("\0"));
 const tag = z.string().trim().max(65).transform(value => hashtagQuery(`#${value.replace(/^#/, "")}`))
@@ -52,6 +54,17 @@ export const savedItemListSchema = z.strictObject({
 export const savedItemConvertSchema = z.strictObject({ sectionId: savedItemIdSchema });
 export const savedItemIdempotencyKeySchema = z.string().regex(/^[a-zA-Z0-9._:-]{1,128}$/);
 
+export const savedPreviewFields = z.enum(["title", "description", "siteName"]);
+const previewText = (max: number) => nonNullText(max)
+  .transform(text => text.replace(/[\p{Cc}\p{Cf}\p{Z}]+/gu, " ").trim())
+  .pipe(z.string().min(1)).optional();
+export const devicePreviewSchema = z.strictObject({
+  title: previewText(300),
+  description: previewText(1000),
+  siteName: previewText(160),
+});
+
 export type SavedItemCreateInput = z.infer<typeof savedItemCreateSchema>;
 export type SavedItemUpdateInput = z.infer<typeof savedItemUpdateSchema>;
 export type SavedItemListInput = z.infer<typeof savedItemListSchema>;
+export type DevicePreviewInput = z.infer<typeof devicePreviewSchema>;

@@ -59,6 +59,10 @@ final class NotebookShareServer {
         return path.isEmpty() || requested.equals(path) || requested.startsWith(path + "/");
     }
 
+    boolean ownsAppPage(String url) {
+        return NotebookLaunchPolicy.sameOrigin(base, url) && (path + "/app").equals(URI.create(url).getRawPath());
+    }
+
     @Override
     public boolean equals(Object other) {
         return other instanceof NotebookShareServer && base.equals(((NotebookShareServer) other).base);

@@ -31,6 +31,10 @@ final class NotebookShareStore {
     }
 
     synchronized void recover() throws IOException {
+        recover(entry -> {});
+    }
+
+    synchronized void recover(NotebookShareSync.OnSaved onSaved) throws IOException {
         ensureRoot();
         for (File directory : children(root)) {
             String name = directory.getName();
@@ -40,7 +44,10 @@ final class NotebookShareStore {
                 UUID id = parseId(name);
                 if (id == null) continue;
                 NotebookShareRecord entry = read(id);
-                if (entry != null && entry.status == NotebookShareRecord.Status.SENT) remove(entry.id);
+                if (entry != null && entry.status == NotebookShareRecord.Status.SENT) {
+                    onSaved.schedule(entry);
+                    remove(entry.id);
+                }
             }
         }
     }

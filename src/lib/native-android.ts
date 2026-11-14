@@ -1,7 +1,11 @@
 import { androidAppInfoSchema } from "./android-app-info";
 
 type NotebookSessionPlugin = { flushCookies(): Promise<void> };
-type NotebookSharePlugin = { showQueue?(): Promise<void> };
+type NotebookSharePlugin = {
+  showQueue?(): Promise<void>;
+  refreshPreview?(options: { id: string }): Promise<{ updated?: boolean }>;
+  cancelPreview?(options: { id: string }): Promise<void>;
+};
 type CapacitorRuntime = {
   isNativePlatform?(): boolean;
   Plugins?: { NotebookSession?: NotebookSessionPlugin; NotebookShare?: NotebookSharePlugin; NotebookAppInfo?: { getInfo(): Promise<unknown> } };
@@ -21,6 +25,21 @@ export async function openNativeShareQueue() {
   const plugin = runtime?.Plugins?.NotebookShare;
   if (!runtime?.isNativePlatform?.() || !plugin?.showQueue) return;
   await plugin.showQueue();
+}
+
+export function hasNativePreviewRefresh() {
+  const runtime = capacitorRuntime();
+  const plugin = runtime?.Plugins?.NotebookShare;
+  return Boolean(runtime?.isNativePlatform?.() && typeof plugin?.refreshPreview === "function" && typeof plugin?.cancelPreview === "function");
+}
+
+export async function refreshNativePreview(id: string) {
+  const result = await capacitorRuntime()?.Plugins?.NotebookShare?.refreshPreview?.({ id });
+  return result?.updated === true;
+}
+
+export async function cancelNativePreview(id: string) {
+  await capacitorRuntime()?.Plugins?.NotebookShare?.cancelPreview?.({ id });
 }
 
 export function isNativeAndroidClient() {

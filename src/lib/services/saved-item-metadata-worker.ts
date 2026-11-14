@@ -1,5 +1,6 @@
 import { Prisma } from "@/generated/prisma/client";
 import { db } from "@/lib/db";
+import type { SavedPreviewField } from "@/generated/prisma/enums";
 import { lockUserUploads } from "./upload-service";
 import { classifySavedLink } from "@/lib/saved-link";
 import { fetchSavedMetadata } from "@/lib/saved-metadata";
@@ -40,15 +41,17 @@ export async function processSavedMetadataJob(signal: AbortSignal, fetchMetadata
     const owner = await tx.savedItem.findUnique({ where: { id: job.savedItemId }, select: { userId: true } });
     if (!owner) return;
     await lockUserUploads(tx, owner.userId);
-    const item = await tx.$queryRaw<{ id: string }[]>(Prisma.sql`
-      SELECT id FROM "SavedItem" WHERE id = ${job.savedItemId} AND url = ${job.url} FOR NO KEY UPDATE`);
-    if (!item.length) return;
+    const [item] = await tx.$queryRaw<{ androidMetadataFields: SavedPreviewField[]; previewUploadId: string | null; metadataImageUrl: string | null }[]>(Prisma.sql`
+      SELECT "androidMetadataFields"::text[] AS "androidMetadataFields", "previewUploadId", "metadataImageUrl"
+      FROM "SavedItem" WHERE id = ${job.savedItemId} AND url = ${job.url} FOR NO KEY UPDATE`);
+    if (!item) return;
     if (!(await settleSavedItemMetadataJob(tx, job, { status: "done" }))) return;
+    const device = item.androidMetadataFields;
     return tx.savedItem.update({ where: { id: job.savedItemId }, data: {
-      metadataTitle: metadata.metadataTitle ?? undefined,
-      metadataDescription: metadata.metadataDescription ?? undefined,
-      metadataSiteName: metadata.metadataSiteName,
-      metadataImageUrl: metadata.metadataImageUrl ?? undefined,
+      metadataTitle: device.includes("title") ? undefined : metadata.metadataTitle ?? undefined,
+      metadataDescription: device.includes("description") ? undefined : metadata.metadataDescription ?? undefined,
+      metadataSiteName: device.includes("siteName") ? undefined : metadata.metadataSiteName,
+      metadataImageUrl: item.previewUploadId && item.metadataImageUrl ? undefined : metadata.metadataImageUrl ?? undefined,
     }, select: { metadataImageUrl: true } });
   });
   if (stored && link.kind === "video" && link.provider === "youtube" && link.videoId) {

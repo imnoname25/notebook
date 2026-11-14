@@ -1,9 +1,12 @@
+import { open } from "node:fs/promises";
+import { Readable } from "node:stream";
 import { NextRequest, NextResponse } from "next/server";
 import { ApiError, apiError, requireUser } from "@/lib/api";
 import { db } from "@/lib/db";
 import { classifySavedLink } from "@/lib/saved-link";
 import { fetchSavedMetadataResource, savedRequestFailure, SavedMetadataError } from "@/lib/saved-metadata-network";
-import { savedItemIdSchema } from "@/lib/saved-item-validation";
+import { DEVICE_PREVIEW_MIME, savedItemIdSchema } from "@/lib/saved-item-validation";
+import { resolveStoragePath } from "@/lib/storage";
 import { IMAGE_EXTENSIONS, isValidImageMime } from "@/lib/uploads";
 
 export const runtime = "nodejs";
@@ -15,8 +18,24 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
   try {
     const [user, { id }] = await Promise.all([requireUser(), params]);
     const item = await db.savedItem.findFirst({
-      where: { id: savedItemIdSchema.parse(id), userId: user.id }, select: { url: true, metadataImageUrl: true },
+      where: { id: savedItemIdSchema.parse(id), userId: user.id },
+      select: { url: true, metadataImageUrl: true, previewUpload: { select: { userId: true, storageName: true, mimeType: true, size: true } } },
     });
+    const upload = item?.previewUpload;
+    if (upload?.userId === user.id && upload.mimeType === DEVICE_PREVIEW_MIME) {
+      const file = await open(resolveStoragePath(upload.storageName), "r").catch(() => null);
+      if (file) {
+        try {
+          const info = await file.stat();
+          if (info.isFile() && info.size === upload.size) {
+            return new Response(Readable.toWeb(file.createReadStream()) as ReadableStream, { headers: {
+              ...privateHeaders, "content-type": DEVICE_PREVIEW_MIME, "content-length": String(info.size),
+            } });
+          }
+        } catch { /* Fall back to the existing server preview if available. */ }
+        await file.close().catch(() => undefined);
+      }
+    }
     if (!item?.metadataImageUrl) throw new ApiError(404, "Превью недоступно");
     if ((state.notebookPreviewRequests ?? 0) >= maxConcurrent) {
       return NextResponse.json({ error: "Сервер занят загрузкой обложек", failure: "busy" }, {

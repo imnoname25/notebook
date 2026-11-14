@@ -1,4 +1,5 @@
 import { randomUUID } from "node:crypto";
+import sharp from "sharp";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 
 const origin = process.env.TEST_SAVED_HTTP_ORIGIN;
@@ -47,6 +48,57 @@ describe.skipIf(!enabled)("saved item routes over HTTP with real sessions", () =
       headers: { cookie, origin: origin!, "content-type": "application/json", ...(key ? { "idempotency-key": key } : {}) },
     };
   }
+
+  it("accepts a private normalized device cover even when the server has no access to the source", async () => {
+    const original = "https://youtu.be/testVideo_1";
+    const created = await request(endpoint, json(ownerCookie, { title: "My title", sharedTitle: "Android title", url: original }, randomUUID()));
+    expect(created.status).toBe(201);
+    const { item: { id } } = await created.json();
+    const path = `${endpoint}/${id}/device-preview`;
+    const key = randomUUID();
+    const metadata = { title: "Video title", description: "Video description", siteName: "YouTube · Author" };
+    await db.savedItemMetadataJob.update({ where: { savedItemId: id }, data: { finishedAt: new Date(), failed: true, failureReason: "timeout" } });
+    // A previously stored remote image would be refused by the public-source transport.
+    await db.savedItem.update({ where: { id }, data: { metadataImageUrl: "http://127.0.0.1/ignored-preview.png" } });
+    const png = await sharp({ create: { width: 1400, height: 600, channels: 3, background: "orange" } }).png().toBuffer();
+    function multipart(bytes: Uint8Array, cookie = ownerCookie, requestKey = key, payload = metadata) {
+      const body = new FormData();
+      body.append("payload", JSON.stringify(payload));
+      // Validation uses the image bytes, even when the request declares another supported MIME.
+      body.append("cover", new File([new Uint8Array(bytes)], "cover.jpg", { type: "image/jpeg" }));
+      return { method: "PUT", headers: { cookie, origin: origin!, "idempotency-key": requestKey }, body };
+    }
+    expect((await request(path, { method: "PUT", headers: { origin: origin! } })).status).toBe(401);
+    expect((await request(path, multipart(png, otherCookie))).status).toBe(404);
+    expect((await request(path, { ...multipart(png), headers: { cookie: ownerCookie, "idempotency-key": key } })).status).toBe(403);
+    expect((await request(path, json(ownerCookie, { ...metadata, imageUrl: "https://example.com/image" }, key, "PUT"))).status).toBe(400);
+    expect((await request(path, json(ownerCookie, { ...metadata, title: "Ваш браузер устарел" }, key, "PUT"))).status).toBe(422);
+    expect((await request(path, multipart(Buffer.from("<svg>image</svg>")))).status).toBe(415);
+    expect((await request(path, multipart(png.subarray(0, 40)))).status).toBe(415);
+    const tooWide = await sharp({ create: { width: 8193, height: 40, channels: 3, background: "orange" } }).png().toBuffer();
+    expect((await request(path, multipart(tooWide))).status).toBe(415);
+    expect((await request(path, multipart(new Uint8Array(2 * 1024 * 1024 + 1)))).status).toBe(413);
+    const results = await Promise.all([request(path, multipart(png)), request(path, multipart(png))]);
+    expect(results.map(response => response.status)).toEqual([204, 204]);
+    expect((await request(path, json(ownerCookie, { title: "Different result" }, key, "PUT"))).status).toBe(409);
+    const saved = await db.savedItem.findUniqueOrThrow({ where: { id } });
+    expect(saved).toMatchObject({ title: "My title", url: original, metadataTitle: "Video title" });
+    expect(saved.previewUploadId).toEqual(expect.any(String));
+    expect(await db.savedItemRequest.count({ where: { operation: "devicePreview", resultId: id } })).toBe(1);
+    expect(await db.savedItemAttachment.count({ where: { savedItemId: id } })).toBe(0);
+    expect((await request(`/api/uploads/${saved.previewUploadId}`, { headers: { cookie: ownerCookie } })).status).toBe(404);
+    const { notebookId } = await db.section.findUniqueOrThrow({ where: { id: sectionId }, select: { notebookId: true } });
+    expect((await request(`/api/notebooks/${notebookId}`, json(ownerCookie, {
+      coverType: "image", coverUploadId: saved.previewUploadId,
+    }, undefined, "PATCH"))).status).toBe(400);
+    const preview = `${endpoint}/${id}/preview`;
+    expect((await request(preview, { headers: { cookie: otherCookie } })).status).toBe(404);
+    const cover = await request(preview, { headers: { cookie: ownerCookie } });
+    expect(cover.status).toBe(200);
+    expect(cover.headers.get("cache-control")).toBe("private, no-store");
+    expect(cover.headers.get("content-type")).toBe("image/webp");
+    expect(await sharp(Buffer.from(await cover.arrayBuffer())).metadata()).toMatchObject({ width: 1200, height: 514, format: "webp" });
+  }, 120_000);
 
   it("requires a session, matching origin and idempotency key, then enforces ownership", async () => {
     expect((await request(endpoint)).status).toBe(401);

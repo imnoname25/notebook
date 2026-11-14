@@ -35,6 +35,7 @@ final class NotebookShareSync {
     }
 
     interface Sender { Result send(NotebookShareRecord entry) throws IOException; }
+    interface OnSaved { void schedule(NotebookShareRecord entry) throws IOException; }
 
     static boolean due(NotebookShareRecord entry, Account account, long now) {
         return account != null && account.owns(entry) && entry.retryAt <= now
@@ -50,6 +51,10 @@ final class NotebookShareSync {
     }
 
     static boolean submit(NotebookShareStore store, NotebookShareRecord entry, Account account, long now, Sender sender) throws IOException {
+        return submit(store, entry, account, now, sender, saved -> {});
+    }
+
+    static boolean submit(NotebookShareStore store, NotebookShareRecord entry, Account account, long now, Sender sender, OnSaved onSaved) throws IOException {
         if (!due(entry, account, now)) return false;
         Result result;
         try {
@@ -61,6 +66,7 @@ final class NotebookShareSync {
         store.update(entry);
         if (entry.status != NotebookShareRecord.Status.SENT) return false;
         try {
+            onSaved.schedule(entry);
             store.remove(entry.id);
         } catch (IOException ignored) {
             // The persisted receipt prevents another send. Recovery retries cleanup.

@@ -10,7 +10,7 @@ import {
 import { tmpdir } from "node:os";
 import path from "node:path";
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from "vitest";
-import { DATA_FORMAT_VERSION } from "@/lib/data-format";
+import { ARTICLES_DATA_FORMAT_VERSION } from "@/lib/data-format";
 
 const databaseUrl = process.env.TEST_DATABASE_URL;
 const enabled = Boolean(databaseUrl) && process.env.TEST_RESET_DATABASE === "1";
@@ -127,7 +127,7 @@ describe.skipIf(!enabled)("portable data and attachment integration", () => {
 
   it("exports portable page JSON with attachment data and enforces ownership", async () => {
     const result = await exports.exportPageJson(ids.user, ids.page);
-    expect(result.manifest.version).toBe(DATA_FORMAT_VERSION);
+    expect(result.manifest.version).toBe(ARTICLES_DATA_FORMAT_VERSION);
     expect(result.page).toMatchObject({
       color: "blue",
       backgroundType: "image",

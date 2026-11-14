@@ -6,6 +6,7 @@ import org.junit.Rule;
 import org.junit.Test;
 import org.junit.rules.TemporaryFolder;
 import java.net.InetAddress;
+import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 import java.util.List;
 import java.util.UUID;
@@ -95,6 +96,41 @@ public class NotebookShareHttpTest {
         assertNull(NotebookShareHttp.sessionCookie(session + "; " + session));
         assertNull(NotebookShareHttp.sessionCookie("notebook_session=malformed\r\n"));
         assertEquals(20_000, NotebookShareHttp.retryAfter("20"));
+    }
+
+    @Test public void sendsOnlyMetadataAndCoverToSelectedServerAndRepeatsWithSameKeyAfterLoss() throws Exception {
+        try (var wire = new MockWebServer()) {
+            wire.start(InetAddress.getByName("127.0.0.1"), 0);
+            var endpoint = NotebookShareServer.parse("http://127.0.0.1:" + wire.getPort());
+            var client = new NotebookShareHttp();
+            String cookie = "notebook_session=abcdefghijklmnopqrstuv";
+            String key = UUID.randomUUID().toString();
+            wire.enqueue(response(200, "application/json", "{\"item\":{\"id\":\"id-1\",\"url\":\"https://youtu.be/testVideo_1\"}}"));
+            assertNull(client.previewSource(endpoint, cookie, "id-1"));
+            wire.takeRequest();
+            wire.enqueue(response(200, "application/json", "{\"item\":{\"id\":\"id-1\",\"supportsDevicePreview\":true,\"url\":\"https://youtu.be/testVideo_1\"}}"));
+            assertEquals("https://youtu.be/testVideo_1", client.previewSource(endpoint, cookie, "id-1"));
+            assertEquals("/api/saved-items/id-1", wire.takeRequest().getPath());
+
+            var preview = new NotebookLinkPreview.Result("video", "Video", null, "YouTube", new byte[]{5, 9, 3}, "image/png");
+            wire.enqueue(new MockResponse().setSocketPolicy(okhttp3.mockwebserver.SocketPolicy.DISCONNECT_AFTER_REQUEST));
+            assertThrows(IOException.class, () -> client.uploadPreview(endpoint, cookie, "id-1", key, preview));
+            wire.enqueue(new MockResponse().setResponseCode(204));
+            assertEquals(204, client.uploadPreview(endpoint, cookie, "id-1", key, preview));
+            for (int attempt = 0; attempt < 2; attempt++) {
+                var sent = wire.takeRequest();
+                assertEquals("PUT", sent.getMethod());
+                assertEquals("/api/saved-items/id-1/device-preview", sent.getPath());
+                assertEquals(key, sent.getHeader("Idempotency-Key"));
+                assertEquals(cookie, sent.getHeader("Cookie"));
+                assertEquals(endpoint.origin, sent.getHeader("Origin"));
+                String body = sent.getBody().readUtf8();
+                assertTrue(body.contains("\"title\":\"Video\""));
+                assertTrue(body.contains("name=\"cover\""));
+                assertFalse(body.contains("youtu.be"));
+                assertFalse(body.contains("attachment"));
+            }
+        }
     }
 
     private static MockResponse response(int code, String type, String body) {

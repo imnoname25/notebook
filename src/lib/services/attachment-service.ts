@@ -13,7 +13,7 @@ import {
 } from "@/lib/services/system-notification-service";
 
 async function usedUploadIds(userId: string, tx: Prisma.TransactionClient = db) {
-  const [pages, saved, notebooks, articleImages] = await Promise.all([tx.page.findMany({
+  const [pages, saved, notebooks, articleImages, previews] = await Promise.all([tx.page.findMany({
     where: { section: { notebook: { userId } } },
     select: {
       content: true,
@@ -27,8 +27,11 @@ async function usedUploadIds(userId: string, tx: Prisma.TransactionClient = db) 
     where: { userId, coverUploadId: { not: null } }, select: { coverUploadId: true },
   }), tx.savedArticleImage.findMany({
     where: { article: { savedItem: { userId } }, upload: { userId } }, select: { uploadId: true },
+  }), tx.savedItem.findMany({
+    where: { userId, previewUpload: { userId } }, select: { previewUploadId: true },
   })]);
   const used = new Set(saved.map(({ uploadId }) => uploadId));
+  for (const { previewUploadId } of previews) if (previewUploadId) used.add(previewUploadId);
   for (const { uploadId } of articleImages) if (uploadId) used.add(uploadId);
   for (const { coverUploadId } of notebooks) if (coverUploadId) used.add(coverUploadId);
   for (const page of pages) {
@@ -49,14 +52,14 @@ export async function listAttachments(
   if (
     cursor &&
     !(await db.upload.findFirst({
-      where: { id: cursor, userId },
+      where: { id: cursor, userId, savedItemPreview: { is: null } },
       select: { id: true },
     }))
   )
     throw new ApiError(404, "Курсор не найден");
   const [uploads, used] = await Promise.all([
     db.upload.findMany({
-      where: { userId },
+      where: { userId, savedItemPreview: { is: null } },
       orderBy: [{ createdAt: "desc" }, { id: "desc" }],
       take: limit + 1,
       ...(cursor ? { cursor: { id: cursor }, skip: 1 } : {}),

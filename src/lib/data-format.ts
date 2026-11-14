@@ -7,7 +7,7 @@ import { TEMPLATE_ICONS } from "@/lib/template-icons";
 import { SECTION_ICONS } from "@/lib/section-icons";
 import { NOTEBOOK_COVER_GRADIENTS, NOTEBOOK_COVER_TYPES } from "@/lib/notebook-cover";
 import { hashtagQuery, MAX_PAGE_TAGS } from "@/lib/hashtags";
-import { MAX_SAVED_ATTACHMENTS, savedItemCreateSchema, savedItemReviewStatusSchema, savedItemTitleOriginSchema, sharedTitleSchema } from "@/lib/saved-item-validation";
+import { MAX_SAVED_ATTACHMENTS, savedItemCreateSchema, savedItemReviewStatusSchema, savedItemTitleOriginSchema, savedPreviewFields, sharedTitleSchema } from "@/lib/saved-item-validation";
 import {
   ACCENT_COLORS,
   PAGE_APPEARANCE_PRESETS,
@@ -18,7 +18,8 @@ import {
   PAGE_PATTERNS,
 } from "@/lib/content-appearance";
 
-export const DATA_FORMAT_VERSION = 7 as const;
+export const DEVICE_PREVIEW_DATA_FORMAT_VERSION = 8 as const;
+export const DATA_FORMAT_VERSION = DEVICE_PREVIEW_DATA_FORMAT_VERSION;
 export const SAVED_ITEMS_DATA_FORMAT_VERSION = 6 as const;
 export const FILE_INTEGRITY_DATA_FORMAT_VERSION = 6 as const;
 export const ARTICLES_DATA_FORMAT_VERSION = 7 as const;
@@ -181,6 +182,10 @@ const portableSavedItemSchema = z.strictObject({
   tags: z.array(portableTag).max(MAX_PAGE_TAGS),
   attachmentKeys: z.array(portableKey).max(MAX_SAVED_ATTACHMENTS),
   article: portableArticleSchema.nullable().optional(),
+  devicePreview: z.strictObject({
+    coverKey: portableKey.nullable(),
+    fields: z.array(savedPreviewFields).max(3),
+  }).optional(),
   metadata: z.strictObject({
     title: portableMetadataText(300),
     description: portableMetadataText(1000),
@@ -201,6 +206,7 @@ export const manifestSchema = z
       z.literal(LINKS_DATA_FORMAT_VERSION),
       z.literal(SECTION_ICONS_DATA_FORMAT_VERSION),
       z.literal(SAVED_ITEMS_DATA_FORMAT_VERSION),
+      z.literal(ARTICLES_DATA_FORMAT_VERSION),
       z.literal(DATA_FORMAT_VERSION),
     ]),
     createdAt: portableDate,
@@ -231,7 +237,7 @@ export const pageExportSchema = z
           z.literal(LINKS_DATA_FORMAT_VERSION),
           z.literal(SECTION_ICONS_DATA_FORMAT_VERSION),
           z.literal(SAVED_ITEMS_DATA_FORMAT_VERSION),
-          z.literal(DATA_FORMAT_VERSION),
+          z.literal(ARTICLES_DATA_FORMAT_VERSION),
         ]),
         createdAt: portableDate,
         app: z.literal("Notebook"),

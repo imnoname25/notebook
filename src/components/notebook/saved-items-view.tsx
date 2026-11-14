@@ -1,10 +1,11 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState, useSyncExternalStore } from "react";
 import { Archive, ArrowLeft, ArrowUpRight, Bookmark, Ellipsis, FileText, ImageIcon, Link2, MessageSquare, Plus, Search, Video } from "lucide-react";
 import * as DropdownMenu from "@radix-ui/react-dropdown-menu";
 import { Button, buttonVariants } from "@/components/ui/button";
 import { api, jsonOptions } from "@/lib/client-api";
+import { cancelNativePreview, hasNativePreviewRefresh, refreshNativePreview } from "@/lib/native-android";
 import { cn } from "@/lib/utils";
 import { t } from "@/lib/i18n/messages";
 import { SavedItemDialog, type SavedDialogAction } from "./saved-item-dialog";
@@ -15,10 +16,12 @@ import type { Notebook } from "./types";
 const views = [{ id: "all", name: "Все" }, { id: "pending", name: "Неразобранное" }, { id: "archive", name: "Архив" }] as const;
 type View = (typeof views)[number]["id"];
 const date = new Intl.DateTimeFormat("ru", { day: "numeric", month: "short", year: "numeric" });
+const noClientSubscription = () => () => undefined;
+const serverPreviewSnapshot = () => false;
 const linkKinds = { article: { label: "Ссылка", icon: Link2 }, video: { label: "Видео", icon: Video }, social: { label: "Публикация", icon: MessageSquare } };
 
 function metadataPreview(item: SavedItem) {
-  if (!item.metadata.hasPreview || (item.hasSavedArticle && item.linkKind === "article")) return undefined;
+  if (!item.metadata.hasPreview || (item.hasSavedArticle && item.linkKind === "article" && !item.metadata.coverOnDevice)) return undefined;
   return `${savedItemEndpoint(item.id)}/preview`;
 }
 
@@ -107,10 +110,10 @@ function SavedCard({ item, selected, onSelect, onTag }: { item: SavedItem; selec
   </li>;
 }
 
-function SavedDetail({ item, busy, onTag, onDialog, onPatch, onRetry, onPage, onArticleDiscarded }: {
+function SavedDetail({ item, busy, onTag, onDialog, onPatch, onRetry, onPage, onReload }: {
   item: SavedItem; busy: boolean; onTag(tag: string): void; onDialog(action: SavedDialogAction): void;
   onPatch(patch: { archived: boolean } | { reviewStatus: "pending" | "reviewed" } | { useWebsiteTitle: true }): void;
-  onRetry(): void; onPage(id: string): void; onArticleDiscarded(): void;
+  onRetry(): void; onPage(id: string): void; onReload(): void;
 }) {
   const heading = useRef<HTMLHeadingElement>(null);
   const canSaveArticle = item.linkKind === "article";
@@ -128,6 +131,27 @@ function SavedDetail({ item, busy, onTag, onDialog, onPatch, onRetry, onPage, on
   const title = protectedTitle ? savedTitle(item) : articleHeading.title || savedTitle(item);
   const [expanded, setExpanded] = useState(false);
   const [canExpand, setCanExpand] = useState(false);
+  const [devicePending, setDevicePending] = useState(false);
+  const [deviceMessage, setDeviceMessage] = useState("");
+  const nativePreview = useSyncExternalStore(noClientSubscription, hasNativePreviewRefresh, serverPreviewSnapshot);
+  const canRefreshOnDevice = item.supportsDevicePreview && nativePreview;
+
+  async function refreshOnDevice() {
+    setDevicePending(true);
+    setDeviceMessage("");
+    try {
+      if (await refreshNativePreview(item.id)) {
+        setDeviceMessage("Превью получено с устройства.");
+        onReload();
+      }
+    } catch (error) { setDeviceMessage(savedError(error)); }
+    finally { setDevicePending(false); }
+  }
+
+  async function cancelDeviceRefresh() {
+    try { await cancelNativePreview(item.id); }
+    catch (error) { setDeviceMessage(savedError(error)); }
+  }
   useEffect(() => { heading.current?.focus({ preventScroll: true }); }, []);
   useEffect(() => {
     const element = heading.current;
@@ -153,12 +177,13 @@ function SavedDetail({ item, busy, onTag, onDialog, onPatch, onRetry, onPage, on
   const edit = { label: "Изменить", run: () => onDialog({ type: "edit", item }) };
   const remove = { label: "Удалить", run: () => onDialog({ type: "delete", item }) };
   const retry = { label: "Повторить получение превью", run: onRetry, disabled: busy };
+  const refreshDevice = { label: "Обновить превью с устройства", run: () => void refreshOnDevice(), disabled: busy || devicePending };
   const useWebsiteTitle = { label: "Использовать заголовок сайта",
     run: () => onPatch({ useWebsiteTitle: true }), disabled: busy };
   const menuActions = [
     ...(pageAction && item.url ? [pageAction] : []), edit,
     ...(item.canUseWebsiteTitle ? [useWebsiteTitle] : []), review, archive,
-    ...(canRetryMetadata ? [retry] : []), remove,
+    ...(canRetryMetadata ? [retry] : []), ...(canRefreshOnDevice ? [refreshDevice] : []), remove,
   ];
   return <article className="notebook-saved-material min-w-0 space-y-4">
     <div className="space-y-2">
@@ -186,14 +211,21 @@ function SavedDetail({ item, busy, onTag, onDialog, onPatch, onRetry, onPage, on
         </DropdownMenu.Portal>
       </DropdownMenu.Root>
     </div>
-    {item.url && (savedLabel || metadataLabel) && <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-sm text-muted-foreground">
+    {item.url && (savedLabel || metadataLabel || canRefreshOnDevice) && <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-sm text-muted-foreground">
       <p role="status" className="flex flex-wrap gap-x-3 gap-y-1">
         {savedLabel && <span className="font-medium text-foreground">{savedLabel}</span>}
         {metadataLabel && <span>{metadataLabel}</span>}
       </p>
       {canRetryMetadata && <Button variant="ghost" className="notebook-saved-desktop min-h-11" disabled={busy} onClick={onRetry}>{retry.label}</Button>}
+      {canRefreshOnDevice && <Button variant="ghost" className="notebook-saved-desktop min-h-11" disabled={refreshDevice.disabled}
+        onClick={refreshDevice.run}>{refreshDevice.label}</Button>}
     </div>}
-    {readsArticle && <SavedArticleControls reader={reader} canSave={canSaveArticle} onDiscarded={onArticleDiscarded}/>}
+    {devicePending && <div className="flex flex-wrap items-center gap-2 text-sm text-muted-foreground">
+      <span role="status">Обновляем превью с устройства…</span>
+      <Button variant="ghost" className="min-h-11" onClick={() => void cancelDeviceRefresh()}>Отменить обновление</Button>
+    </div>}
+    {deviceMessage && <p role="status" className="text-sm text-muted-foreground">{deviceMessage}</p>}
+    {readsArticle && <SavedArticleControls reader={reader} canSave={canSaveArticle} onDiscarded={onReload}/>}
     {article?.browserPlaceholder && <p role="status" className="text-sm text-muted-foreground">Вместо материала сохранена страница обновления браузера.</p>}
     {preview && <DetailPreview key={`${preview}:${item.updatedAt}`} source={preview}/>}
     {article && <SavedArticleReader article={article} headingIndex={title === articleHeading.title ? articleHeading.index : -1}/>}
@@ -305,7 +337,7 @@ export function SavedItemsView({ selectedId, notebooks, onSelect, onBack, onPage
           {detail?.error ? <p role="alert" className="text-sm">{detail.error}</p> : item ? <SavedDetail key={item.id} item={item} busy={workingId === item.id} onTag={selectTag} onDialog={setDialog} onPage={onPage}
             onPatch={patch => void mutate(savedItemEndpoint(item.id), jsonOptions("PATCH", patch))}
             onRetry={() => void mutate(`${savedItemEndpoint(item.id)}/metadata`, { method: "POST" })}
-            onArticleDiscarded={reload}/> : <p role="status" className="text-sm text-muted-foreground">Загружаем материал…</p>}
+            onReload={reload}/> : <p role="status" className="text-sm text-muted-foreground">Загружаем материал…</p>}
         </div>
       </>}
     </section>

@@ -19,6 +19,7 @@ import {
   SAVED_ITEMS_DATA_FORMAT_VERSION,
   FILE_INTEGRITY_DATA_FORMAT_VERSION,
   ARTICLES_DATA_FORMAT_VERSION,
+  DEVICE_PREVIEW_DATA_FORMAT_VERSION,
   manifestSchema,
   pageExportSchema,
   type ArchiveData,
@@ -41,6 +42,8 @@ import { syncPageTags, syncQuickNoteTags } from "@/lib/services/tag-service";
 import { syncPageLinks } from "@/lib/services/page-link-service";
 import { syncLiveWidgetIndex } from "@/lib/services/live-widget-service";
 import { ATTACHMENT_EXTENSIONS, isValidAttachmentMime } from "@/lib/uploads";
+import { DEVICE_PREVIEW_MIME, MAX_DEVICE_PREVIEW_BYTES } from "@/lib/saved-item-validation";
+import { websiteTitle } from "@/lib/saved-item-title";
 import { discardUncommittedUploads, lockUserUploads } from "./upload-service";
 import {
   portableAttachmentKeysInContent,
@@ -101,6 +104,8 @@ function assertPortableReferences(data: ArchiveData, manifest: DataManifest) {
     data.attachments.map((attachment) => attachment.key),
   );
   const imageAttachments = new Set<string>();
+  const coverAttachments = new Set<string>();
+  const savedAttachments = new Set(data.savedItems?.flatMap(item => item.attachmentKeys));
   const attachmentByKey = new Map(data.attachments.map(file => [file.key, file]));
   const pageKeys = new Set(keys[2]);
   // Validate persisted state rather than capture rules: a title can be cleared after creation.
@@ -113,6 +118,22 @@ function assertPortableReferences(data: ArchiveData, manifest: DataManifest) {
     if (manifest.version >= ARTICLES_DATA_FORMAT_VERSION &&
         (item.titleOrigin === "system" || item.titleOrigin === "share") && item.title !== "")
       throw new ApiError(400, "Некорректное происхождение заголовка Saved Item v7");
+    const preview = item.devicePreview;
+    if (preview) {
+      if (manifest.version < DEVICE_PREVIEW_DATA_FORMAT_VERSION || !item.url || (!preview.coverKey && !preview.fields.length)
+        || new Set(preview.fields).size !== preview.fields.length
+        || preview.fields.some(field => !item.metadata[field]?.trim())
+        || (preview.fields.includes("title") && !websiteTitle(item.metadata.title))) {
+        throw new ApiError(400, "Некорректное превью с Android");
+      }
+      if (preview.coverKey) {
+        const cover = attachmentByKey.get(preview.coverKey);
+        if (!cover || cover.mimeType !== DEVICE_PREVIEW_MIME || cover.size > MAX_DEVICE_PREVIEW_BYTES
+          || savedAttachments.has(preview.coverKey) || coverAttachments.has(preview.coverKey))
+          throw new ApiError(400, "Некорректное вложение обложки");
+        coverAttachments.add(preview.coverKey);
+      }
+    }
     for (const image of item.article?.images ?? []) {
       if (image.attachmentKey === null) continue;
       const attachment = attachmentByKey.get(image.attachmentKey);
@@ -127,6 +148,9 @@ function assertPortableReferences(data: ArchiveData, manifest: DataManifest) {
         item.attachmentKeys.some(key => !available.has(key)))
       throw new ApiError(400, "Некорректные связи сохранённого материала");
   }
+  if ([...coverAttachments].some(key => imageAttachments.has(key))) throw new ApiError(400, "Обложка используется в статье");
+  // A device cover has its own authenticated route, so it cannot double as a page file.
+  for (const key of coverAttachments) available.delete(key);
   for (const notebook of data.notebooks) {
     if (notebook.coverAttachmentKey && !available.has(notebook.coverAttachmentKey))
       throw new ApiError(400, "Обложка блокнота ссылается на отсутствующее вложение");
@@ -176,8 +200,11 @@ function assertPortableReferences(data: ArchiveData, manifest: DataManifest) {
       }
   if (manifest.format === BACKUP_FORMAT && manifest.version >= 2) {
     const pages = new Map(keys[2].map(key => [key, key]));
-    for (const template of data.templates ?? [])
+    for (const template of data.templates ?? []) {
+      if ([...portableAttachmentKeysInContent(template.content)].some(key => coverAttachments.has(key)))
+        throw new ApiError(400, "Обложка используется в шаблоне");
       validateTemplateContent(restoreTemplateReferences(template.content, pages, manifest.version).content);
+    }
   }
 }
 
@@ -347,6 +374,7 @@ export async function prepareImport(
     assertPortableReferences(data, manifest);
     const bytes = await validateArchiveFiles(extracted, data, dataName, manifest.version >= FILE_INTEGRITY_DATA_FORMAT_VERSION);
     const articleFiles = new Set(data.savedItems?.flatMap(item => item.article?.images.flatMap(image => image.attachmentKey ? [image.attachmentKey] : []) ?? []));
+    for (const item of data.savedItems ?? []) if (item.devicePreview?.coverKey) articleFiles.add(item.devicePreview.coverKey);
     for (const attachment of data.attachments) if (articleFiles.has(attachment.key))
       await validatePortableArticleImage(path.join(extracted, ...attachment.archivePath!.split("/")));
     return {
@@ -485,6 +513,8 @@ async function importSavedItems(
         metadataDescription: metadata.description,
         metadataSiteName: metadata.siteName,
         metadataImageUrl: metadata.imageUrl,
+        androidMetadataFields: item.devicePreview?.fields ?? [],
+        previewUploadId: item.devicePreview?.coverKey ? attachmentIds.get(item.devicePreview.coverKey)! : null,
         searchTags: item.tags.map(tag => tag.normalized).join(" "),
         // Import and restore never schedule requests to URLs from an archive.
         ...(item.url ? { metadataJob: { create: { finishedAt: new Date() } } } : {}),
@@ -856,7 +886,7 @@ export async function restoreBackupData(
     // Page deletion clears convertedPageId through its FK. Keep v1–v5 saved items and tags.
     if (manifest.version >= SAVED_ITEMS_DATA_FORMAT_VERSION)
       await tx.savedItem.deleteMany({ where: { userId } });
-    const removable = { userId, savedItems: { none: {} }, savedArticleImage: { is: null } };
+    const removable = { userId, savedItems: { none: {} }, savedArticleImage: { is: null }, savedItemPreview: { is: null } };
     const removed = await tx.upload.findMany({ where: removable, select: { storageName: true } });
     await tx.notebook.deleteMany({ where: { userId } });
     await tx.upload.deleteMany({ where: removable });

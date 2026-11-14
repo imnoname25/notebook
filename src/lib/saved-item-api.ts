@@ -1,6 +1,9 @@
 import type { NextRequest } from "next/server";
 import { ApiError, readJson, requireUser, validateRequestOrigin } from "@/lib/api";
-import { MAX_SAVED_ATTACHMENTS, MAX_SAVED_JSON_BYTES, MAX_SAVED_MULTIPART_BYTES, savedItemCreateSchema, savedItemIdempotencyKeySchema } from "@/lib/saved-item-validation";
+import {
+  devicePreviewSchema, MAX_DEVICE_PREVIEW_BYTES, MAX_SAVED_ATTACHMENTS, MAX_SAVED_JSON_BYTES,
+  MAX_SAVED_MULTIPART_BYTES, savedItemCreateSchema, savedItemIdempotencyKeySchema,
+} from "@/lib/saved-item-validation";
 import { prepareUpload } from "@/lib/services/upload-service";
 import { maxUploadBytes } from "@/lib/uploads";
 
@@ -14,16 +17,20 @@ export function readIdempotencyKey(request: Request) {
   return savedItemIdempotencyKeySchema.parse(request.headers.get("idempotency-key"));
 }
 
-async function boundedBody(request: Request, maxBytes: number) {
+async function boundedBody(request: Request, maxBytes: number, timeoutMs?: number) {
   const length = request.headers.get("content-length");
   if (length && Number(length) > maxBytes) throw new ApiError(413, "Запрос слишком большой");
   if (!request.body) throw new ApiError(400, "Тело запроса отсутствует");
   const reader = request.body.getReader();
+  const deadline = timeoutMs === undefined ? undefined : AbortSignal.timeout(timeoutMs);
+  const cancel = () => { void reader.cancel().catch(() => undefined); };
+  deadline?.addEventListener("abort", cancel, { once: true });
   const chunks: Uint8Array[] = [];
   let bytes = 0;
   try {
     for (;;) {
       const { done, value } = await reader.read();
+      if (deadline?.aborted) throw new ApiError(408, "Истекло время загрузки");
       if (done) break;
       bytes += value.byteLength;
       if (bytes > maxBytes) {
@@ -34,8 +41,10 @@ async function boundedBody(request: Request, maxBytes: number) {
     }
   } catch (error) {
     if (error instanceof ApiError) throw error;
+    if (deadline?.aborted) throw new ApiError(408, "Истекло время загрузки");
     throw new ApiError(400, "Не удалось прочитать тело запроса");
   } finally {
+    deadline?.removeEventListener("abort", cancel);
     reader.releaseLock();
   }
   return new Request(request.url, {
@@ -76,4 +85,23 @@ export async function readSavedItemCreate(request: Request) {
     return prepareUpload(file, true);
   }));
   return { input, files: prepared };
+}
+
+export async function readDevicePreview(request: Request) {
+  const maxJsonBytes = 16 * 1024;
+  const type = mediaType(request);
+  if (type === "application/json") {
+    const body = await boundedBody(request, maxJsonBytes, 15_000);
+    return { input: devicePreviewSchema.parse(await readJson(body)), cover: null };
+  }
+  if (type !== "multipart/form-data") throw new ApiError(415, "Требуется JSON или multipart");
+  const body = await boundedBody(request, Math.min(maxUploadBytes(), MAX_DEVICE_PREVIEW_BYTES) + maxJsonBytes, 15_000);
+  const form = await body.formData().catch(() => { throw new ApiError(400, "Некорректный multipart"); });
+  const [payload] = form.getAll("payload");
+  const [cover] = form.getAll("cover");
+  if ([...form].length !== 2 || typeof payload !== "string" || Buffer.byteLength(payload) > maxJsonBytes || !(cover instanceof File)) {
+    throw new ApiError(400, "Ожидаются поля payload и cover");
+  }
+  const input = devicePreviewSchema.parse(await readJson(new Request(request.url, { method: "POST", body: payload })));
+  return { input, cover };
 }

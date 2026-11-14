@@ -25,6 +25,10 @@ final class NotebookShareHttp {
     private final OkHttpClient client;
 
     NotebookShareHttp() {
+        this(75);
+    }
+
+    NotebookShareHttp(int callTimeout) {
         client = new OkHttpClient.Builder()
                 .cookieJar(CookieJar.NO_COOKIES)
                 .proxy(Proxy.NO_PROXY)
@@ -34,7 +38,7 @@ final class NotebookShareHttp {
                 .connectTimeout(5, TimeUnit.SECONDS)
                 .readTimeout(10, TimeUnit.SECONDS)
                 .writeTimeout(30, TimeUnit.SECONDS)
-                .callTimeout(75, TimeUnit.SECONDS)
+                .callTimeout(callTimeout, TimeUnit.SECONDS)
                 .build();
     }
 
@@ -92,6 +96,41 @@ final class NotebookShareHttp {
             int code = response.code();
             String id = code == 200 || code == 201 ? confirmedId(readJson(response.body(), 512 * 1024), entry) : null;
             return new NotebookShareSync.Result(code, id, code == 429 ? retryAfter(response.header("Retry-After")) : 0);
+        }
+    }
+
+    String previewSource(NotebookShareServer server, String cookie, String id) throws IOException {
+        Request request = request(server, "/api/saved-items/" + id, cookie).get().build();
+        try (Response response = client.newCall(request).execute()) {
+            if (!response.isSuccessful()) {
+                throw new NotebookPreviewNetwork.Unavailable(response.code() >= 500 || response.code() == 429 || response.code() == 408);
+            }
+            JSONObject document = readJson(response.body(), 512 * 1024);
+            JSONObject item = document == null ? null : document.optJSONObject("item");
+            if (item == null || !id.equals(item.opt("id")) || !Boolean.TRUE.equals(item.opt("supportsDevicePreview"))) return null;
+            Object url = item.opt("url");
+            return url instanceof String ? (String) url : null;
+        }
+    }
+
+    int uploadPreview(NotebookShareServer server, String cookie, String id, String key, NotebookLinkPreview.Result preview) throws IOException {
+        JSONObject payload = new JSONObject();
+        try {
+            payload.put("title", preview.title()).put("description", preview.description()).put("siteName", preview.siteName());
+        } catch (JSONException invalid) {
+            throw new IOException("Invalid device preview");
+        }
+        RequestBody body = RequestBody.create(payload.toString(), JSON);
+        if (preview.image() != null) {
+            body = new MultipartBody.Builder().setType(MultipartBody.FORM)
+                    .addFormDataPart("payload", payload.toString())
+                    .addFormDataPart("cover", "preview", RequestBody.create(preview.image(), MediaType.get(preview.mime())))
+                    .build();
+        }
+        Request request = request(server, "/api/saved-items/" + id + "/device-preview", cookie)
+                .header("Origin", server.origin).header("Idempotency-Key", key).put(body).build();
+        try (Response response = client.newCall(request).execute()) {
+            return response.code();
         }
     }
 

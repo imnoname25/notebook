@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
   archiveDataSchema,
+  ARTICLES_DATA_FORMAT_VERSION,
   DATA_FORMAT_VERSION,
   manifestSchema,
   pageExportSchema,
@@ -174,7 +175,7 @@ describe("portable data contracts", () => {
     const value = pageExportSchema.parse({
       manifest: {
         format: "notebook-page",
-        version: DATA_FORMAT_VERSION,
+        version: ARTICLES_DATA_FORMAT_VERSION,
         createdAt: now,
         app: "Notebook",
       },

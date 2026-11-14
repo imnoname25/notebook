@@ -14,7 +14,9 @@ export async function PATCH(request: NextRequest, { params }: Context) {
     const notebook = await db.notebook.findFirst({ where: { id, userId: user.id, deletedAt: null }, select: { id: true } });
     if (!notebook) throw new ApiError(404, "Блокнот не найден");
     if (input.coverUploadId) {
-      const upload = await db.upload.findFirst({ where: { id: input.coverUploadId, userId: user.id, pageId: null }, select: { id: true } });
+      const upload = await db.upload.findFirst({
+        where: { id: input.coverUploadId, userId: user.id, pageId: null, savedItemPreview: { is: null } }, select: { id: true },
+      });
       if (!upload) throw new ApiError(400, "Обложка должна принадлежать текущему пользователю");
     }
     const { coverUploadId, ...data } = input;

@@ -3,10 +3,11 @@ import { copyFile, mkdir, mkdtemp, readFile, readdir, rm, writeFile } from "node
 import { createServer } from "node:http";
 import { tmpdir } from "node:os";
 import path from "node:path";
+import sharp from "sharp";
 import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
 import { createZipArchive } from "@/lib/archive";
 import { savedItemCreateSchema } from "@/lib/saved-item-validation";
-import { BACKUP_FORMAT, DATA_FORMAT_VERSION, type ArchiveData, type DataManifest } from "@/lib/data-format";
+import { ARTICLES_DATA_FORMAT_VERSION, BACKUP_FORMAT, DEVICE_PREVIEW_DATA_FORMAT_VERSION, type ArchiveData, type DataManifest } from "@/lib/data-format";
 
 vi.mock("node:fs/promises", async importOriginal => {
   const fs = await importOriginal<typeof import("node:fs/promises")>();
@@ -137,7 +138,7 @@ describe.skipIf(!enabled)("Saved Items portable backup, real PostgreSQL and ZIP"
     const bytes = await readZip(all);
     const prepared = await imports.prepareImport(request(bytes));
     try {
-      expect(prepared.manifest?.version).toBe(DATA_FORMAT_VERSION);
+      expect(prepared.manifest?.version).toBe(ARTICLES_DATA_FORMAT_VERSION);
       expect(prepared.summary.savedItems).toBe(2);
       expect(JSON.stringify(prepared.data)).not.toMatch(/leaseToken|fixture-lease|fingerprint|convertedPageId/);
       await imports.commitImport(other, prepared);
@@ -149,6 +150,39 @@ describe.skipIf(!enabled)("Saved Items portable backup, real PostgreSQL and ZIP"
       expect(await db.upload.count({ where: { userId: other } })).toBe(4);
       expect(await db.savedItemRequest.count({ where: { userId: other } })).toBe(0);
       expect(await db.savedItem.count({ where: { userId: owner } })).toBe(2);
+    } finally { await imports.disposePreparedImport(prepared); }
+  });
+
+  it("restores an Android cover privately and keeps its provenance and ordinary attachments", async () => {
+    const { prepareDevicePreviewImage } = await import("./saved-device-preview-image");
+    const { active } = await capture();
+    const raw = await sharp({ create: { width: 80, height: 50, channels: 3, background: "navy" } }).png().toBuffer();
+    const cover = await prepareDevicePreviewImage(new File([new Uint8Array(raw)], "original.png", { type: "image/png" }));
+    await db.savedItem.update({ where: { id: active.id }, data: { metadataDescription: null } });
+    await saved.applySavedDevicePreview(owner, active.id, "preview-backup", { description: "Получено с устройства" }, cover);
+    const built = await exports.buildPortableExport(owner, backup);
+    const exported = built.data.savedItems!.find(item => item.url === url)!;
+    const coverKey = exported.devicePreview?.coverKey;
+    expect(built.manifest.version).toBe(DEVICE_PREVIEW_DATA_FORMAT_VERSION);
+    expect(exported.devicePreview).toEqual({ coverKey: expect.any(String), fields: ["description"] });
+    expect(exported.attachmentKeys).toHaveLength(1);
+    expect(exported.attachmentKeys).not.toContain(coverKey);
+    expect(JSON.stringify(built.data)).not.toMatch(/preview-backup|leaseToken|previewUploadId/);
+
+    const oldFormat = await writeFixture({ ...built.manifest, version: ARTICLES_DATA_FORMAT_VERSION }, built.data, built.attachmentFiles);
+    await expect(imports.prepareImport(request(oldFormat), "backup")).rejects.toMatchObject({ status: 400 });
+    const prepared = await imports.prepareImport(request(await readZip()), "backup");
+    try {
+      await imports.restoreBackupData(other, prepared);
+      const restored = await db.savedItem.findFirstOrThrow({
+        where: { url, userId: other }, include: { attachments: true, previewUpload: true },
+      });
+      expect(restored).toMatchObject({ metadataDescription: "Получено с устройства", androidMetadataFields: ["description"] });
+      expect(restored.attachments).toHaveLength(1);
+      expect(restored.previewUpload).toMatchObject({ userId: other, mimeType: "image/webp", sha256: cover.sha256 });
+      expect(await readFile(path.join(process.env.UPLOAD_DIR!, restored.previewUpload!.storageName))).toEqual(Buffer.from(cover.bytes));
+      expect(await saved.getSavedItem(other, restored.id)).toMatchObject({ metadataStatus: "ready", metadata: { coverOnDevice: true } });
+      expect(await db.savedItemMetadataJob.count({ where: { savedItem: { userId: other }, finishedAt: null } })).toBe(0);
     } finally { await imports.disposePreparedImport(prepared); }
   });
 
@@ -230,7 +264,7 @@ describe.skipIf(!enabled)("Saved Items portable backup, real PostgreSQL and ZIP"
     const safety = await backups.backupRecordFile(result.safetyBackupId);
     const prepared = await imports.prepareImport(request(new Uint8Array(await readFile(safety.filePath))), "backup");
     try {
-      expect(prepared.manifest?.version).toBe(DATA_FORMAT_VERSION);
+      expect(prepared.manifest?.version).toBe(ARTICLES_DATA_FORMAT_VERSION);
       expect(prepared.data?.savedItems?.map(item => item.text)).toContain("Later");
       expect(safety.record.type).toBe("safety");
     } finally { await imports.disposePreparedImport(prepared); }

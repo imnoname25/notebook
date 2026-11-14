@@ -10,6 +10,7 @@ import android.net.NetworkCapabilities;
 import android.os.Handler;
 import android.os.Looper;
 import android.webkit.CookieManager;
+import androidx.work.WorkManager;
 
 import java.io.File;
 import java.io.IOException;
@@ -20,8 +21,10 @@ import java.util.ArrayDeque;
 import java.util.List;
 import java.util.UUID;
 import java.util.concurrent.Executors;
+import java.util.concurrent.ExecutionException;
 import java.util.concurrent.ScheduledFuture;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.TimeoutException;
 import java.util.function.Consumer;
 
 final class NotebookShareManager {
@@ -83,7 +86,7 @@ final class NotebookShareManager {
         store = new NotebookShareStore(new File(context.getNoBackupFilesDir(), "saved-share-queue"), new NotebookShareDisk());
         connectivity = context.getSystemService(ConnectivityManager.class);
         disk.execute(() -> {
-            try { store.recover(); }
+            try { store.recover(this::schedulePreview); }
             catch (IOException failure) { message("Не удалось полностью восстановить локальную очередь."); }
         });
     }
@@ -320,7 +323,7 @@ final class NotebookShareManager {
                 sending = entry.id;
                 changed();
                 try {
-                    if (NotebookShareSync.submit(store, entry, account, now, item -> http.upload(server, cookie, store, item))) {
+                    if (NotebookShareSync.submit(store, entry, account, now, item -> http.upload(server, cookie, store, item), this::schedulePreview)) {
                         message("Сохранено в Блокнот");
                     }
                 } finally {
@@ -344,6 +347,43 @@ final class NotebookShareManager {
     private boolean stillVerified(NotebookShareSync.Account recipient) {
         var current = currentAccount();
         return current != null && current.server.equals(recipient.server) && current.id.equals(recipient.id);
+    }
+
+    String previewCookie(NotebookShareServer server) {
+        return server.equals(selected) ? cookie(server) : null;
+    }
+
+    private void schedulePreview(NotebookShareRecord entry) throws IOException {
+        var server = NotebookShareServer.parse(entry.server);
+        if (entry.url.isEmpty() || server == null || entry.accountId.isEmpty() || !entry.remoteId.matches("[A-Za-z0-9_-]{1,128}")) return;
+        try {
+            NotebookPreviewWorker.enqueue(context, server, entry.accountId, entry.remoteId, false)
+                    .operation().getResult().get(2, TimeUnit.SECONDS);
+        } catch (InterruptedException interrupted) {
+            Thread.currentThread().interrupt();
+            throw new IOException("Preview scheduling interrupted", interrupted);
+        } catch (ExecutionException | TimeoutException | RuntimeException failure) {
+            throw new IOException("Could not schedule preview", failure);
+        }
+    }
+
+    private NotebookShareSync.Account previewAccount(String pageUrl, String itemId) {
+        var server = selected;
+        if (itemId == null || !itemId.matches("[A-Za-z0-9_-]{1,128}") || server == null || !server.ownsAppPage(pageUrl)) return null;
+        var account = currentAccount();
+        return account != null && server.equals(account.server) ? account : null;
+    }
+
+    NotebookPreviewWorker.Job updatePreview(String pageUrl, String itemId) {
+        var account = previewAccount(pageUrl, itemId);
+        return account == null ? null : NotebookPreviewWorker.enqueue(context, account.server, account.id, itemId, true);
+    }
+
+    boolean cancelPreview(String pageUrl, String itemId) {
+        var account = previewAccount(pageUrl, itemId);
+        if (account == null) return false;
+        WorkManager.getInstance(context).cancelUniqueWork(NotebookPreviewWorker.uniqueName(account.server, account.id, itemId));
+        return true;
     }
 
     private static String cookie(NotebookShareServer server) {

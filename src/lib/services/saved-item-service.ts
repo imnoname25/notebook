@@ -6,7 +6,7 @@ import { ApiError } from "@/lib/errors";
 import { resolveSavedItemTitle, savedItemTitleOriginsEnabled, websiteTitle } from "@/lib/saved-item-title";
 import { classifySavedLink } from "@/lib/saved-link";
 import { extractHashtags } from "@/lib/hashtags";
-import type { SavedItemCreateInput, SavedItemListInput, SavedItemUpdateInput } from "@/lib/saved-item-validation";
+import type { DevicePreviewInput, SavedItemCreateInput, SavedItemListInput, SavedItemUpdateInput } from "@/lib/saved-item-validation";
 import { createPageInTransaction } from "./page-service";
 import { enqueueNewSavedArticle } from "./saved-article-queue";
 import { syncSavedItemTags } from "./tag-service";
@@ -15,6 +15,7 @@ import { lockUserUploads, type PreparedUpload, withUploadWrites } from "./upload
 const itemSelect = {
   id: true, title: true, titleOrigin: true, sharedTitle: true, text: true, url: true, reviewStatus: true,
   metadataTitle: true, metadataDescription: true, metadataSiteName: true, metadataImageUrl: true,
+  androidMetadataFields: true, previewUploadId: true,
   archivedAt: true, convertedAt: true, convertedPageId: true, createdAt: true, updatedAt: true,
   tags: { orderBy: { tag: { normalized: "asc" } }, select: { tag: { select: { name: true, normalized: true } } } },
   attachments: { orderBy: { position: "asc" }, select: { upload: { select: { id: true, originalName: true, mimeType: true, size: true } } } },
@@ -30,22 +31,30 @@ function displayTitle(item: Item) {
 }
 
 function serializeItem(record: Item) {
-  const { attachments, tags, metadataJob, metadataTitle, metadataDescription, metadataSiteName, metadataImageUrl, article, ...item } = record;
+  const {
+    attachments, tags, metadataJob, metadataTitle, metadataDescription, metadataSiteName, metadataImageUrl,
+    androidMetadataFields, previewUploadId, article, ...item
+  } = record;
   const sourceTitle = websiteTitle(metadataTitle) || null;
-  const hasMetadata = Boolean(sourceTitle || metadataDescription || metadataImageUrl);
+  const hasPreview = Boolean(previewUploadId || metadataImageUrl);
+  const hasMetadata = Boolean(sourceTitle || metadataDescription || hasPreview);
+  const hasDevicePreview = Boolean(previewUploadId || androidMetadataFields.length);
+  const deviceReady = hasDevicePreview && Boolean(hasMetadata || metadataSiteName);
   return {
     ...item,
     linkKind: item.url ? classifySavedLink(item.url).kind : null,
+    supportsDevicePreview: item.url !== null,
     hasSavedArticle: article !== null && article.sourceUrl === item.url,
     displayTitle: displayTitle(record),
     canUseWebsiteTitle: savedItemTitleOriginsEnabled() && Boolean(sourceTitle)
       && item.titleOrigin !== "system",
     tags: tags.map(({ tag }) => tag),
     attachments: attachments.map(({ upload }) => ({ ...upload, url: attachmentUrl(upload.id) })),
-    metadata: { title: sourceTitle, description: metadataDescription, siteName: metadataSiteName, hasPreview: Boolean(metadataImageUrl) },
-    metadataStatus: !metadataJob ? "skipped" : !metadataJob.finishedAt ? "queued"
+    metadata: { title: sourceTitle, description: metadataDescription, siteName: metadataSiteName, hasPreview,
+      androidFields: androidMetadataFields, coverOnDevice: Boolean(previewUploadId) },
+    metadataStatus: deviceReady ? "ready" : !metadataJob ? "skipped" : !metadataJob.finishedAt ? "queued"
       : metadataJob.failed ? "failed" : hasMetadata ? "ready" : "empty",
-    metadataFailure: metadataJob?.failed ? metadataJob.failureReason : null,
+    metadataFailure: !deviceReady && metadataJob?.failed ? metadataJob.failureReason : null,
   };
 }
 
@@ -95,6 +104,40 @@ export async function getSavedItem(userId: string, id: string) {
   const item = await findOwnedItem(db, userId, id);
   if (!item) throw new ApiError(404, "Материал не найден");
   return serializeItem(item);
+}
+
+export async function applySavedDevicePreview(userId: string, id: string, key: string, input: DevicePreviewInput, cover: PreparedUpload | null) {
+  const title = websiteTitle(input.title ?? null);
+  if (input.title && !title) throw new ApiError(422, "Источник вернул служебную страницу");
+  if (!title && !input.description && !input.siteName && !cover) throw new ApiError(400, "Превью пустое");
+  const hash = fingerprint([id, title, input.description, input.siteName, cover?.sha256]);
+  await withUploadWrites(userId, async (tx, store) => {
+    const item = await findOwnedItem(tx, userId, id);
+    if (!item) throw new ApiError(404, "Материал не найден");
+    if (!item.url) throw new ApiError(409, "У материала нет ссылки");
+    const operation = "devicePreview";
+    if (await previousResult(tx, userId, operation, key, hash)) return;
+    const fields = new Set(item.androidMetadataFields);
+    const updates: Prisma.SavedItemUpdateInput = {};
+    if (title && !websiteTitle(item.metadataTitle)) {
+      updates.metadataTitle = title;
+      fields.add("title");
+    }
+    if (input.description && !item.metadataDescription) {
+      updates.metadataDescription = input.description;
+      fields.add("description");
+    }
+    if (input.siteName && (!item.metadataSiteName || item.metadataSiteName === URL.parse(item.url)?.hostname)) {
+      updates.metadataSiteName = input.siteName;
+      fields.add("siteName");
+    }
+    if (cover && item.previewUploadId === null) updates.previewUpload = { connect: { id: (await store(cover)).id } };
+    if (Object.keys(updates).length) {
+      updates.androidMetadataFields = [...fields];
+      await tx.savedItem.update({ where: { id }, data: updates });
+    }
+    await tx.savedItemRequest.create({ data: { userId, operation, key, fingerprint: hash, resultId: id } });
+  });
 }
 
 export async function retrySavedItemMetadata(userId: string, id: string) {

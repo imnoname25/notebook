@@ -11,12 +11,12 @@ const article = () => ({
 
 describe("portable Saved Article v7 contracts", () => {
   it("pins each capability independently of the current writer version", () => {
-    expect(DATA_FORMAT_VERSION).toBe(7);
+    expect(DATA_FORMAT_VERSION).toBe(8);
     expect(SAVED_ITEMS_DATA_FORMAT_VERSION).toBe(6);
     expect(FILE_INTEGRITY_DATA_FORMAT_VERSION).toBe(6);
     expect(ARTICLES_DATA_FORMAT_VERSION).toBe(7);
   });
-  it.each([1, 2, 3, 4, 5, 6, 7])("continues accepting manifest v%i", version => {
+  it.each([1, 2, 3, 4, 5, 6, 7, 8])("accepts archive manifest v%i", version => {
     expect(manifestSchema.parse({ format: "notebook-backup", version, createdAt: "2026-11-12T10:00:00.000Z",
       app: "Notebook", scope: "backup", includesHistory: true, attachmentCount: 0 }).version).toBe(version);
   });

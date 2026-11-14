@@ -83,4 +83,20 @@ public class NotebookShareSyncTest {
         assertEquals(NotebookShareRecord.Status.ERROR, item.status);
         assertFalse(NotebookShareSync.due(item, owner, Long.MAX_VALUE));
     }
+
+    @Test public void continuesAfterPreviewSchedulingFailsAndRecoverDoesNotUploadTheLinkAgain() throws Exception {
+        var store = new NotebookShareStore(temp.newFolder(), new NotebookShareStoreTest.TestDisk());
+        var entry = store.capture(UUID.randomUUID(), 1, "", "", "https://example.org/story", List.of(), server, owner);
+        entry.status = NotebookShareRecord.Status.QUEUED;
+        store.update(entry);
+        assertTrue(NotebookShareSync.submit(store, entry, owner, 1,
+                pending -> new NotebookShareSync.Result(201, "notebook-id", 0),
+                saved -> { throw new IOException("Scheduling interrupted"); }));
+        assertTrue(store.list().isEmpty());
+        assertEquals(NotebookShareRecord.Status.SENT, store.read(entry.id).status);
+        var observed = new java.util.ArrayList<String>();
+        store.recover(saved -> observed.add(saved.remoteId));
+        assertEquals(List.of("notebook-id"), observed);
+        assertNull(store.read(entry.id));
+    }
 }

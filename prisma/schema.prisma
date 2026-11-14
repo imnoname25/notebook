@@ -33,6 +33,13 @@ enum SavedItemReviewStatus {
 enum SavedItemOperation {
   create
   convert
+  devicePreview
+}
+
+enum SavedPreviewField {
+  title
+  description
+  siteName
 }
 
 model User {
@@ -371,6 +378,8 @@ model SavedItem {
   metadataDescription String? @db.Text
   metadataSiteName    String?
   metadataImageUrl    String?
+  androidMetadataFields SavedPreviewField[] @default([])
+  previewUploadId     String? @unique
   searchTags          String  @default("") @db.Text
   reviewStatus    SavedItemReviewStatus @default(pending)
   archivedAt      DateTime?
@@ -386,6 +395,7 @@ model SavedItem {
   metadataJob     SavedItemMetadataJob?
   article         SavedArticle?
   articleJob      SavedArticleJob?
+  previewUpload   Upload?               @relation("SavedItemPreview", fields: [previewUploadId], references: [id], onDelete: NoAction)
 
   @@index([userId, archivedAt, createdAt, id])
   @@index([convertedPageId])
@@ -532,6 +542,7 @@ model Upload {
   notebookCoverFor Notebook? @relation("NotebookCover")
   savedItems    SavedItemAttachment[]
   savedArticleImage SavedArticleImage?
+  savedItemPreview SavedItem? @relation("SavedItemPreview")
 
   @@index([userId])
   @@index([userId, createdAt])

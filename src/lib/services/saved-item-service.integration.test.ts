@@ -5,6 +5,7 @@ import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from "vites
 import { savedItemCreateSchema, savedItemListSchema } from "@/lib/saved-item-validation";
 import { fetchSavedMetadata } from "@/lib/saved-metadata";
 import { fetchSavedMetadataResource, SavedMetadataError } from "@/lib/saved-metadata-network";
+import sharp from "sharp";
 
 const databaseUrl = process.env.TEST_DATABASE_URL;
 const enabled = Boolean(databaseUrl) && process.env.TEST_RESET_DATABASE === "1";
@@ -217,6 +218,56 @@ describe.skipIf(!enabled)("saved items on PostgreSQL with persistent files", () 
     expect(await saved.getSavedItem(owner, item.id)).toMatchObject({ metadataStatus: "failed", reviewStatus: "pending" });
     await saved.deleteSavedItem(owner, item.id);
     expect(await db.savedItemMetadataJob.count()).toBe(0);
+  });
+
+  it("merges device fields during the server job and preserves user edits and stronger metadata", async () => {
+    const url = "https://youtu.be/testVideo_1";
+    const item = (await saved.createSavedItem(owner, "device-race", savedItemCreateSchema.parse({ url, sharedTitle: "Shared title" }), [])).item;
+    const { processSavedMetadataJob } = await import("./saved-item-metadata-worker");
+    const { searchNotebook } = await import("./search-service");
+    let complete!: (value: Awaited<ReturnType<typeof fetchSavedMetadata>>) => void;
+    let started!: () => void;
+    const requestStarted = new Promise<void>(resolve => { started = resolve; });
+    const response = new Promise<Awaited<ReturnType<typeof fetchSavedMetadata>>>(resolve => { complete = resolve; });
+    const running = processSavedMetadataJob(new AbortController().signal, async () => { started(); return response; });
+    await requestStarted;
+    const png = await sharp({ create: { width: 80, height: 50, channels: 3, background: "purple" } }).png().toBuffer();
+    const { prepareDevicePreviewImage } = await import("./saved-device-preview-image");
+    const cover = await prepareDevicePreviewImage(new File([new Uint8Array(png)], "picture.png", { type: "image/png" }));
+    const preview = { title: "Android Orchard", description: "Device description" };
+    try {
+      await Promise.all([
+        saved.updateSavedItem(owner, item.id, { title: "My manual title", tags: ["review"], archived: true }),
+        saved.applySavedDevicePreview(owner, item.id, "preview-once", preview, cover),
+        saved.applySavedDevicePreview(owner, item.id, "preview-once", preview, cover),
+      ]);
+    } finally {
+      complete({ metadataTitle: "Server title", metadataDescription: null, metadataSiteName: "Server site", metadataImageUrl: "https://example.com/image.jpg" });
+      await running;
+    }
+    await saved.applySavedDevicePreview(owner, item.id, "less-complete", { title: "Inferior title", siteName: "Inferior site" }, cover);
+    await expect(saved.applySavedDevicePreview(owner, item.id, "preview-once", { title: "Changed payload" }, null))
+      .rejects.toMatchObject({ status: 409 });
+    await expect(saved.applySavedDevicePreview(other, item.id, "foreign", preview, cover)).rejects.toMatchObject({ status: 404 });
+    expect(await db.upload.count({ where: { userId: owner } })).toBe(1);
+    expect(await saved.getSavedItem(owner, item.id)).toMatchObject({
+      title: "My manual title", archivedAt: expect.any(Date), sharedTitle: "Shared title", tags: [{ normalized: "review" }],
+      metadataStatus: "ready", metadata: {
+        title: preview.title, description: preview.description, siteName: "Server site", hasPreview: true,
+        androidFields: ["title", "description"], coverOnDevice: true,
+      },
+    });
+    expect(await saved.listSavedItems(owner, savedItemListSchema.parse({ archive: "all", q: "Orchard" }))).toMatchObject({ items: [{ id: item.id }] });
+    expect((await searchNotebook(owner, "Orchard")).results).toEqual([]);
+    await saved.updateSavedItem(owner, item.id, { archived: false });
+    expect((await searchNotebook(owner, "Orchard")).results).toEqual([
+      expect.objectContaining({ type: "savedItem", id: item.id, title: "My manual title" }),
+    ]);
+    const { previewUploadId } = await db.savedItem.findUniqueOrThrow({ where: { id: item.id } });
+    expect((await files.listAttachments(owner, 20)).attachments).toEqual([]);
+    await expect(files.deleteUnusedAttachment(owner, previewUploadId!)).rejects.toMatchObject({ status: 409 });
+    await db.user.delete({ where: { id: owner } });
+    expect(await db.upload.count({ where: { userId: owner } })).toBe(0);
   });
 
   it("resolves share, manual and legacy titles without changing create retries when the flag flips", async () => {

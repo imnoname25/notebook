@@ -9,7 +9,8 @@ import {
   archiveDataSchema,
   portableArticleSchema,
   blockNoteContentSchema,
-  DATA_FORMAT_VERSION,
+  ARTICLES_DATA_FORMAT_VERSION,
+  DEVICE_PREVIEW_DATA_FORMAT_VERSION,
   EXPORT_FORMAT,
   PAGE_FORMAT,
   type ArchiveData,
@@ -32,6 +33,7 @@ import { blockNoteToMarkdown } from "@/lib/markdown-export";
 import { assertSafeArchivePath, createDataTempDirectory, createZipArchive } from "@/lib/archive";
 import { MAX_IMPORT_ENTRIES, MAX_IMPORT_JSON_BYTES, maxImportArchiveBytes, maxImportUncompressedBytes } from "@/lib/data-limits";
 import { ATTACHMENT_EXTENSIONS, isValidAttachmentMime } from "@/lib/uploads";
+import { DEVICE_PREVIEW_MIME } from "@/lib/saved-item-validation";
 import { lockUserUploads } from "./upload-service";
 import { validatePortableArticleImage } from "./portable-article-files";
 import { blockNoteToSafeHtml, standalonePageHtml } from "@/lib/html-export";
@@ -142,12 +144,15 @@ export async function buildPortableExport(
   for (const item of savedItems) {
     for (const attachment of item.attachments) attachmentIds.add(attachment.uploadId);
     for (const image of item.article?.images ?? []) if (image.uploadId) attachmentIds.add(image.uploadId);
+    if (item.previewUploadId) attachmentIds.add(item.previewUploadId);
   }
   const articleUploadIds = new Set(savedItems.flatMap(item => item.article?.images.flatMap(image => image.uploadId ? [image.uploadId] : []) ?? []));
+  const previewUploadIds = new Set(savedItems.flatMap(item => item.previewUploadId ?? []));
+  const attachmentScope = options.notebookId ? { savedItemPreview: { is: null } } as const : {};
   const uploads = await client.upload.findMany({
     where: options.backup
       ? { userId }
-      : { userId, id: { in: [...attachmentIds] } },
+      : { userId, id: { in: [...attachmentIds] }, ...attachmentScope },
     orderBy: { createdAt: "asc" },
   });
   const availableUploadIds = new Set(uploads.map(upload => upload.id));
@@ -281,7 +286,9 @@ export async function buildPortableExport(
       }
       hash = await sha256File(source);
       if (upload.sha256 && upload.sha256 !== hash) throw new Error("SHA-256");
-      if (articleUploadIds.has(upload.id)) await validatePortableArticleImage(source);
+      const isPreview = previewUploadIds.has(upload.id);
+      if (isPreview && upload.mimeType !== DEVICE_PREVIEW_MIME) throw new Error("Invalid preview MIME");
+      if (isPreview || articleUploadIds.has(upload.id)) await validatePortableArticleImage(source);
     } catch {
       throw new ApiError(
         409,
@@ -314,7 +321,8 @@ export async function buildPortableExport(
       });
   const manifest: DataManifest = {
     format: options.backup ? BACKUP_FORMAT : EXPORT_FORMAT,
-    version: DATA_FORMAT_VERSION,
+    version: savedItems.some(item => item.previewUploadId || item.androidMetadataFields.length)
+      ? DEVICE_PREVIEW_DATA_FORMAT_VERSION : ARTICLES_DATA_FORMAT_VERSION,
     createdAt: new Date().toISOString(),
     app: "Notebook",
     scope: options.backup ? "backup" : options.notebookId ? "notebook" : "all",
@@ -354,6 +362,10 @@ export async function buildPortableExport(
               updatedAt: date(item.updatedAt),
               tags: item.tags.map(({ tag: { name, normalized } }) => ({ name, normalized })),
               attachmentKeys: item.attachments.map(({ uploadId }) => uploadKey.get(uploadId)!),
+              ...(item.previewUploadId || item.androidMetadataFields.length ? { devicePreview: {
+                coverKey: item.previewUploadId ? uploadKey.get(item.previewUploadId)! : null,
+                fields: item.androidMetadataFields,
+              } } : {}),
               article: item.article ? portableArticleSchema.parse({
                 contentVersion: item.article.contentVersion,
                 blocks: item.article.blocks,
@@ -437,7 +449,7 @@ export async function exportPageJson(
   if (page.coverUploadId) ids.add(page.coverUploadId);
   if (page.backgroundUploadId) ids.add(page.backgroundUploadId);
   const uploads = await db.upload.findMany({
-    where: { userId, id: { in: [...ids] } },
+    where: { userId, id: { in: [...ids] }, savedItemPreview: { is: null } },
   });
   if (uploads.length !== ids.size)
     throw new ApiError(409, "Некоторые вложения страницы отсутствуют");
@@ -460,7 +472,7 @@ export async function exportPageJson(
   return {
     manifest: {
       format: PAGE_FORMAT,
-      version: DATA_FORMAT_VERSION,
+      version: ARTICLES_DATA_FORMAT_VERSION,
       createdAt: new Date().toISOString(),
       app: "Notebook",
     },
@@ -528,7 +540,7 @@ export async function exportPageHtmlArchive(userId: string, pageId: string) {
   if (!page) throw new ApiError(404, "Страница не найдена");
   const ids = [...attachmentIdsInContent(page.content)];
   const uploads = await db.upload.findMany({
-    where: { userId, id: { in: ids } },
+    where: { userId, id: { in: ids }, savedItemPreview: { is: null } },
   });
   if (uploads.length !== ids.length)
     throw new ApiError(409, "Некоторые вложения страницы отсутствуют");

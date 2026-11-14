@@ -36,6 +36,55 @@ const detail = (page: Page) => page.getByRole("region", { name: "Материа�
 const card = (page: Page, title: string) => list(page).getByRole("button", { name: new RegExp(title) });
 const destination = (page: Page) => page.locator(".notebook-sidebar").getByRole("button", { name: "Сохранённое", exact: true });
 
+test("refreshes a saved link only through the Android preview bridge", async ({ page, baseURL }) => {
+  await login(page);
+  const id = crypto.randomUUID();
+  const db = new Client({ connectionString: process.env.E2E_DATABASE_URL });
+  await db.connect();
+  try {
+    await db.query(`INSERT INTO "SavedItem"(id, "userId", url, title, "titleOrigin", "updatedAt")
+      SELECT $1, id, $2, $3, 'manual', now() FROM "User" WHERE email = $4`,
+    [id, "https://example.test/device-preview", "Imported from Android", "admin@example.test"]);
+  } finally { await db.end(); }
+  const url = `/app?view=saved&item=${id}`;
+  const menu = detail(page).getByRole("button", { name: "Действия с материалом" });
+  const action = page.getByRole("menuitem", { name: "Обновить превью с устройства" });
+  await page.setViewportSize({ width: 360, height: 800 });
+  await page.goto(url + "&client=android");
+  await menu.click();
+  await expect(action).toHaveCount(0);
+  await page.keyboard.press("Escape");
+  let complete!: () => void;
+  const next = new Promise<void>(resolve => { complete = resolve; });
+  let nativeId = "";
+  await page.exposeFunction("testRefreshDevicePreview", async (id: string) => {
+    nativeId = id;
+    await next;
+    const updated = await page.request.put(`/api/saved-items/${id}/device-preview`, {
+      headers: { origin: baseURL!, "idempotency-key": crypto.randomUUID() },
+      data: { description: "Description from the device" },
+    });
+    expect(updated.status()).toBe(204);
+    return { updated: true };
+  });
+  await page.addInitScript(() => {
+    const runtime = window as typeof window & { testRefreshDevicePreview(options: string): Promise<{ updated: boolean }> };
+    Object.defineProperty(window, "Capacitor", { value: {
+      isNativePlatform: () => true, Plugins: { NotebookShare: {
+        refreshPreview: ({ id }: { id: string }) => runtime.testRefreshDevicePreview(id),
+        cancelPreview: () => Promise.resolve(),
+      } },
+    } });
+  });
+  await page.goto(url);
+  await menu.click();
+  await action.click();
+  await expect(detail(page).getByRole("button", { name: "Отменить обновление" })).toBeVisible();
+  complete();
+  await expect(detail(page).getByText("Description from the device")).toBeVisible();
+  expect(nativeId).toBe(id);
+});
+
 async function mobileAction(page: Page, name: string) {
   await detail(page).getByRole("button", { name: "Действия с материалом" }).click();
   const action = page.getByRole("menuitem", { name, exact: true });

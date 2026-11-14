@@ -323,7 +323,7 @@ describe.skipIf(!enabled)("Saved Articles portable backup v7", () => {
       if (problem === "foreign-upload") article.images[0].attachmentKey = "foreign-user-upload-id";
       if (problem === "mime") data.attachments[0].mimeType = "application/pdf";
       if (problem === "block") article.blocks.push({ type: "image", key: "bad", alt: "Invalid" });
-      if (problem === "version") Object.assign(manifest, { version: 8 });
+      if (problem === "version") Object.assign(manifest, { version: 999 });
     });
     await expect(prepare(file)).rejects.toBeDefined();
     expect((await restoredItem()).id).toBe(itemId);
