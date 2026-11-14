@@ -1,11 +1,13 @@
 import type { SavedItemTitleOrigin } from "@/generated/prisma/client";
+import { savedHtmlAccessLabel } from "./saved-html-access";
 
 export function savedItemTitleOriginsEnabled() {
   return process.env.SAVED_ITEM_TITLE_ORIGINS === "1";
 }
 
 export function websiteTitle(value: string | null) {
-  return value?.trim() || "";
+  const title = value?.trim() || "";
+  return savedHtmlAccessLabel(title) ? "" : title;
 }
 
 export function resolveSavedItemTitle(item: {

@@ -107,6 +107,21 @@ describe("saved link previews", () => {
     });
   });
 
+  it("keeps public story metadata when the page has an aside sign-in form", () => {
+    expect(extractSavedMetadata(fixture("pikabu-story.html"), page).metadataTitle).toBe("Пример публикации");
+  });
+
+  it("rejects a VK browser-upgrade page before saving the generic site title", async () => {
+    const { fetchResource } = localTransport(html("vk-browser-upgrade.html"));
+    await expect(fetchSavedMetadata("https://vk.ru/wall-123_456", signal, fetchResource)).rejects.toMatchObject({ reason: "challenge" });
+  });
+
+  it.each([fetchSavedArticle, fetchSavedMetadata])("stops at a sign-in redirect on a public article URL", async fetchContent => {
+    const { fetchResource, request } = localTransport(response(302, { location: "/login/" }));
+    await expect(fetchContent(page.href, signal, fetchResource)).rejects.toMatchObject({ reason: "challenge" });
+    expect(request).toHaveBeenCalledOnce();
+  });
+
   it("stops article extraction before a redirect to a video", async () => {
     const { fetchResource, request } = localTransport(response(302, { location: "https://youtu.be/testVideo_1" }));
     await expect(fetchSavedArticle(page.href, signal, fetchResource)).rejects.toMatchObject({ reason: "redirect" });

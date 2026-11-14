@@ -18,21 +18,53 @@ const date = new Intl.DateTimeFormat("ru", { day: "numeric", month: "short", yea
 const linkKinds = { article: { label: "Ссылка", icon: Link2 }, video: { label: "Видео", icon: Video }, social: { label: "Публикация", icon: MessageSquare } };
 
 function metadataPreview(item: SavedItem) {
-  // A saved local copy can be opened without contacting the source.
-  return !item.hasSavedArticle && item.metadata.hasPreview ? `${savedItemEndpoint(item.id)}/preview` : undefined;
+  if (!item.metadata.hasPreview || (item.hasSavedArticle && item.linkKind === "article")) return undefined;
+  return `${savedItemEndpoint(item.id)}/preview`;
 }
 
-function MaterialPreview({ source, className }: { source: string; className: string }) {
+function MaterialPreview({ source, className, onError }: { source: string; className: string; onError?(): void }) {
   const [failed, setFailed] = useState(false);
   if (failed) return null;
   // Both sources are authenticated routes with validated bytes and no public cache.
   // eslint-disable-next-line @next/next/no-img-element
-  return <img src={source} alt="" loading="lazy" decoding="async" className={className} onError={() => setFailed(true)}/>;
+  return <img src={source} alt="" loading="lazy" decoding="async" className={className} onError={() => {
+    setFailed(true);
+    onError?.();
+  }}/>;
+}
+
+function DetailPreview({ source }: { source: string }) {
+  const [attempt, setAttempt] = useState(0);
+  const [failed, setFailed] = useState(false);
+  return failed ? <div className="flex flex-wrap items-center gap-2 text-sm text-muted-foreground">
+    <span role="status">Не удалось загрузить обложку.</span>
+    <Button type="button" variant="ghost" className="min-h-11" onClick={() => {
+      setAttempt(value => value + 1);
+      setFailed(false);
+    }}>Повторить загрузку обложки</Button>
+  </div> : <MaterialPreview key={attempt} source={attempt ? `${source}?retry=${attempt}` : source}
+    className="max-h-72 max-w-full rounded-xl object-contain" onError={() => setFailed(true)}/>;
+}
+
+function videoCoverMissing(item: SavedItem) {
+  return item.linkKind === "video" && !item.metadata.hasPreview
+    && (item.metadataStatus === "ready" || item.metadataStatus === "empty");
 }
 
 function metadataStatusLabel(item: SavedItem) {
   if (item.metadataStatus === "queued") return "Получаем превью…";
-  if (item.metadataStatus === "failed") return item.metadataFailure === "access" ? "Источник ограничил доступ" : "Ошибка получения превью";
+  if (item.metadataStatus === "failed") {
+    switch (item.metadataFailure) {
+      case "access": return "Источник ограничил доступ к превью.";
+      case "dns": return "Ошибка DNS при получении превью.";
+      case "tls": return "Ошибка TLS при получении превью.";
+      case "timeout": return "Источник не ответил вовремя при получении превью.";
+      case "request": return "Сетевая ошибка при получении превью.";
+      case "http": return "Источник вернул HTTP-ошибку при получении превью.";
+      default: return "Ошибка получения превью.";
+    }
+  }
+  if (videoCoverMissing(item)) return "Нет доступной обложки.";
   if (item.metadataStatus === "empty") return "Превью недоступно";
   return null;
 }
@@ -75,21 +107,23 @@ function SavedCard({ item, selected, onSelect, onTag }: { item: SavedItem; selec
   </li>;
 }
 
-function SavedDetail({ item, busy, onTag, onDialog, onPatch, onRetry, onPage }: {
+function SavedDetail({ item, busy, onTag, onDialog, onPatch, onRetry, onPage, onArticleDiscarded }: {
   item: SavedItem; busy: boolean; onTag(tag: string): void; onDialog(action: SavedDialogAction): void;
   onPatch(patch: { archived: boolean } | { reviewStatus: "pending" | "reviewed" } | { useWebsiteTitle: true }): void;
-  onRetry(): void; onPage(id: string): void;
+  onRetry(): void; onPage(id: string): void; onArticleDiscarded(): void;
 }) {
   const heading = useRef<HTMLHeadingElement>(null);
   const canSaveArticle = item.linkKind === "article";
   const readsArticle = canSaveArticle || item.hasSavedArticle;
   const reader = useSavedArticle(item.id, readsArticle);
   const article = reader.state?.article;
-  const preview = !article && metadataPreview(item);
+  const usableArticle = article?.browserPlaceholder ? null : article;
+  const preview = metadataPreview(item);
+  const canRetryMetadata = item.metadataStatus === "failed" || videoCoverMissing(item);
   const metadataLabel = metadataStatusLabel(item);
-  const savedLabel = article ? "Сохранена статья"
+  const savedLabel = usableArticle ? "Сохранена статья"
     : item.hasSavedArticle && !reader.state && !reader.error ? null : "Сохранена карточка";
-  const articleHeading = savedArticleHeading(article);
+  const articleHeading = savedArticleHeading(usableArticle);
   const protectedTitle = item.titleOrigin === "manual" || item.titleOrigin === "legacy";
   const title = protectedTitle ? savedTitle(item) : articleHeading.title || savedTitle(item);
   const [expanded, setExpanded] = useState(false);
@@ -124,7 +158,7 @@ function SavedDetail({ item, busy, onTag, onDialog, onPatch, onRetry, onPage }: 
   const menuActions = [
     ...(pageAction && item.url ? [pageAction] : []), edit,
     ...(item.canUseWebsiteTitle ? [useWebsiteTitle] : []), review, archive,
-    ...(item.metadataStatus === "failed" ? [retry] : []), remove,
+    ...(canRetryMetadata ? [retry] : []), remove,
   ];
   return <article className="notebook-saved-material min-w-0 space-y-4">
     <div className="space-y-2">
@@ -136,7 +170,7 @@ function SavedDetail({ item, busy, onTag, onDialog, onPatch, onRetry, onPage }: 
     </div>
     <div className="notebook-saved-material-tags"><SavedTags item={item} onTag={onTag}/></div>
     <div className="notebook-saved-actions flex flex-wrap items-center gap-2">
-      {item.url && <a className={cn(buttonVariants({ variant: canSaveArticle ? "outline" : "default" }), "notebook-saved-source min-h-11")} href={item.url} target="_blank" rel="noopener noreferrer">{canSaveArticle && article ? "Открыть оригинал" : "Открыть источник"} <ArrowUpRight size={16}/></a>}
+      {item.url && <a className={cn(buttonVariants({ variant: canSaveArticle ? "outline" : "default" }), "notebook-saved-source min-h-11")} href={item.url} target="_blank" rel="noopener noreferrer">{canSaveArticle && usableArticle ? "Открыть оригинал" : "Открыть источник"} <ArrowUpRight size={16}/></a>}
       {pageAction && <Button variant="outline" className={cn("min-h-11", item.url && "notebook-saved-desktop")} onClick={pageAction.run}>{pageAction.label}</Button>}
       <DropdownMenu.Root>
         <DropdownMenu.Trigger asChild>
@@ -157,12 +191,13 @@ function SavedDetail({ item, busy, onTag, onDialog, onPatch, onRetry, onPage }: 
         {savedLabel && <span className="font-medium text-foreground">{savedLabel}</span>}
         {metadataLabel && <span>{metadataLabel}</span>}
       </p>
-      {item.metadataStatus === "failed" && <Button variant="ghost" className="notebook-saved-desktop min-h-11" disabled={busy} onClick={onRetry}>{retry.label}</Button>}
+      {canRetryMetadata && <Button variant="ghost" className="notebook-saved-desktop min-h-11" disabled={busy} onClick={onRetry}>{retry.label}</Button>}
     </div>}
-    {readsArticle && <SavedArticleControls reader={reader} canSave={canSaveArticle}/>}
+    {readsArticle && <SavedArticleControls reader={reader} canSave={canSaveArticle} onDiscarded={onArticleDiscarded}/>}
+    {article?.browserPlaceholder && <p role="status" className="text-sm text-muted-foreground">Вместо материала сохранена страница обновления браузера.</p>}
+    {preview && <DetailPreview key={`${preview}:${item.updatedAt}`} source={preview}/>}
     {article && <SavedArticleReader article={article} headingIndex={title === articleHeading.title ? articleHeading.index : -1}/>}
-    {preview && <MaterialPreview key={`${preview}:${item.updatedAt}`} source={preview} className="max-h-72 max-w-full rounded-xl object-contain"/>}
-    {!article && item.metadata.description && <p className="whitespace-pre-wrap break-words text-muted-foreground">{item.metadata.description}</p>}
+    {!usableArticle && item.metadata.description && <p className="whitespace-pre-wrap break-words text-muted-foreground">{item.metadata.description}</p>}
     {item.text && <p className="whitespace-pre-wrap break-words">{item.text}</p>}
     {item.attachments.length > 0 && <ul className="space-y-2" aria-label="Вложения">
       {item.attachments.map(file => <li key={file.id} className="min-w-0">
@@ -269,7 +304,8 @@ export function SavedItemsView({ selectedId, notebooks, onSelect, onBack, onPage
           {actionError?.id === selectedId && <p role="alert" className="mb-4 text-sm text-destructive">{actionError.message}</p>}
           {detail?.error ? <p role="alert" className="text-sm">{detail.error}</p> : item ? <SavedDetail key={item.id} item={item} busy={workingId === item.id} onTag={selectTag} onDialog={setDialog} onPage={onPage}
             onPatch={patch => void mutate(savedItemEndpoint(item.id), jsonOptions("PATCH", patch))}
-            onRetry={() => void mutate(`${savedItemEndpoint(item.id)}/metadata`, { method: "POST" })}/> : <p role="status" className="text-sm text-muted-foreground">Загружаем материал…</p>}
+            onRetry={() => void mutate(`${savedItemEndpoint(item.id)}/metadata`, { method: "POST" })}
+            onArticleDiscarded={reload}/> : <p role="status" className="text-sm text-muted-foreground">Загружаем материал…</p>}
         </div>
       </>}
     </section>

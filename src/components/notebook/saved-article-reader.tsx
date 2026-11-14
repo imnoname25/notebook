@@ -2,7 +2,7 @@
 
 import { Fragment, useEffect, useState, type ReactNode } from "react";
 import { Button } from "@/components/ui/button";
-import { api } from "@/lib/client-api";
+import { api, jsonOptions } from "@/lib/client-api";
 import type { SavedArticleBlocks } from "@/lib/saved-article-format";
 import type { readSavedArticle } from "@/lib/services/saved-article-reader";
 import { savedError, savedItemEndpoint } from "./saved-items-client";
@@ -54,24 +54,41 @@ export function useSavedArticle(id: string, enabled: boolean) {
     } catch (error) { setError(savedError(error)); }
     finally { setSubmitting(false); }
   }
-  return { state, error, submitting, pending, request };
+  async function discardPlaceholder(onDiscarded: () => void) {
+    const article = state?.article;
+    if (!article?.browserPlaceholder || submitting || pending
+      || !window.confirm("Удалить служебную страницу из локальной копии? Ссылка останется в сохранённых.")) return;
+    setSubmitting(true);
+    setError("");
+    try {
+      setState(await api<ReaderState>(endpoint, jsonOptions("DELETE", { extractedAt: article.extractedAt })));
+      onDiscarded();
+    } catch (error) { setError(savedError(error)); }
+    finally { setSubmitting(false); }
+  }
+  return { state, error, submitting, pending, request, discardPlaceholder };
 }
 
-export function SavedArticleControls({ reader, canSave }: { reader: ReturnType<typeof useSavedArticle>; canSave: boolean }) {
-  const { state, error, submitting, pending, request } = reader;
+export function SavedArticleControls({ reader, canSave, onDiscarded }: {
+  reader: ReturnType<typeof useSavedArticle>; canSave: boolean; onDiscarded(): void;
+}) {
+  const { state, error, submitting, pending, request, discardPlaceholder } = reader;
   const article = state?.article;
+  const usable = article && !article.browserPlaceholder;
   const status = state?.job?.status;
   const failed = status === "fallback" || status === "failed";
   const partial = article?.blocks.some(block => block.type === "image" && !article.images.some(image => image.key === block.key));
-  const statusText = error || (canSave && pending ? (article ? "Обновляем копию…" : "Сохраняем статью…")
+  const statusText = error || (canSave && pending ? (usable ? "Обновляем копию…" : "Сохраняем статью…")
     : canSave && failed ? (state?.job?.accessLimited ? "Источник ограничил доступ к статье."
-      : article ? "Обновление не удалось. Доступна предыдущая копия." : "Не удалось сохранить статью.")
+      : usable ? "Обновление не удалось. Доступна предыдущая копия." : "Не удалось сохранить статью.")
     : partial ? "Часть изображений недоступна."
     : canSave && !article ? (state ? "Статья ещё не сохранена." : "Проверяем сохранённую копию…") : "");
   return <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-sm text-muted-foreground empty:hidden">
     {canSave && <Button type="button" variant="outline" className="min-h-11" disabled={!state || submitting || pending} onClick={() => void request()}>
-      {article ? "Обновить копию" : "Сохранить статью"}
+      {usable ? "Обновить копию" : "Сохранить статью"}
     </Button>}
+    {article?.browserPlaceholder && <Button type="button" variant="outline" className="min-h-11" disabled={submitting || pending}
+      onClick={() => void discardPlaceholder(onDiscarded)}>Удалить служебную копию</Button>}
     {statusText && <span role="status">{statusText}</span>}
     {article && <span>Копия от <time dateTime={article.extractedAt}>{date.format(new Date(article.extractedAt))}</time></span>}
   </div>;
@@ -149,5 +166,5 @@ export function SavedArticleReader({ article, headingIndex }: { article: Article
     }
   }
   flushList(article.blocks.length);
-  return <section className="notebook-article-reader" aria-label="Сохранённая статья">{elements}</section>;
+  return <section className="notebook-article-reader" aria-label={article.browserPlaceholder ? "Служебная копия" : "Сохранённая статья"}>{elements}</section>;
 }

@@ -4,7 +4,7 @@ import path from "node:path";
 import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
 import { savedItemCreateSchema, savedItemListSchema } from "@/lib/saved-item-validation";
 import { fetchSavedMetadata } from "@/lib/saved-metadata";
-import { SavedMetadataError } from "@/lib/saved-metadata-network";
+import { fetchSavedMetadataResource, SavedMetadataError } from "@/lib/saved-metadata-network";
 
 const databaseUrl = process.env.TEST_DATABASE_URL;
 const enabled = Boolean(databaseUrl) && process.env.TEST_RESET_DATABASE === "1";
@@ -350,7 +350,7 @@ describe.skipIf(!enabled)("saved items on PostgreSQL with persistent files", () 
       const signal = new AbortController().signal;
       expect(await processSavedMetadataJob(signal, async () => { throw failure; })).toBe(true);
       const httpStatus = failure instanceof SavedMetadataError ? failure.httpStatus : undefined;
-      expect(warn.mock.calls).toEqual([["Notebook saved metadata unavailable", { attempts: queue.MAX_METADATA_ATTEMPTS, reason, httpStatus }]]);
+      expect(warn.mock.calls).toEqual([["Notebook saved metadata unavailable", { provider: "threads", attempts: queue.MAX_METADATA_ATTEMPTS, reason, httpStatus }]]);
       expect(await db.savedItemMetadataJob.findUniqueOrThrow({ where })).toMatchObject({ failureReason: reason, failed: true });
       expect(await saved.getSavedItem(owner, item.id)).toMatchObject({
         linkKind: "social", displayTitle: "Android title", sharedTitle: "Android title", metadataStatus: "failed", metadataFailure: reason,
@@ -368,6 +368,92 @@ describe.skipIf(!enabled)("saved items on PostgreSQL with persistent files", () 
     expect(await processSavedMetadataJob(new AbortController().signal, (source, signal) => fetchSavedMetadata(source, signal,
       async target => ({ url: new URL(target), body, mimeType: "text/html", contentType: "text/html" })))).toBe(true);
     expect(await saved.getSavedItem(owner, item.id)).toMatchObject({ displayTitle: "Android title", metadataStatus: "empty", metadataFailure: null });
+  });
+
+  it("logs retry and lease exhaustion without inventing a network failure for an abandoned job", async () => {
+    const { processSavedMetadataJob } = await import("./saved-item-metadata-worker");
+    const { item } = await saved.createSavedItem(owner, "youtube-lease", {
+      ...input, url: "https://youtu.be/testVideo_1?private=fixture",
+    }, []);
+    const where = { savedItemId: item.id };
+    const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
+    try {
+      const signal = new AbortController().signal;
+      const fetch = vi.fn(async () => { throw new DOMException("private response", "TimeoutError"); });
+      expect(await processSavedMetadataJob(signal, fetch)).toBe(true);
+      expect(await saved.getSavedItem(owner, item.id)).toMatchObject({ metadataStatus: "queued", metadataFailure: null });
+      await db.savedItemMetadataJob.update({ where, data: { availableAt: new Date(0), attempts: queue.MAX_METADATA_ATTEMPTS } });
+      expect(await processSavedMetadataJob(signal, fetch)).toBe(false);
+      expect(fetch).toHaveBeenCalledOnce();
+      expect(await saved.getSavedItem(owner, item.id)).toMatchObject({ metadataStatus: "failed", metadataFailure: null });
+      expect(warn.mock.calls).toEqual([
+        ["Notebook saved metadata will retry", { provider: "youtube", attempts: 1, reason: "timeout", httpStatus: undefined }],
+        ["Notebook saved metadata lease expired", { attempts: queue.MAX_METADATA_ATTEMPTS }],
+      ]);
+    } finally { warn.mockRestore(); }
+  });
+
+  it("persists a YouTube cover from oEmbed separately from the share title", async () => {
+    const { processSavedMetadataJob } = await import("./saved-item-metadata-worker");
+    const url = "https://youtu.be/testVideo_1";
+    const { item } = await saved.createSavedItem(owner, "youtube-cover", savedItemCreateSchema.parse({ url, sharedTitle: "Android title" }), []);
+    expect(item).toMatchObject({ displayTitle: "Android title", metadataStatus: "queued", metadata: { hasPreview: false } });
+    const body = await readFile(new URL("../fixtures/saved-links/youtube.json", import.meta.url));
+    const info = vi.spyOn(console, "info").mockImplementation(() => {});
+    try {
+      const run = (data: Buffer<ArrayBuffer>) => processSavedMetadataJob(new AbortController().signal,
+        (source, signal) => fetchSavedMetadata(source, signal, async target => ({
+          url: new URL(target), body: data, mimeType: "application/json", contentType: "application/json",
+        })));
+      expect(await run(Buffer.from('{"version":"1.0","type":"video","title":"Title without cover"}'))).toBe(true);
+      expect(await saved.getSavedItem(owner, item.id)).toMatchObject({ metadataStatus: "ready", metadata: { hasPreview: false } });
+      await db.savedItemMetadataJob.update({ where: { savedItemId: item.id }, data: { finishedAt: new Date(0) } });
+      await saved.retrySavedItemMetadata(owner, item.id);
+      expect(await run(body)).toBe(true);
+      expect(await saved.getSavedItem(owner, item.id)).toMatchObject({ metadataStatus: "ready", metadata: {
+        title: "Звук дождя в сосновом лесу", siteName: "YouTube · Тихие маршруты", hasPreview: true,
+      } });
+      expect(await db.savedItem.findUniqueOrThrow({ where: { id: item.id } })).toMatchObject({
+        metadataImageUrl: "https://i.ytimg.com/vi/testVideo_1/hqdefault.jpg",
+      });
+      expect(info.mock.calls).toEqual([
+        ["Notebook saved oEmbed has no usable thumbnail", { provider: "youtube" }],
+        ["Notebook saved oEmbed thumbnail stored", { provider: "youtube" }],
+      ]);
+    } finally { info.mockRestore(); }
+  });
+
+  it("checks article access and metadata independently without overwriting a known title", async () => {
+    const { processSavedArticleJob } = await import("./saved-article-worker");
+    const { fetchSavedArticle } = await import("@/lib/saved-article-extraction");
+    const { processSavedMetadataJob } = await import("./saved-item-metadata-worker");
+    const url = "https://club.dns-shop.ru/blog/example/";
+    const { item } = await saved.createSavedItem(owner, "dns-club", savedItemCreateSchema.parse({ url, sharedTitle: "Заголовок Android" }), []);
+    const where = { id: item.id };
+    await db.savedItem.update({ where, data: { metadataTitle: "Проверенный заголовок", metadataDescription: "Описание статьи" } });
+    await db.savedArticleJob.upsert({
+      where: { savedItemId: item.id }, update: {}, create: { savedItemId: item.id, sourceUrl: url, generation: "dns-club" },
+    });
+    const signal = new AbortController().signal;
+    const resolve = async () => [{ address: "93.184.215.14", family: 4 }];
+    const restricted: typeof fetchSavedMetadataResource = (value, options) =>
+      fetchSavedMetadataResource(value, options, {
+        resolve,
+        request: async () => ({ statusCode: 401, headers: {}, destroy() {}, async *[Symbol.asyncIterator]() {} }),
+      });
+    expect(await processSavedArticleJob(signal, (source, abort) => fetchSavedArticle(source, abort, restricted))).toBe(true);
+    expect(await db.savedArticleJob.findUniqueOrThrow({ where: { savedItemId: item.id } })).toMatchObject({ status: "fallback", reason: "access" });
+    expect(await saved.getSavedItem(owner, item.id)).toMatchObject({ metadataStatus: "queued", hasSavedArticle: false });
+    const blockedHtml = Buffer.from('<title>Доступ ограничен | Клуб DNS</title><meta property="og:title" content="Служебный заголовок">');
+    expect(await processSavedMetadataJob(signal, (source, abort) => fetchSavedMetadata(source, abort, async value => ({
+      url: new URL(value), body: blockedHtml, mimeType: "text/html", contentType: "text/html",
+    })))).toBe(true);
+    expect(await saved.getSavedItem(owner, item.id)).toMatchObject({
+      url, metadataStatus: "failed", metadataFailure: "access", hasSavedArticle: false, sharedTitle: "Заголовок Android",
+      metadata: { title: "Проверенный заголовок", description: "Описание статьи" },
+    });
+    await db.savedItem.update({ where, data: { metadataTitle: "Доступ ограничен | Клуб DNS" } });
+    expect(await saved.getSavedItem(owner, item.id)).toMatchObject({ url, metadata: { title: null }, displayTitle: "Заголовок Android" });
   });
 
   it("preserves saved-only files on v5 restore and restores converted PDF references", async () => {

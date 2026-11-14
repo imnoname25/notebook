@@ -5,7 +5,7 @@ import {
   savedArticleBlocks, type SavedArticleBlocks,
 } from "./saved-article-format";
 import { fetchSavedMetadataResource, metadataUrl, SavedMetadataError } from "./saved-metadata-network";
-import { savedHtmlAccessGate, savedHtmlElementHidden as hidden } from "./saved-html-access";
+import { savedHtmlAccessGate, savedHtmlElementHidden as hidden, savedHtmlLoginUrl } from "./saved-html-access";
 import { classifySavedLink } from "./saved-link";
 
 export const MAX_ARTICLE_HTML_BYTES = 512 * 1024;
@@ -89,7 +89,7 @@ function parseBounded(html: string, checkTime: () => void) {
 
 function ignored(node: Element) {
   return node.namespaceURI !== htmlNamespace || blocked.has(node.tagName)
-    || roles.has(attr(node, "role") ?? "") || hidden(node)
+    || roles.has(attr(node, "role") ?? "") || hidden(node) || ancillary(node)
     || (node.tagName === "details" && attr(node, "open") === undefined);
 }
 
@@ -103,16 +103,16 @@ function safeLink(value: string | undefined, url: URL) {
   } catch { return undefined; }
 }
 
-function promotional(node: Element) {
-  return /(?:^|[^\w])(?:ads?|advert(?:ising|isement)?|sponsored|tracking|tracker|pixel|beacon)(?:$|[^\w])/iu
-    .test([attr(node, "class"), attr(node, "id"), attr(node, "role")].filter(Boolean).join(" "));
+function ancillary(node: Element) {
+  return /(?:^|[\s._:-])(?:ads?|advert(?:ising|isement)?|sponsored|tracking|tracker|pixel|beacon|avatars?|logos?|sidebar|comments|recommend(?:ed|ations?)|related[-_](?:articles|posts|stories|items|content)|social[-_](?:share|links)|author[-_](?:bio|card|profile))(?:$|[\s._:-])/iu
+    .test([attr(node, "class"), attr(node, "id")].filter(Boolean).join(" "));
 }
 
 function imageCandidate(node: Element, base: URL) {
-  if (node.namespaceURI !== htmlNamespace || hidden(node) || promotional(node)
+  if (node.namespaceURI !== htmlNamespace || hidden(node) || ancillary(node)
     || attr(node, "onerror") !== undefined || attr(node, "onload") !== undefined
     || [attr(node, "width"), attr(node, "height")].some(value => value && /^\d+$/u.test(value) && Number(value) < 32)) return null;
-  for (const name of ["src", "data-src"]) {
+  for (const name of ["data-src", "src"]) {
     const value = attr(node, name);
     if (!value?.trim() || value.length > 2048) continue;
     try {
@@ -125,8 +125,9 @@ function imageCandidate(node: Element, base: URL) {
   return null;
 }
 
-function inlineContent(parent: Parent, url: URL, checkTime: () => void) {
-  const parts: Inline[] = [];
+function emitInline(parent: Element, url: URL, checkTime: () => void,
+  text: (parts: Inline[]) => void, image: (node: Element, flush: () => void) => void) {
+  let parts: Inline[] = [];
   function append(text: string, href?: string) {
     const value = clean(text);
     if (!value) return;
@@ -139,29 +140,36 @@ function inlineContent(parent: Parent, url: URL, checkTime: () => void) {
     }
     if (parts.at(-1)!.text.length > MAX_ARTICLE_INLINE_TEXT) throw new ArticleLimit();
   }
+  function flush() {
+    while (parts.length) {
+      const first = parts[0];
+      first.text = first.text.trimStart();
+      if (first.text) break;
+      parts.shift();
+    }
+    while (parts.length) {
+      const last = parts.at(-1)!;
+      last.text = last.text.trimEnd();
+      if (last.text) break;
+      parts.pop();
+    }
+    if (parts.length) text(parts);
+    parts = [];
+  }
   function visit(node: Child, href?: string) {
     checkTime();
     if ("value" in node) append(node.value, href);
-    if (!("tagName" in node) || ignored(node) || node.tagName === "ol" || node.tagName === "ul") return;
-    if (node.tagName === "br" || node.tagName === "p" || node.tagName === "div") append(" ", href);
+    if (!("tagName" in node)) return;
+    if (node.tagName === "img") { image(node, flush); return; }
+    if (ignored(node) || node.tagName === "ol" || node.tagName === "ul") return;
+    const wrapsText = node.tagName === "p" || node.tagName === "div";
+    if (node.tagName === "br" || wrapsText) append(" ", href);
     const childLink = node.tagName === "a" ? safeLink(attr(node, "href"), url) : href;
     for (const child of node.childNodes) visit(child, childLink);
-    if (node.tagName === "p" || node.tagName === "div") append(" ", href);
+    if (wrapsText) append(" ", href);
   }
   for (const child of parent.childNodes) visit(child);
-  while (parts.length) {
-    const first = parts[0];
-    first.text = first.text.trimStart();
-    if (first.text) break;
-    parts.shift();
-  }
-  while (parts.length) {
-    const last = parts.at(-1)!;
-    last.text = last.text.trimEnd();
-    if (last.text) break;
-    parts.pop();
-  }
-  return parts;
+  flush();
 }
 
 function selectMain(body: Element, checkTime: () => void) {
@@ -208,49 +216,34 @@ export function extractSavedArticle(html: string, url: URL, signal?: AbortSignal
     const root = elements(document).find(node => node.tagName === "html");
     const body = root && elements(root).find(node => node.tagName === "body");
     if (!body) return { status: "fallback", reason: "empty" };
-    const scan: Array<{ node: Parent; depth: number }> = [{ node: document, depth: 0 }];
-    while (scan.length) {
-      const { node, depth } = scan.pop()!;
-      checkTime();
-      if (depth > MAX_ARTICLE_DOM_DEPTH) throw new ArticleLimit();
-      if ("tagName" in node && savedHtmlAccessGate(node)) return { status: "fallback", reason: "access" };
-      for (const child of elements(node)) scan.push({ node: child, depth: depth + 1 });
-    }
+    if (savedHtmlAccessGate(document, checkTime)) return { status: "fallback", reason: "access" };
     const main = selectMain(body, checkTime);
     if (!main) return { status: "fallback", reason: "empty" };
     const blocks: SavedArticleBlocks = [];
     const imageCandidates = new Map<string, ArticleImageCandidate>();
     let imageCount = 0;
-    function emitImage(node: Element) {
+    function emitImage(node: Element, flush?: () => void) {
       if (imageCount >= MAX_ARTICLE_IMAGES || blocks.length >= MAX_ARTICLE_BLOCKS) return;
       const image = imageCandidate(node, url);
       if (!image) return;
+      flush?.();
+      if (blocks.length >= MAX_ARTICLE_BLOCKS) return;
       imageCandidates.set(image.key, { key: image.key, sourceUrl: image.sourceUrl });
       blocks.push({ type: "image", key: image.key, alt: image.alt });
       imageCount++;
     }
-    function emitInlineImages(node: Element) {
-      checkTime();
-      if (imageCount >= MAX_ARTICLE_IMAGES) return;
-      if (node.tagName === "img") emitImage(node);
-      else if (!ignored(node) && !promotional(node) && node.tagName !== "ol" && node.tagName !== "ul") {
-        for (const child of elements(node)) emitInlineImages(child);
-      }
-    }
     function emit(node: Element, depth = 0, ordered = false) {
       checkTime();
       if (node.tagName === "img") { emitImage(node); return; }
-      if (ignored(node) || promotional(node)) return;
+      if (ignored(node)) return;
       const heading = /^h([1-6])$/u.exec(node.tagName);
-      if (heading || paragraphs.has(node.tagName)) {
-        const content = inlineContent(node, url, checkTime);
-        if (content.length) {
+      if (heading || paragraphs.has(node.tagName) || node.tagName === "figcaption") {
+        emitInline(node, url, checkTime, content => {
           if (blocks.length >= MAX_ARTICLE_BLOCKS || depth > MAX_ARTICLE_LIST_DEPTH) throw new ArticleLimit();
           if (heading) blocks.push({ type: "heading", level: Number(heading[1]), content });
           else if (node.tagName === "li") blocks.push({ type: "listItem", ordered, depth, content });
           else blocks.push({ type: node.tagName === "blockquote" ? "quote" : "paragraph", content });
-        }
-        for (const child of elements(node)) emitInlineImages(child);
+        }, emitImage);
         if (node.tagName !== "li") return;
         for (const child of elements(node).filter(element => element.tagName === "ul" || element.tagName === "ol"))
           emit(child, depth + 1);
@@ -277,6 +270,7 @@ export async function fetchSavedArticle(url: string, signal: AbortSignal, fetchR
   const resource = await fetchResource(url, {
     signal, maxBytes: MAX_ARTICLE_HTML_BYTES, types: ["text/html", "application/xhtml+xml"], rejectChallenge: true,
     checkUrl(target) {
+      if (savedHtmlLoginUrl(target)) throw new SavedMetadataError(false, "challenge");
       if (classifySavedLink(target).kind !== "article") throw new SavedMetadataError(false, "redirect");
     },
   });

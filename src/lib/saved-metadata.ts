@@ -1,6 +1,6 @@
 import { parse, type DefaultTreeAdapterTypes } from "parse5";
 import { z } from "zod";
-import { savedHtmlAccessGate } from "./saved-html-access";
+import { savedHtmlAccessGate, savedHtmlAccessLabel, savedHtmlLoginUrl } from "./saved-html-access";
 import { classifySavedLink } from "./saved-link";
 import { fetchSavedMetadataResource, metadataUrl, SavedMetadataError } from "./saved-metadata-network";
 
@@ -27,15 +27,6 @@ function previewUrl(value: string | undefined, base?: URL, httpsOnly = false) {
     const image = metadataUrl(value, base);
     return (!httpsOnly || image.protocol === "https:") && image.href.length <= 2048 ? image.href : null;
   } catch { return null; }
-}
-
-function assertPublicHtml(document: Parent) {
-  const pending = children(document);
-  while (pending.length) {
-    const node = pending.pop()!;
-    if (savedHtmlAccessGate(node)) throw new SavedMetadataError(false, "challenge");
-    for (const child of children(node)) pending.push(child);
-  }
 }
 
 function articleHeading(body: Element | undefined) {
@@ -65,7 +56,7 @@ function articleHeading(body: Element | undefined) {
 
 export function extractSavedMetadata(html: string, url: URL, publicPreviewOnly = false) {
   const document = parse(html);
-  assertPublicHtml(document);
+  if (savedHtmlAccessGate(document)) throw new SavedMetadataError(false, "challenge");
   const root = children(document).find(node => node.tagName === "html");
   const head = root && children(root).find(node => node.tagName === "head");
   const elements = head ? children(head) : [];
@@ -93,9 +84,11 @@ export function extractSavedMetadata(html: string, url: URL, publicPreviewOnly =
     metadataImageUrl = previewUrl(value, url, httpsOnly);
     if (metadataImageUrl) break;
   }
+  const metadataTitle = field("og:title", 300) ?? field("twitter:title", 300)
+    ?? (publicPreviewOnly ? null : articleHeading(root && children(root).find(node => node.tagName === "body")) ?? clean(title, 300));
+  if (metadataTitle && savedHtmlAccessLabel(metadataTitle)) throw new SavedMetadataError(false, "challenge");
   return {
-    metadataTitle: field("og:title", 300) ?? field("twitter:title", 300)
-      ?? (publicPreviewOnly ? null : articleHeading(root && children(root).find(node => node.tagName === "body")) ?? clean(title, 300)),
+    metadataTitle,
     metadataDescription: field("og:description", 1000) ?? (publicPreviewOnly ? null : field("description", 1000))
       ?? field("twitter:description", 1000),
     metadataSiteName: field("og:site_name", 160) ?? (publicPreviewOnly ? null : field("application-name", 160)) ?? url.hostname.slice(0, 253),
@@ -136,10 +129,8 @@ export async function fetchSavedMetadata(value: string, signal: AbortSignal, fet
   const resource = await fetchResource(value, {
     signal, maxBytes: 512 * 1024, types: htmlTypes, rejectChallenge: true,
     checkUrl(target) {
+      if (savedHtmlLoginUrl(target)) throw new SavedMetadataError(false, "challenge");
       if (link.kind === "article") return;
-      if (/^\/(?:accounts\/)?(?:login|signin|checkpoint|captcha)(?:[/.]|$)/iu.test(target.pathname)) {
-        throw new SavedMetadataError(false, "challenge");
-      }
       const next = classifySavedLink(target);
       if (next.kind === "article" || next.provider !== link.provider) throw new SavedMetadataError(false, "redirect");
     },

@@ -138,6 +138,11 @@ describe.skipIf(!enabled)("saved item routes over HTTP with real sessions", () =
     const path = `${endpoint}/${id}/preview`;
     expect((await request(path)).status).toBe(401);
     expect((await request(path, { headers: { cookie: otherCookie } })).status).toBe(404);
+    const refused = await request(path, { headers: { cookie: ownerCookie } });
+    expect(refused.status).toBe(404);
+    expect(refused.headers.get("cache-control")).toBe("private, no-store");
+    expect(await refused.json()).toEqual({ error: "Превью недоступно" });
+    await db.savedItem.update({ where: { id }, data: { metadataImageUrl: null } });
     expect((await request(path, { headers: { cookie: ownerCookie } })).status).toBe(404);
   }, 120_000);
 
@@ -204,5 +209,46 @@ describe.skipIf(!enabled)("saved item routes over HTTP with real sessions", () =
     const throttled = await request(article, json(ownerCookie, {}));
     expect(throttled.status).toBe(429);
     expect(throttled.headers.get("retry-after")).toBe("60");
+  }, 120_000);
+
+  it.each([
+    "https://vk.ru/wall-123_456",
+    "https://vk.ru/clip-123_456",
+  ])("diagnoses a legacy browser placeholder and discards only the confirmed copy at %s", async url => {
+    const extractedAt = new Date("2025-01-02T03:04:05.000Z");
+    const blocks = [
+      { type: "heading", level: 1, content: [{ type: "text", text: "Ваш браузер устарел" }] },
+      { type: "paragraph", content: [{ type: "text", text: "Обновите свой браузер или установите один из рекомендуемых." }] },
+    ];
+    const { id } = await db.savedItem.create({ data: {
+      userId: ownerId, url, sharedTitle: "Исходная публикация", titleOrigin: "share",
+      article: { create: { blocks, sourceUrl: url, contentVersion: 1, extractedAt } },
+      articleJob: { create: { sourceUrl: url, generation: randomUUID(), status: "ready", finishedAt: extractedAt } },
+    } });
+    const itemPath = `${endpoint}/${id}`;
+    const path = `${itemPath}/article`;
+    const where = { savedItemId: id };
+    const mutation = (cookie: string, time = extractedAt) => json(cookie, { extractedAt: time }, undefined, "DELETE");
+    const read = await request(path, { headers: { cookie: ownerCookie } });
+    expect(await read.json()).toMatchObject({ article: { blocks, browserPlaceholder: true }, job: { status: "ready" } });
+    expect((await request(path, { ...mutation(ownerCookie), headers: { ...mutation(ownerCookie).headers, origin: "https://foreign.invalid" } })).status).toBe(403);
+    expect((await request(path, mutation(otherCookie))).status).toBe(404);
+    expect((await request(path, mutation(ownerCookie, new Date(0)))).status).toBe(409);
+    const original = [{ type: "paragraph", content: [{ type: "text", text: "Содержимое настоящей статьи" }] }];
+    await db.savedArticle.update({ where, data: { blocks: original } });
+    expect((await request(path, mutation(ownerCookie))).status).toBe(409);
+    await db.savedArticle.update({ where, data: { blocks } });
+    await db.savedArticleJob.update({ where, data: {
+      status: "running", finishedAt: null, leaseUntil: new Date(Date.now() + 600_000), leaseToken: randomUUID(),
+    } });
+    expect((await request(path, mutation(ownerCookie))).status).toBe(409);
+    await db.savedArticleJob.update({ where, data: { status: "ready", finishedAt: extractedAt, leaseUntil: null, leaseToken: null } });
+    const discarded = await request(path, mutation(ownerCookie));
+    expect(discarded.status).toBe(200);
+    expect(await discarded.json()).toMatchObject({ article: null, job: { status: "fallback", accessLimited: true } });
+    expect(await db.savedArticle.findUnique({ where })).toBeNull();
+    expect(await (await request(itemPath, { headers: { cookie: ownerCookie } })).json()).toMatchObject({
+      item: { url, displayTitle: "Исходная публикация", hasSavedArticle: false },
+    });
   }, 120_000);
 });

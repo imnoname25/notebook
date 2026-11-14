@@ -1,3 +1,4 @@
+import { readFileSync } from "node:fs";
 import { expect, it, vi } from "vitest";
 import {
   extractSavedArticle, fetchSavedArticle, MAX_ARTICLE_DOM_DEPTH, MAX_ARTICLE_DOM_NODES, MAX_ARTICLE_HTML_BYTES,
@@ -33,12 +34,33 @@ it("selects prose when semantic article tags are missing", () => {
     .toMatchObject({ status: "ready" });
 });
 
+it("keeps the story images and text in source order and excludes site chrome", () => {
+  const html = readFileSync(new URL("./fixtures/saved-links/pikabu-story.html", import.meta.url), "utf8");
+  const result = extract(html);
+  expect(result.status).toBe("ready");
+  if (result.status !== "ready") return;
+  expect(result.imageCandidates?.map(image => image.sourceUrl)).toEqual(["https://example.org/bridge.webp", "https://example.org/map.webp"]);
+  expect(result.blocks.map(block => block.type === "image" ? block.alt : block.content.map(part => part.text).join(""))).toEqual([
+    "Пример публикации",
+    "Первый абзац открывает рассказ о ночном маршруте и описывает путь от дома до старого моста.",
+    "Старый мост", "Мост перед рассветом.", "Текст перед", "Схема", "и после схемы.",
+  ]);
+});
+
+it("rejects VK's browser-upgrade response with a generic site title", () => {
+  const html = readFileSync(new URL("./fixtures/saved-links/vk-browser-upgrade.html", import.meta.url), "utf8");
+  expect(extract(html)).toEqual({ status: "fallback", reason: "access" });
+});
+
 it.each([
   ["empty", "<h1>No article</h1><p>Short.</p>"],
   ["access", `<form><input type="password"></form>${article}`],
   ["access", `<title>Sign in | Example</title><form><input type="email"></form>${article}`],
   ["access", `<div class="g-recaptcha"></div>${article}`],
   ["access", `<div id="paywall"></div>${article}`],
+  ["access", `<main><h1>Доступ <span>ограничен</span></h1><p>${paragraph}</p></main>`],
+  ["access", `<meta property="og:title" content="Access denied">${article}`],
+  ["access", `<h1>Page not found</h1><p>${paragraph}</p>`],
   ["access", `<script type="application/ld+json">{"isAccessibleForFree":false}</script>${article}`],
 ])("falls back with %s for gated or empty HTML", (reason, html) => {
   expect(extract(html)).toEqual({ status: "fallback", reason });

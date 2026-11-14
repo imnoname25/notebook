@@ -25,7 +25,11 @@ export async function claimSavedItemMetadataJob() {
       attempts = LEAST(j.attempts + 1, ${MAX_METADATA_ATTEMPTS})
     FROM candidate WHERE j."savedItemId" = candidate."savedItemId"
     RETURNING j."savedItemId", candidate.url, j.attempts, j."finishedAt"`);
-  return job && !job.finishedAt ? { savedItemId: job.savedItemId, url: job.url, attempts: job.attempts, leaseToken } : null;
+  if (job?.finishedAt) {
+    console.warn("Notebook saved metadata lease expired", { attempts: job.attempts });
+    return null;
+  }
+  return job ? { savedItemId: job.savedItemId, url: job.url, attempts: job.attempts, leaseToken } : null;
 }
 
 type FailureReason = ReturnType<typeof savedRequestFailure>["reason"];

@@ -1,8 +1,10 @@
 import { expect, test, type Page } from "@playwright/test";
 import { createHash } from "node:crypto";
+import { readFileSync } from "node:fs";
 import { Client } from "pg";
 import sharp from "sharp";
 import youtube from "../src/lib/fixtures/saved-links/youtube.json";
+import { extractSavedArticle } from "../src/lib/saved-article-extraction";
 import { setTestTheme } from "./theme-fixture";
 
 async function login(page: Page) {
@@ -352,7 +354,7 @@ test("server paginates the feed and the running worker preserves blocked links",
   await expect(list(page).getByRole("listitem")).toHaveCount(26);
   await expect(list(page).getByRole("button", { name: "Показать ещё" })).toHaveCount(0);
   await page.goto(`/app?view=saved&item=${item.id}`);
-  await expect(detail(page).getByText("Ошибка получения превью", { exact: true })).toBeVisible({ timeout: 15_000 });
+  await expect(detail(page).getByText("Ошибка получения превью.", { exact: true })).toBeVisible({ timeout: 15_000 });
   await expect(detail(page).getByText("Сохранена карточка", { exact: true })).toBeVisible();
   await compact(page, 360);
   const heading = detail(page).getByRole("heading", { name: longTitle, exact: true });
@@ -385,7 +387,7 @@ test("shows provider cards, restricted sources and older copies on desktop and 3
       siteName: "Threads", description: "У воды уже появились первые следы весны." },
     { name: "restricted", url: "https://threads.com/@notes/post/Cblocked1", title: "Полевые заметки с Android", kind: "Публикация", failure: "access" },
     { name: "no-preview", url: "https://vk.com/clip-321_654", title: "Вечерний маршрут", kind: "Видео" },
-    { name: "old-copy", url: "https://youtu.be/oldVideo_12", title: "Старая запись о маршруте", kind: "Видео", hasArticle: true },
+    { name: "old-copy", url: "https://youtu.be/oldVideo_12", title: "Старая запись о маршруте", kind: "Видео", hasArticle: true, cover: youtube.thumbnail_url },
     { name: "html", url: "https://field-notes.example.invalid/review/entry", title: "Маршрут к верховью ручья", kind: "Ссылка" },
   ].map(fixture => ({ ...fixture, id: crypto.randomUUID() }));
 
@@ -440,7 +442,9 @@ test("shows provider cards, restricted sources and older copies on desktop and 3
           await expect.poll(() => image.evaluate(node => (node as HTMLImageElement).naturalWidth)).toBe(720);
         }
         if (fixture.failure) await expect(material.getByText("Источник ограничил доступ")).toBeVisible();
-        if (!fixture.siteName && !fixture.failure) await expect(material.getByText("Превью недоступно")).toBeVisible();
+        if (!fixture.siteName && !fixture.failure && !fixture.cover) {
+          await expect(material.getByText(fixture.kind === "Видео" ? "Нет доступной обложки." : "Превью недоступно")).toBeVisible();
+        }
         if (fixture.hasArticle) await expect(material.getByRole("region", { name: "Сохранённая статья" })).toBeVisible();
         await expect(material.getByText("Получаем превью…")).toHaveCount(0);
         await expect.poll(() => page.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(width);
@@ -458,6 +462,113 @@ test("shows provider cards, restricted sources and older copies on desktop and 3
     expect([...articleReads].sort()).toEqual(cases.filter(fixture => fixture.hasArticle || fixture.kind === "Ссылка").map(fixture => fixture.id).sort());
   } finally {
     await client.query('DELETE FROM "SavedItem" WHERE id = ANY($1::text[])', [cases.map(fixture => fixture.id)]);
+    await client.end();
+  }
+});
+
+test("distinguishes cover failures, article access and legacy service pages on desktop and 360 px", async ({ page }, info) => {
+  test.setTimeout(120_000);
+  await login(page);
+  await setTestTheme(page, "studio-atelier");
+  const pikabu = readFileSync("src/lib/fixtures/saved-links/pikabu-story.html", "utf8");
+  const story = extractSavedArticle(pikabu, new URL("https://pikabu.ru/story/example"));
+  if (story.status !== "ready") throw new Error("Story fixture was not extracted");
+  const files = await sharp({ create: { width: 240, height: 135, channels: 3, background: "#7a9385" } }).webp().toBuffer();
+  const client = new Client({ connectionString: process.env.E2E_DATABASE_URL });
+  const ids: string[] = [];
+  await client.connect();
+  try {
+    const { rows: [{ id: userId }] } = await client.query<{ id: string }>('SELECT id FROM "User" WHERE email = $1', ["admin@example.test"]);
+    async function seed(title: string, url: string, failure?: string, cover?: string) {
+      const id = crypto.randomUUID();
+      ids.push(id);
+      await client.query(`INSERT INTO "SavedItem"(id,"userId",url,"titleOrigin","sharedTitle","metadataImageUrl","updatedAt")
+        VALUES ($1,$2,$3,'share',$4,$5,now())`, [id, userId, url, title, cover]);
+      await client.query(`INSERT INTO "SavedItemMetadataJob"("savedItemId","finishedAt",failed,"failureReason")
+        VALUES ($1,now() - interval '2 minutes',$2,$3)`, [id, Boolean(failure), failure]);
+      return id;
+    }
+    async function saveCopy(id: string, url: string, blocks: unknown, version = 1) {
+      await client.query(`INSERT INTO "SavedArticle"("savedItemId","sourceUrl","contentVersion",blocks,"extractedAt")
+        VALUES ($1,$2,$3,$4,now())`, [id, url, version, JSON.stringify(blocks)]);
+    }
+    const dnsTitle = "Как выбрать набор ручного инструмента";
+    const dnsUrl = "https://club.dns-shop.ru/blog/example/";
+    const dns = await seed(dnsTitle, dnsUrl, "access");
+    await client.query(`INSERT INTO "SavedArticleJob"("savedItemId","sourceUrl",generation,status,"finishedAt",reason)
+      VALUES ($1,$2,$1,'fallback',now(),'access')`, [dns, dnsUrl]);
+    const youtubeUrl = "https://youtu.be/testVideo_1";
+    const metadataError = await seed("Сбой сети при получении видео", youtubeUrl, "timeout");
+    const missing = await seed("Видео без обложки", youtubeUrl);
+    const cover = await seed("Видео с обложкой", youtubeUrl, undefined, youtube.thumbnail_url);
+    const vkUrl = "https://vk.ru/wall-123_456";
+    const vk = await seed("Публикация ВКонтакте", vkUrl, "access");
+    await saveCopy(vk, vkUrl, [
+      { type: "heading", level: 1, content: [{ type: "text", text: "Ваш браузер устарел" }] },
+      { type: "paragraph", content: [{ type: "text", text: "Обновите свой браузер или выберите другой." }] },
+    ]);
+    const pikabuUrl = "https://pikabu.ru/story/example";
+    const storyId = await seed("Пример публикации", pikabuUrl);
+    await saveCopy(storyId, pikabuUrl, story.blocks, 2);
+    await page.route(new RegExp(`/api/saved-items/${cover}/preview(?:\\?.*)?$`), route =>
+      new URL(route.request().url()).searchParams.has("retry")
+        ? route.fulfill({ contentType: "image/webp", body: files })
+        : route.fulfill({ status: 502, json: { failure: "http" } }));
+    // These raster responses render the locally extracted image blocks without contacting the article site.
+    const readerImages = story.imageCandidates?.map(({ key }) => ({ key, url: `/api/saved-items/${storyId}/article/images/${key}` })) ?? [];
+    await page.route(`**/api/saved-items/${storyId}/article`, async route => {
+      const response = await route.fetch();
+      const body = await response.json();
+      await route.fulfill({ response, json: { ...body, article: { ...body.article, images: readerImages } } });
+    });
+    await page.route(`**/api/saved-items/${storyId}/article/images/*`, route => route.fulfill({ contentType: "image/webp", body: files }));
+    const material = detail(page);
+    for (const width of [1440, 360]) {
+      await page.setViewportSize({ width, height: 900 });
+      const open = async (id: string, title: string) => {
+        await page.goto(`/app?view=saved&item=${id}`);
+        await expect(material.getByRole("heading", { name: title, exact: true })).toBeVisible();
+        await expect.poll(() => page.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(width);
+      };
+      async function captureState(name: string) {
+        await page.evaluate(() => document.fonts.ready);
+        await page.screenshot({ path: info.outputPath(`${name}-${width}.png`), animations: "disabled" });
+      }
+      await open(dns, dnsTitle);
+      await expect(material.getByText("Сохранена карточка", { exact: true })).toBeVisible();
+      await expect(material.getByText("Источник ограничил доступ к превью.", { exact: true })).toBeVisible();
+      await expect(material.getByText("Источник ограничил доступ к статье.", { exact: true })).toBeVisible();
+      await expect(material.getByRole("link", { name: "Открыть источник" })).toHaveAttribute("href", dnsUrl);
+      await captureState("dns-club");
+      await open(metadataError, "Сбой сети при получении видео");
+      await expect(material.getByText("Источник не ответил вовремя при получении превью.")).toBeVisible();
+      await open(missing, "Видео без обложки");
+      await expect(material.getByText("Нет доступной обложки.")).toBeVisible();
+      await open(cover, "Видео с обложкой");
+      await expect(material.getByText("Не удалось загрузить обложку.")).toBeVisible();
+      await captureState("youtube-preview-error");
+      await material.getByRole("button", { name: "Повторить загрузку обложки" }).click();
+      await expect.poll(() => material.locator('img[src*="/preview?retry="]').evaluate(image => (image as HTMLImageElement).naturalWidth)).toBe(240);
+      await open(storyId, "Пример публикации");
+      const storyReader = material.getByRole("region", { name: "Сохранённая статья" });
+      await expect(storyReader.getByRole("img")).toHaveCount(2);
+      await expect(storyReader.locator("p + figure + p + p + figure + p")).toHaveCount(1);
+      await captureState("pikabu");
+      await open(vk, "Публикация ВКонтакте");
+      await expect(material.getByText("Вместо материала сохранена страница обновления браузера.")).toBeVisible();
+      await expect(material.getByText("Сохранена статья", { exact: true })).toHaveCount(0);
+      await expect(material.getByRole("region", { name: "Служебная копия" })).toBeVisible();
+      await captureState("vk");
+    }
+    page.once("dialog", dialog => dialog.dismiss());
+    await material.getByRole("button", { name: "Удалить служебную копию" }).click();
+    await expect(material.getByRole("region", { name: "Служебная копия" })).toBeVisible();
+    page.once("dialog", dialog => dialog.accept());
+    await material.getByRole("button", { name: "Удалить служебную копию" }).click();
+    await expect(material.getByRole("region", { name: "Служебная копия" })).toHaveCount(0);
+    await expect(material.getByRole("link", { name: "Открыть источник" })).toHaveAttribute("href", vkUrl);
+  } finally {
+    await client.query('DELETE FROM "SavedItem" WHERE id = ANY($1::text[])', [ids]);
     await client.end();
   }
 });

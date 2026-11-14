@@ -31,17 +31,18 @@ function displayTitle(item: Item) {
 
 function serializeItem(record: Item) {
   const { attachments, tags, metadataJob, metadataTitle, metadataDescription, metadataSiteName, metadataImageUrl, article, ...item } = record;
-  const hasMetadata = Boolean(metadataTitle || metadataDescription || metadataImageUrl);
+  const sourceTitle = websiteTitle(metadataTitle) || null;
+  const hasMetadata = Boolean(sourceTitle || metadataDescription || metadataImageUrl);
   return {
     ...item,
     linkKind: item.url ? classifySavedLink(item.url).kind : null,
     hasSavedArticle: article !== null && article.sourceUrl === item.url,
     displayTitle: displayTitle(record),
-    canUseWebsiteTitle: savedItemTitleOriginsEnabled() && Boolean(websiteTitle(metadataTitle))
+    canUseWebsiteTitle: savedItemTitleOriginsEnabled() && Boolean(sourceTitle)
       && item.titleOrigin !== "system",
     tags: tags.map(({ tag }) => tag),
     attachments: attachments.map(({ upload }) => ({ ...upload, url: attachmentUrl(upload.id) })),
-    metadata: { title: metadataTitle, description: metadataDescription, siteName: metadataSiteName, hasPreview: Boolean(metadataImageUrl) },
+    metadata: { title: sourceTitle, description: metadataDescription, siteName: metadataSiteName, hasPreview: Boolean(metadataImageUrl) },
     metadataStatus: !metadataJob ? "skipped" : !metadataJob.finishedAt ? "queued"
       : metadataJob.failed ? "failed" : hasMetadata ? "ready" : "empty",
     metadataFailure: metadataJob?.failed ? metadataJob.failureReason : null,
