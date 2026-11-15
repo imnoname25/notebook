@@ -122,7 +122,7 @@ function SavedDetail({ item, busy, onTag, onDialog, onPatch, onRetry, onPage, on
   const heading = useRef<HTMLHeadingElement>(null);
   const canSaveArticle = item.linkKind === "article";
   const readsArticle = canSaveArticle || item.hasSavedArticle;
-  const reader = useSavedArticle(item.id, readsArticle);
+  const reader = useSavedArticle(item.id, readsArticle, item.hasSavedArticle);
   const article = reader.state?.article;
   const usableArticle = article?.browserPlaceholder ? null : article;
   const preview = metadataPreview(item);

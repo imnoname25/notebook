@@ -121,7 +121,7 @@ final class NotebookShareHttp {
         } catch (JSONException invalid) {
             throw new IOException("Invalid device preview");
         }
-        return uploadPreview(server, cookie, id, key, "device-preview", payload, preview.image(), preview.mime());
+        return uploadPreview(server, cookie, id, key, "device-preview", payload, preview.image(), preview.mime(), java.util.List.of());
     }
 
     int uploadCapture(NotebookShareServer server, String cookie, NotebookShareRecord entry,
@@ -129,17 +129,18 @@ final class NotebookShareHttp {
         JSONObject payload = legacy ? preview.legacyFields() : preview.payload();
         if (legacy && payload.length() == 0 && preview.cover() == null) return 204;
         return uploadPreview(server, cookie, entry.remoteId, entry.key(), legacy ? "device-preview" : "device-capture",
-                payload, preview.cover(), preview.mime());
+                payload, preview.cover(), preview.mime(), legacy ? java.util.List.of() : preview.articleImages());
     }
 
     private int uploadPreview(NotebookShareServer server, String cookie, String id, String key, String route,
-                              JSONObject payload, byte[] cover, String mime) throws IOException {
+                              JSONObject payload, byte[] cover, String mime, java.util.List<NotebookArticleCapture.Image> images) throws IOException {
         RequestBody body = RequestBody.create(payload.toString(), JSON);
-        if (cover != null) {
-            body = new MultipartBody.Builder().setType(MultipartBody.FORM)
-                    .addFormDataPart("payload", payload.toString())
-                    .addFormDataPart("cover", "preview", RequestBody.create(cover, MediaType.get(mime)))
-                    .build();
+        if (cover != null || !images.isEmpty()) {
+            var form = new MultipartBody.Builder().setType(MultipartBody.FORM).addFormDataPart("payload", payload.toString());
+            if (cover != null) form.addFormDataPart("cover", "preview", RequestBody.create(cover, MediaType.get(mime)));
+            for (var image : images) form.addFormDataPart("image." + image.key(), "article-image",
+                    RequestBody.create(image.bytes(), MediaType.get(image.mime())));
+            body = form.build();
         }
         Request request = request(server, "/api/saved-items/" + id + "/" + route, cookie)
                 .header("Origin", server.origin).header("Idempotency-Key", key).put(body).build();

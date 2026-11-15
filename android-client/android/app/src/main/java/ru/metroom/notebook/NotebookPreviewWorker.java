@@ -183,7 +183,7 @@ public final class NotebookPreviewWorker extends Worker {
 
     private NotebookCapturedPreview capture(String source) throws JSONException {
         try {
-            return NotebookCapturedPreview.success(new NotebookLinkPreview(network::read).get(source, true));
+            return NotebookCapturedPreview.success(new NotebookLinkPreview(network::read).get(source, true, true));
         } catch (NotebookPreviewNetwork.Unavailable failure) {
             return NotebookCapturedPreview.unavailable(failure.restricted ? "access" : failure.retryable ? "network" : "extraction");
         } catch (IOException failure) {
@@ -194,8 +194,17 @@ public final class NotebookPreviewWorker extends Worker {
     private int deliver(NotebookShareServer server, String cookie, NotebookShareRecord entry, NotebookCapturedPreview preview,
                         boolean legacy) throws IOException, JSONException {
         int status = http.uploadCapture(server, cookie, entry, preview, legacy);
-        return (status == 413 || status == 415) && preview.cover() != null && !isStopped()
-                ? http.uploadCapture(server, cookie, entry, preview.withoutCover(), legacy) : status;
+        if (!legacy && preview.hasArticle() && preview.cover() != null && (status == 413 || status == 415) && !isStopped()) {
+            status = http.uploadCapture(server, cookie, entry, preview.withoutCover(), false);
+        }
+        if (!legacy && preview.hasArticle() && (status == 400 || status == 413 || status == 415 || status == 422) && !isStopped()) {
+            preview = preview.withoutArticle();
+            status = http.uploadCapture(server, cookie, entry, preview, false);
+        }
+        if ((status == 413 || status == 415) && preview.cover() != null && !isStopped()) {
+            status = http.uploadCapture(server, cookie, entry, preview.withoutCover(), legacy);
+        }
+        return status;
     }
 
     private Result retryOrFail() {

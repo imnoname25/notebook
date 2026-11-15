@@ -82,7 +82,7 @@ final class NotebookShareStore {
             List<NotebookShareRecord> pending = entries(true);
             remaining = MAX_QUEUE_BYTES;
             for (NotebookShareRecord entry : pending) {
-                if (entry.androidFirst) remaining -= NotebookLinkPreview.MAX_COVER_BYTES;
+                if (entry.androidFirst) remaining -= previewStorage(directory(entry.id));
                 for (var file : entry.files) remaining -= file.size;
             }
             if (sharedSubject != null && !url.isEmpty()) remaining -= NotebookLinkPreview.MAX_COVER_BYTES;
@@ -284,6 +284,17 @@ final class NotebookShareStore {
         File directory = directory(id);
         File target = new File(directory, PREVIEW);
         if (!directory.isDirectory() || target.exists()) return;
+        if (preview.hasArticle()) {
+            long remaining = MAX_QUEUE_BYTES;
+            for (var entry : entries(true)) {
+                if (entry.androidFirst && !id.equals(entry.id)) remaining -= previewStorage(directory(entry.id));
+                for (var file : entry.files) remaining -= file.size;
+            }
+            if (preview.storageBytes() > remaining) {
+                try { preview = preview.withoutArticle(); }
+                catch (org.json.JSONException invalid) { throw new IOException("Invalid capture snapshot", invalid); }
+            }
+        }
         File temporary = new File(directory, PREVIEW + ".new");
         try {
             try (var out = new FileOutputStream(temporary); var data = new DataOutputStream(out)) {
@@ -296,6 +307,10 @@ final class NotebookShareStore {
         } finally {
             temporary.delete();
         }
+    }
+
+    private static long previewStorage(File directory) {
+        return Math.max(NotebookLinkPreview.MAX_COVER_BYTES, new File(directory, PREVIEW).length());
     }
 
     File attachment(NotebookShareRecord entry, int index) throws IOException {

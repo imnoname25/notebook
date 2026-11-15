@@ -16,7 +16,7 @@ type TextBlock = Exclude<Block, { type: "image" }>;
 type ListItem = Extract<Block, { type: "listItem" }>;
 const date = new Intl.DateTimeFormat("ru", { dateStyle: "medium", timeStyle: "short" });
 
-export function useSavedArticle(id: string, enabled: boolean) {
+export function useSavedArticle(id: string, enabled: boolean, hasSavedArticle: boolean) {
   const [state, setState] = useState<ReaderState>();
   const [error, setError] = useState("");
   const [submitting, setSubmitting] = useState(false);
@@ -30,7 +30,7 @@ export function useSavedArticle(id: string, enabled: boolean) {
       if (!controller.signal.aborted) setError("Не удалось проверить копию статьи");
     });
     return () => controller.abort();
-  }, [enabled, endpoint]);
+  }, [enabled, endpoint, hasSavedArticle]);
   useEffect(() => {
     if (!enabled || !pending) return;
     const controller = new AbortController();

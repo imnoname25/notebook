@@ -9,6 +9,7 @@ export const MAX_ARTICLE_INLINE = 200;
 export const MAX_ARTICLE_INLINE_TEXT = 16_384;
 export const MAX_ARTICLE_LIST_DEPTH = 12;
 const MAX_ARTICLE_TEXT = 200_000;
+export const MIN_ARTICLE_PROSE = 80;
 
 const text = z.string().min(1).max(MAX_ARTICLE_INLINE_TEXT).refine(value => !value.includes("\0"));
 const href = z.string().max(2048).refine(value => {

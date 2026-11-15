@@ -87,8 +87,7 @@ final class NotebookPreviewNetwork {
                     url = next;
                     continue;
                 }
-                if (code == 401 || code == 403 || code == 451 || code == 511) throw new Unavailable(false, true);
-                if (code != 200) throw new Unavailable(code == 408 || code == 429 || code >= 500);
+                requirePublicStatus(code);
                 var body = response.body();
                 var mime = body == null ? null : body.contentType();
                 String type = mime == null ? "" : mime.type() + "/" + mime.subtype();
@@ -101,6 +100,11 @@ final class NotebookPreviewNetwork {
             }
         }
         throw new Unavailable(false);
+    }
+
+    static void requirePublicStatus(int code) throws Unavailable {
+        if (code == 401 || code == 403 || code == 451 || code == 511) throw new Unavailable(false, true);
+        if (code != 200) throw new Unavailable(code == 408 || code == 429 || code >= 500);
     }
 
     private static List<InetAddress> resolveHost(String host, long remaining) throws IOException {

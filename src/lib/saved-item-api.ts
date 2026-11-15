@@ -2,11 +2,14 @@ import { NextResponse, type NextRequest } from "next/server";
 import { ApiError, readJson, requireUser, validateRequestOrigin } from "@/lib/api";
 import {
   MAX_DEVICE_PREVIEW_BYTES, MAX_SAVED_ATTACHMENTS, MAX_SAVED_JSON_BYTES,
-  MAX_SAVED_MULTIPART_BYTES, savedItemCreateSchema, savedItemIdSchema, savedItemIdempotencyKeySchema,
+  MAX_SAVED_MULTIPART_BYTES, deviceCaptureSchema, savedItemCreateSchema, savedItemIdSchema, savedItemIdempotencyKeySchema,
 } from "@/lib/saved-item-validation";
+import { MAX_ARTICLE_IMAGES } from "@/lib/saved-article-format";
 import { prepareUpload, type PreparedUpload } from "@/lib/services/upload-service";
 import { prepareDevicePreviewImage } from "@/lib/services/saved-device-preview-image";
-import { getSavedItem } from "@/lib/services/saved-item-service";
+import { MAX_ARTICLE_IMAGES_BYTES } from "@/lib/services/saved-article-images";
+import { prepareDeviceArticle } from "@/lib/services/saved-device-article";
+import { applySavedDeviceCapture, getSavedItem } from "@/lib/services/saved-item-service";
 import { maxUploadBytes } from "@/lib/uploads";
 
 export function requireSavedItemMutation(request: NextRequest) {
@@ -89,23 +92,33 @@ export async function readSavedItemCreate(request: Request) {
   return { input, files: prepared };
 }
 
-export async function readDevicePreview<Input>(request: Request, schema: { parse(value: unknown): Input }) {
-  const maxJsonBytes = 16 * 1024;
+async function readDevicePreview<Input>(request: Request, schema: { parse(value: unknown): Input }, article = false) {
+  const maxJsonBytes = article ? 1280 * 1024 : 16 * 1024;
   const type = mediaType(request);
+  const images = new Map<string, File>();
   if (type === "application/json") {
     const body = await boundedBody(request, maxJsonBytes, 15_000);
-    return { input: schema.parse(await readJson(body)), cover: null };
+    return { input: schema.parse(await readJson(body)), cover: null, images };
   }
   if (type !== "multipart/form-data") throw new ApiError(415, "Требуется JSON или multipart");
-  const body = await boundedBody(request, Math.min(maxUploadBytes(), MAX_DEVICE_PREVIEW_BYTES) + maxJsonBytes, 15_000);
+  const maxCoverBytes = Math.min(maxUploadBytes(), MAX_DEVICE_PREVIEW_BYTES);
+  const body = await boundedBody(request, maxCoverBytes + maxJsonBytes + (article ? MAX_ARTICLE_IMAGES_BYTES : 0), article ? 30_000 : 15_000);
   const form = await body.formData().catch(() => { throw new ApiError(400, "Некорректный multipart"); });
-  const [payload] = form.getAll("payload");
-  const [cover] = form.getAll("cover");
-  if ([...form].length !== 2 || typeof payload !== "string" || Buffer.byteLength(payload) > maxJsonBytes || !(cover instanceof File)) {
+  const [payload, ...morePayload] = form.getAll("payload");
+  const [cover, ...moreCovers] = form.getAll("cover");
+  if (morePayload.length || moreCovers.length || typeof payload !== "string" || Buffer.byteLength(payload) > maxJsonBytes
+    || (cover !== undefined && !(cover instanceof File)) || (!article && !cover)) {
     throw new ApiError(400, "Ожидаются поля payload и cover");
   }
+  for (const [name, value] of form) {
+    if (name === "payload" || name === "cover") continue;
+    const key = name.match(/^image\.([a-f0-9]{64})$/u)?.[1];
+    if (!article || !key || !(value instanceof File) || images.has(key) || images.size >= MAX_ARTICLE_IMAGES)
+      throw new ApiError(400, "Некорректные части изображений статьи");
+    images.set(key, value);
+  }
   const input = schema.parse(await readJson(new Request(request.url, { method: "POST", body: payload })));
-  return { input, cover };
+  return { input, cover: cover ?? null, images };
 }
 
 const state = globalThis as typeof globalThis & { notebookDeviceCoverWrites?: number };
@@ -116,6 +129,23 @@ export async function receiveDevicePreview<Input>(
   schema: { parse(value: unknown): Input },
   apply: (userId: string, id: string, key: string, input: Input, cover: PreparedUpload | null) => Promise<void>,
 ) {
+  return withDeviceRequest(request, params, async (userId, id, key) => {
+    const { input, cover } = await readDevicePreview(request, schema);
+    await apply(userId, id, key, input, cover && await prepareDevicePreviewImage(cover));
+  });
+}
+
+export async function receiveDeviceCapture(request: NextRequest, params: Promise<{ id: string }>) {
+  return withDeviceRequest(request, params, async (userId, id, key) => {
+    const { input, cover, images } = await readDevicePreview(request, deviceCaptureSchema, true);
+    const article = await prepareDeviceArticle(input.article, images);
+    await applySavedDeviceCapture(userId, id, key, input, cover && await prepareDevicePreviewImage(cover), article);
+  });
+}
+
+async function withDeviceRequest(
+  request: NextRequest, params: Promise<{ id: string }>, apply: (userId: string, id: string, key: string) => Promise<void>,
+) {
   const [user, param] = await Promise.all([requireSavedItemMutation(request), params]);
   const id = savedItemIdSchema.parse(param.id);
   const key = readIdempotencyKey(request);
@@ -125,8 +155,7 @@ export async function receiveDevicePreview<Input>(
   }
   state.notebookDeviceCoverWrites = (state.notebookDeviceCoverWrites ?? 0) + 1;
   try {
-    const { input, cover } = await readDevicePreview(request, schema);
-    await apply(user.id, id, key, input, cover && await prepareDevicePreviewImage(cover));
+    await apply(user.id, id, key);
   } finally {
     state.notebookDeviceCoverWrites--;
   }

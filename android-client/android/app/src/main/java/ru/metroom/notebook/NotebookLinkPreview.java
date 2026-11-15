@@ -61,9 +61,9 @@ final class NotebookLinkPreview {
 
     record Result(String kind, String title, String description, String siteName, byte[] image, String mime,
                   String canonical, String author, String publishedAt, String videoId, boolean expectedCover,
-                  Map<String, String> provenance) {
+                  Map<String, String> provenance, NotebookArticleCapture.Article article) {
         Result(String kind, String title, String description, String siteName, byte[] image, String mime) {
-            this(kind, title, description, siteName, image, mime, null, null, null, null, image != null, Map.of());
+            this(kind, title, description, siteName, image, mime, null, null, null, null, image != null, Map.of(), null);
         }
     }
     private record Metadata(String kind, String title, String description, String siteName, HttpUrl cover,
@@ -77,11 +77,16 @@ final class NotebookLinkPreview {
     }
 
     Result get(String original, boolean publicVideoDescription) throws IOException {
+        return get(original, publicVideoDescription, false);
+    }
+
+    Result get(String original, boolean publicVideoDescription, boolean includeArticle) throws IOException {
         HttpUrl url = NotebookPreviewNetwork.resolve(original, null);
         if (url == null) throw new NotebookPreviewNetwork.Unavailable(false);
-        long deadline = System.nanoTime() + TimeUnit.SECONDS.toNanos(19);
         String videoId = youtubeId(url);
+        long deadline = System.nanoTime() + TimeUnit.SECONDS.toNanos(includeArticle && kind(url).equals("article") ? 36 : 19);
         Metadata fields;
+        NotebookArticleCapture.Article article = null;
         boolean usedVideoPage = false;
         if (isYoutube(url)) {
             if (videoId == null) throw new NotebookPreviewNetwork.Unavailable(false);
@@ -100,7 +105,11 @@ final class NotebookLinkPreview {
         } else {
             if (isGateUrl(url)) throw new NotebookPreviewNetwork.Unavailable(false, true);
             var body = fetch.read(url, 512 * 1024, HTML, true, deadline);
-            fields = parseHtml(body, kind(url));
+            Document document = document(body);
+            fields = parseHtml(body, kind(url), document);
+            if (includeArticle && fields.kind().equals("article") && kind(body.url()).equals("article")) {
+                article = NotebookArticleCapture.extract(document, body.url(), fetch, deadline);
+            }
         }
 
         byte[] image = null;
@@ -141,7 +150,7 @@ final class NotebookLinkPreview {
             } catch (IOException ignored) { /* The optional page may be inaccessible while oEmbed works. */ }
         }
         return new Result(fields.kind(), fields.title(), description, fields.siteName(), image, mime,
-                fields.canonical(), author, publishedAt, videoId, videoId != null || fields.cover() != null, attribution);
+                fields.canonical(), author, publishedAt, videoId, videoId != null || fields.cover() != null, attribution, article);
     }
 
     private static String videoUrl(String id) { return "https://www.youtube.com/watch?v=" + id; }
@@ -201,6 +210,10 @@ final class NotebookLinkPreview {
     static boolean isGateUrl(HttpUrl url) { return GATE_URL.matcher(url.encodedPath()).find(); }
 
     private static Metadata parseHtml(NotebookPreviewNetwork.Body body, String kind) throws IOException {
+        return parseHtml(body, kind, document(body));
+    }
+
+    private static Document document(NotebookPreviewNetwork.Body body) throws IOException {
         if (isGateUrl(body.url())) throw new NotebookPreviewNetwork.Unavailable(false, true);
         var match = CHARSET.matcher(body.contentType());
         String charset = null;
@@ -208,7 +221,10 @@ final class NotebookLinkPreview {
             try { charset = Charset.forName(match.group(1)).name(); }
             catch (IllegalArgumentException ignored) { /* jsoup tries the document charset. */ }
         }
-        Document document = Jsoup.parse(new ByteArrayInputStream(body.bytes()), charset, "", Parser.htmlParser().setMaxDepth(96));
+        return Jsoup.parse(new ByteArrayInputStream(body.bytes()), charset, "", Parser.htmlParser().setMaxDepth(96));
+    }
+
+    private static Metadata parseHtml(NotebookPreviewNetwork.Body body, String kind, Document document) throws IOException {
         boolean publicArticle = document.select("article p,main p,[itemprop=articleBody] p").stream()
                 .anyMatch(paragraph -> paragraph.text().length() >= 80
                         && paragraph.closest("aside,nav,footer,form,template,[hidden],[inert],[aria-hidden=true]") == null);

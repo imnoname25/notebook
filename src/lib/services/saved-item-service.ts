@@ -10,6 +10,10 @@ import { extractHashtags } from "@/lib/hashtags";
 import { deviceCaptureDetailsSchema, type DeviceCaptureInput, type DevicePreviewInput, type SavedItemCreateInput, type SavedItemListInput, type SavedItemUpdateInput } from "@/lib/saved-item-validation";
 import { createPageInTransaction } from "./page-service";
 import { enqueueNewSavedArticle } from "./saved-article-queue";
+import { writeSavedArticle } from "./saved-article-write";
+import type { PreparedDeviceArticle } from "./saved-device-article";
+import { metadataUrl } from "@/lib/saved-metadata-network";
+import { savedHtmlLoginUrl } from "@/lib/saved-html-access";
 import { syncSavedItemTags } from "./tag-service";
 import { lockUserUploads, type PreparedUpload, withUploadWrites } from "./upload-service";
 
@@ -123,17 +127,22 @@ export async function applySavedDevicePreview(userId: string, id: string, key: s
   return saveDevicePreview(userId, id, key, input, cover);
 }
 
-export async function applySavedDeviceCapture(userId: string, id: string, key: string, input: DeviceCaptureInput, cover: PreparedUpload | null) {
-  return saveDevicePreview(userId, id, key, input, cover, input);
+export async function applySavedDeviceCapture(
+  userId: string, id: string, key: string, input: DeviceCaptureInput, cover: PreparedUpload | null, article?: PreparedDeviceArticle,
+) {
+  return saveDevicePreview(userId, id, key, input, cover, input, article);
 }
 
 async function saveDevicePreview(
   userId: string, id: string, key: string, input: DevicePreviewInput, cover: PreparedUpload | null, capture?: DeviceCaptureInput,
+  article?: PreparedDeviceArticle,
 ) {
   const title = websiteTitle(input.title ?? null);
   if (input.title && !title) throw new ApiError(422, "Источник вернул служебную страницу");
   if (!capture && !title && !input.description && !input.siteName && !cover) throw new ApiError(400, "Превью пустое");
-  const hash = fingerprint(capture ? [id, capture, cover?.sha256] : [id, title, input.description, input.siteName, cover?.sha256]);
+  const hash = fingerprint(capture
+    ? [id, capture, cover?.sha256, ...(article ? [article.images.map(image => [image.key, image.file.sha256])] : [])]
+    : [id, title, input.description, input.siteName, cover?.sha256]);
   await withUploadWrites(userId, async (tx, store) => {
     const item = await findOwnedItem(tx, userId, id);
     if (!item) throw new ApiError(404, "Материал не найден");
@@ -164,12 +173,20 @@ async function saveDevicePreview(
     if (cover && item.previewUploadId === null) updates.previewUpload = { connect: { id: (await store(cover)).id } };
     if (capture) {
       const kind = captureContentType(item.url, capture);
+      if (article) {
+        if (kind !== "article" || capture.failure) throw new ApiError(422, "Источник недоступен для сохранения статьи");
+        try { if (savedHtmlLoginUrl(metadataUrl(item.url))) throw new Error(); }
+        catch { throw new ApiError(422, "Источник недоступен для сохранения статьи"); }
+        // An automatic device capture can create a copy. Existing copies remain available
+        // until the user explicitly replaces or discards them using the article controls.
+        if (!item.article) await writeSavedArticle(tx, store, id, item.url, article.blocks, article.images);
+      }
       const link = classifySavedLink(item.url);
       const canonicalUrl = captureCanonicalUrl(item.url, capture.canonicalUrl);
       const videoId = link.kind === "video" && link.provider === "youtube" ? link.videoId ?? undefined : undefined;
       const hasCover = Boolean(cover || item.previewUploadId);
       const reliableTitle = Boolean(title && capture.provenance?.title && capture.provenance.title !== "intent");
-      const complete = reliableTitle && (hasCover || capture.media === "none") && !capture.failure;
+      const complete = Boolean(article) || (reliableTitle && (hasCover || capture.media === "none") && !capture.failure);
       const fieldsAccepted = {
         title: updates.metadataTitle, description: updates.metadataDescription, siteName: updates.metadataSiteName,
         cover: updates.previewUpload, canonicalUrl, contentType: kind, author: capture.author,
@@ -191,7 +208,7 @@ async function saveDevicePreview(
         where: complete ? { savedItemId: id, finishedAt: null } : waiting,
         data: complete ? { finishedAt: now, leaseToken: null, failed: false, failureReason: null } : { availableAt: now },
       });
-      const articleComplete = item.article?.sourceUrl === item.url;
+      const articleComplete = Boolean(article && !item.article) || item.article?.sourceUrl === item.url;
       await tx.savedArticleJob.updateMany({
         where: { savedItemId: id, status: kind !== "article" || articleComplete ? { in: ["queued", "retry", "running"] } : "queued" },
         data: kind !== "article" || articleComplete

@@ -1,4 +1,4 @@
-import { randomUUID } from "node:crypto";
+import { createHash, randomUUID } from "node:crypto";
 import sharp from "sharp";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 
@@ -154,6 +154,53 @@ describe.skipIf(!enabled)("saved item routes over HTTP with real sessions", () =
       item: { url, displayTitle: "Test video", deviceCaptureStatus: "received", metadataStatus: "ready",
         capture: { contentType: "video", videoId: "testVideo_1", author: "Creator", canonicalUrl: result.canonicalUrl } },
     });
+  }, 120_000);
+
+  it("accepts Android article blocks and private binary illustrations through device-capture", async () => {
+    const sourceUrl = "https://never-fetched.example/article";
+    const key = randomUUID();
+    const creation = json(ownerCookie, { url: sourceUrl, title: "My article", tags: ["#reading"] }, key);
+    const created = await request(endpoint, { ...creation, headers: { ...creation.headers, "x-notebook-device-capture": "1" } });
+    expect(created.status).toBe(201);
+    const { item } = await created.json();
+    const path = `${endpoint}/${item.id}`;
+    const picture = "https://never-fetched.example/image.png";
+    const imageKey = createHash("sha256").update(picture).digest("hex");
+    const article = { blocks: [
+      { type: "heading", level: 1, content: [{ type: "text", text: "Article headline" }] },
+      { type: "paragraph", content: [{ type: "text", text: "This paragraph is long enough to represent a real article. It is followed by a local image that was downloaded on the device." }] },
+      { type: "image", key: imageKey, alt: "A local illustration" },
+    ], images: [{ key: imageKey, sourceUrl: picture }] };
+    const payload = { version: 1, article };
+    const png = await sharp({ create: { width: 84, height: 52, channels: 3, background: "green" } }).png().toBuffer();
+    function multipart(bytes: Uint8Array, cookie = ownerCookie) {
+      const form = new FormData();
+      form.append("payload", JSON.stringify(payload));
+      form.append(`image.${imageKey}`, new File([new Uint8Array(bytes)], "uploaded.png", { type: "image/png" }));
+      return { method: "PUT", body: form, headers: { cookie, origin: origin!, "idempotency-key": key } };
+    }
+    expect((await request(`${path}/device-capture`, json(ownerCookie, payload, key, "PUT"))).status).toBe(400);
+    expect((await request(`${path}/device-capture`, multipart(png, otherCookie))).status).toBe(404);
+    expect((await request(`${path}/device-capture`, multipart(Buffer.from("<svg>not an image</svg>")))).status).toBe(415);
+    const blocked = { version: 1, article: { images: [], blocks: [
+      { type: "heading", level: 1, content: [{ type: "text", text: "Ваш браузер устарел" }] }, article.blocks[1],
+    ] } };
+    expect((await request(`${path}/device-capture`, json(ownerCookie, blocked, key, "PUT"))).status).toBe(422);
+    expect(await db.savedArticle.count({ where: { savedItemId: item.id } })).toBe(0);
+
+    expect((await request(`${path}/device-capture`, multipart(png))).status).toBe(204);
+    expect((await request(`${path}/device-capture`, multipart(png))).status).toBe(204);
+    const own = { headers: { cookie: ownerCookie } };
+    const loaded = await (await request(`${path}/article`, own)).json();
+    expect(loaded.article).toMatchObject({ contentVersion: 2, blocks: article.blocks, images: [{ key: imageKey }] });
+    const assetUrl = loaded.article.images[0].url;
+    expect((await request(assetUrl, { headers: { cookie: otherCookie } })).status).toBe(404);
+    const local = await request(assetUrl, own);
+    expect(local.status).toBe(200);
+    expect(local.headers.get("cache-control")).toBe("private, no-store");
+    expect(await sharp(Buffer.from(await local.arrayBuffer())).metadata()).toMatchObject({ width: 84, height: 52, format: "webp" });
+    expect(await (await request(path, own)).json()).toMatchObject({ item: { title: "My article", hasSavedArticle: true, url: sourceUrl } });
+    expect(await db.savedArticleImage.count({ where: { savedItemId: item.id } })).toBe(1);
   }, 120_000);
 
   it("stores a multipart PDF privately and rejects unsupported attachments and excess files", async () => {

@@ -118,6 +118,41 @@ test("shows a saved link during Android capture and updates its product card on 
   await expect(detail(page).getByRole("button", { name: "Сохранить статью" })).toHaveCount(0);
 });
 
+test("reads an Android article with its local image on desktop and mobile", async ({ page, baseURL }) => {
+  await login(page);
+  const headers = { origin: baseURL!, "idempotency-key": crypto.randomUUID() };
+  const source = "https://offline-android.example/article";
+  const created = await page.request.post("/api/saved-items", {
+    headers: { ...headers, "x-notebook-device-capture": "1" },
+    data: { url: source, title: "Статья с устройства" },
+  });
+  expect(created.status()).toBe(201);
+  const { item } = await created.json();
+  const picture = "https://offline-android.example/first.png";
+  const key = createHash("sha256").update(picture).digest("hex");
+  const text = "Этот абзац сохранён приложением Android. Он достаточно длинный, чтобы проверить полноценное чтение локальной копии с иллюстрацией.";
+  const buffer = await sharp({ create: { width: 96, height: 64, channels: 3, background: "navy" } }).png().toBuffer();
+  const external: string[] = [];
+  page.on("request", request => { if (new URL(request.url()).hostname === "offline-android.example") external.push(request.url()); });
+  await page.setViewportSize({ width: 1440, height: 900 });
+  await page.goto(`/app?view=saved&item=${item.id}`);
+  await expect(detail(page).getByText("Ожидаем данные с устройства…")).toBeVisible();
+  const written = await page.request.put(`/api/saved-items/${item.id}/device-capture`, {
+    headers, multipart: { payload: JSON.stringify({ version: 1, article: { blocks: [
+      { type: "paragraph", content: [{ type: "text", text }] },
+      { type: "image", key, alt: "Иллюстрация с устройства" },
+    ], images: [{ key, sourceUrl: picture }] } }), [`image.${key}`]: { name: "capture.png", mimeType: "image/png", buffer } },
+  });
+  expect(written.status()).toBe(204);
+  const image = detail(page).getByRole("img", { name: "Иллюстрация с устройства" });
+  await expect(detail(page).getByText(text)).toBeVisible({ timeout: 15_000 });
+  await expect(image).toBeVisible();
+  await expect.poll(() => image.evaluate((element: HTMLImageElement) => element.naturalWidth)).toBe(96);
+  await page.setViewportSize({ width: 360, height: 800 });
+  await expect(image).toBeVisible();
+  expect(external).toEqual([]);
+});
+
 async function compact(page: Page, width: number) {
   await page.setViewportSize({ width, height: 900 });
   await expect.poll(() => page.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(width);

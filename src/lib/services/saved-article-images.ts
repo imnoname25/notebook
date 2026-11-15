@@ -13,6 +13,23 @@ const MIN_DIMENSION = 32;
 export const SAVED_ARTICLE_IMAGE_MIME = "image/webp";
 export type PreparedArticleImage = ArticleImageCandidate & { file: PreparedUpload | null };
 
+export async function prepareSavedArticleImage(bytes: Buffer, expectedMime?: string) {
+  const limit = Math.min(MAX_ARTICLE_IMAGE_BYTES, maxUploadBytes());
+  if (!bytes.length || bytes.length > limit) return null;
+  const mime = MIME_TYPES.find(type => isValidImageMime(type, bytes));
+  if (!mime || (expectedMime && expectedMime !== mime)) return null;
+  try {
+    const image = sharp(bytes, { limitInputPixels: MAX_PIXELS, failOn: "warning", animated: true }).timeout({ seconds: 2 });
+    const info = await image.metadata();
+    if (`image/${info.format}` !== mime || info.width < MIN_DIMENSION || info.height < MIN_DIMENSION
+      || info.width > 8192 || info.height > 8192 || info.width * info.height > MAX_PIXELS || (info.pages ?? 1) > 1) return null;
+    const output = await image.autoOrient().resize(2000, 2000, { fit: "inside", withoutEnlargement: true })
+      .webp({ quality: 85 }).toBuffer();
+    if (output.byteLength > limit) return null;
+    return await prepareUpload(new File([new Uint8Array(output)], "article-image.webp", { type: SAVED_ARTICLE_IMAGE_MIME }));
+  } catch { return null; }
+}
+
 export async function downloadSavedArticleImages(
   candidates: ArticleImageCandidate[], signal: AbortSignal, fetchResource = fetchSavedMetadataResource,
 ): Promise<PreparedArticleImage[]> {
@@ -34,20 +51,11 @@ export async function downloadSavedArticleImages(
         onBytes: bytes => { transferred += bytes; },
       });
       transferred = Math.max(transferred, resource.body.byteLength);
-      if (resource.body.byteLength > maxBytes || !MIME_TYPES.includes(resource.mimeType)
-        || !isValidImageMime(resource.mimeType, resource.body)) continue;
-      const image = sharp(resource.body, { limitInputPixels: MAX_PIXELS, failOn: "warning" }).timeout({ seconds: 2 });
-      const metadata = await image.metadata();
-      if (!metadata.width || !metadata.height || metadata.width < MIN_DIMENSION || metadata.height < MIN_DIMENSION
-        || metadata.width * metadata.height > MAX_PIXELS || (metadata.pages ?? 1) > 1
-        || `image/${metadata.format}` !== resource.mimeType) continue;
+      if (resource.body.byteLength > maxBytes) continue;
+      const output = await prepareSavedArticleImage(resource.body, resource.mimeType);
       overall.throwIfAborted();
-      const output = await image.autoOrient().resize(2000, 2000, {
-        fit: "inside", withoutEnlargement: true,
-      }).webp({ quality: 85 }).toBuffer();
-      overall.throwIfAborted();
-      if (output.byteLength > Math.min(MAX_ARTICLE_IMAGE_BYTES, MAX_ARTICLE_IMAGES_BYTES - stored, maxUploadBytes())) continue;
-      entry.file = await prepareUpload(new File([new Uint8Array(output)], "article-image.webp", { type: SAVED_ARTICLE_IMAGE_MIME }));
+      if (!output || output.size > MAX_ARTICLE_IMAGES_BYTES - stored) continue;
+      entry.file = output;
       stored += entry.file.size;
     } catch {
       signal.throwIfAborted();

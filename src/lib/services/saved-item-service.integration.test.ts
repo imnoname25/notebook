@@ -1,3 +1,4 @@
+import { createHash } from "node:crypto";
 import { once } from "node:events";
 import { createServer } from "node:http";
 import { mkdtemp, readFile, readdir, rm } from "node:fs/promises";
@@ -134,6 +135,7 @@ describe.skipIf(!enabled)("saved items on PostgreSQL with persistent files", () 
     const { processSavedArticleJob } = await import("./saved-article-worker");
     const { enqueueSavedArticle } = await import("./saved-article-queue");
     const { prepareDevicePreviewImage } = await import("./saved-device-preview-image");
+    const { prepareDeviceArticle } = await import("./saved-device-article");
     const fixture = "<title>Source title</title><meta property='og:title' content='Source title'><article><p>" +
       "Fixture article text long enough to be accepted by the existing local HTML extraction path. ".repeat(6) + "</p></article>";
     let requests = 0;
@@ -184,6 +186,35 @@ describe.skipIf(!enabled)("saved items on PostgreSQL with persistent files", () 
       expect(await db.upload.count({ where: { userId: owner } })).toBe(1);
       expect(await db.savedItemMetadataJob.findUniqueOrThrow({ where })).toMatchObject({ attempts: 0, finishedAt: expect.any(Date) });
       expect(await db.savedArticleJob.findUniqueOrThrow({ where })).toMatchObject({ attempts: 0, status: "fallback", reason: "card" });
+      expect(await metadata()).toBe(false);
+      expect(await article()).toBe(false);
+      expect(requests).toBe(0);
+
+      const articleKey = "android-complete-story";
+      const device = (await saved.createSavedItem(owner, articleKey, savedItemCreateSchema.parse({
+        url: "https://example.org/android-story", title: "Manual story title",
+      }), [], true)).item;
+      const picture = "https://example.org/story/image.png";
+      const imageKey = createHash("sha256").update(picture).digest("hex");
+      const full = deviceCaptureSchema.parse({
+        version: 1, media: "unavailable",
+        article: { blocks: [
+          { type: "paragraph", content: [{ type: "text", text: "The full paragraph from our Android capture fixture gives enough non-link prose for validation on the server." }] },
+          { type: "image", key: imageKey, alt: "Downloaded photograph" },
+          { type: "quote", content: [{ type: "text", text: "End of the article." }] },
+        ], images: [{ key: imageKey, sourceUrl: picture }] },
+      });
+      const ready = await prepareDeviceArticle(full.article, new Map([[imageKey, new File([new Uint8Array(png)], "device.png")]]));
+      await Promise.all([
+        saved.applySavedDeviceCapture(owner, device.id, articleKey, full, null, ready),
+        saved.applySavedDeviceCapture(owner, device.id, articleKey, full, null, ready),
+      ]);
+      expect(await db.savedArticle.findUnique({ where: { savedItemId: device.id } })).toMatchObject({
+        blocks: full.article!.blocks, sourceUrl: device.url, contentVersion: 2,
+      });
+      expect(await db.savedArticleImage.findMany({ where: { savedItemId: device.id } })).toMatchObject([{ imageKey, position: 0, uploadId: expect.any(String) }]);
+      expect(await db.savedArticleJob.findUnique({ where: { savedItemId: device.id } })).toMatchObject({ status: "ready", attempts: 0 });
+      expect(await db.savedItemMetadataJob.findUnique({ where: { savedItemId: device.id } })).toMatchObject({ finishedAt: expect.any(Date), attempts: 0 });
       expect(await metadata()).toBe(false);
       expect(await article()).toBe(false);
       expect(requests).toBe(0);

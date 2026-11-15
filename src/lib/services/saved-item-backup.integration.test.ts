@@ -228,6 +228,37 @@ describe.skipIf(!enabled)("Saved Items portable backup, real PostgreSQL and ZIP"
     } finally { await imports.disposePreparedImport(prepared); }
   });
 
+  it("retains an Android article and its own images in v9 without exporting the wire payload", async () => {
+    const { createHash } = await import("node:crypto");
+    const { prepareDeviceArticle } = await import("./saved-device-article");
+    const key = "portable-device-article";
+    const { item } = await saved.createSavedItem(owner, key, savedItemCreateSchema.parse({ url }), [], true);
+    const picture = "https://example.test/article-image";
+    const imageKey = createHash("sha256").update(picture).digest("hex");
+    const input = deviceCaptureSchema.parse({ version: 1, article: { blocks: [
+      { type: "paragraph", content: [{ type: "text", text: "A self-contained paragraph belongs to this captured article. It provides enough text to pass the ordinary prose check." }] },
+      { type: "image", key: imageKey, alt: "Private image" },
+    ], images: [{ key: imageKey, sourceUrl: picture }] } });
+    const binary = await sharp({ create: { width: 80, height: 75, channels: 3, background: "purple" } }).png().toBuffer();
+    const preparedArticle = await prepareDeviceArticle(input.article, new Map([[imageKey, new File([new Uint8Array(binary)], "picture.png")]]));
+    await saved.applySavedDeviceCapture(owner, item.id, key, input, null, preparedArticle);
+    const prepared = await imports.prepareImport(request(await readZip()), "backup");
+    try {
+      expect(prepared.manifest?.version).toBe(DATA_FORMAT_VERSION);
+      const exported = prepared.data?.savedItems?.[0];
+      expect(exported?.article).toMatchObject({ contentVersion: 2, blocks: input.article!.blocks,
+        images: [{ imageKey, attachmentKey: expect.any(String) }] });
+      expect(exported?.deviceCapture).toEqual({ contentType: "article", provenance: {} });
+      await imports.restoreBackupData(other, prepared);
+      const [image] = await db.savedArticleImage.findMany({
+        where: { article: { savedItem: { userId: other } } }, include: { upload: true, article: true },
+      });
+      expect(image?.upload).toMatchObject({ userId: other, mimeType: "image/webp", sha256: preparedArticle!.images[0].file.sha256 });
+      expect(image.article.blocks).toEqual(input.article!.blocks);
+      expect(await db.savedArticleJob.count({ where: { savedItem: { userId: other } } })).toBe(0);
+    } finally { await imports.disposePreparedImport(prepared); }
+  });
+
   it("round-trips share provenance through v6 independently of the feature flag", async () => {
     const previousFlag = process.env.SAVED_ITEM_TITLE_ORIGINS;
     try {

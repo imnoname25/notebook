@@ -2,12 +2,13 @@ import { randomUUID } from "node:crypto";
 import { Prisma } from "@/generated/prisma/client";
 import { db } from "@/lib/db";
 import { ApiError } from "@/lib/errors";
-import { savedArticleBlocks, SAVED_ARTICLE_CONTENT_VERSION, SAVED_ARTICLE_IMAGE_VERSION, type SavedArticleBlocks } from "@/lib/saved-article-format";
+import { savedArticleBlocks, type SavedArticleBlocks } from "@/lib/saved-article-format";
 import { classifySavedLink } from "@/lib/saved-link";
 import { captureContentType, captureDetails } from "@/lib/saved-device-capture";
 import { metadataUrl } from "@/lib/saved-metadata-network";
 import type { PreparedArticleImage } from "./saved-article-images";
 import { withUploadWrites } from "./upload-service";
+import { writeSavedArticle } from "./saved-article-write";
 
 export const MAX_ARTICLE_ATTEMPTS = 3;
 const LEASE_SECONDS = 30;
@@ -115,9 +116,6 @@ class ExpiredArticleLease extends Error {}
 
 export async function settleSavedArticleJob(job: ClaimedJob, outcome: SavedArticleOutcome, signal?: AbortSignal) {
   const blocks = outcome.status === "ready" ? savedArticleBlocks.parse(outcome.blocks) : null;
-  const imageKeys = new Set(blocks?.flatMap(block => block.type === "image" ? [block.key] : []));
-  const images = new Map(outcome.status === "ready" ? outcome.images?.map(image => [image.key, image]) : undefined);
-  if (imageKeys.size !== images.size || [...imageKeys].some(key => !images.has(key))) throw new Error("Invalid article image references");
   const lease = Prisma.sql`"savedItemId" = ${job.savedItemId} AND "sourceUrl" = ${job.sourceUrl}
     AND generation = ${job.generation} AND "leaseToken" = ${job.leaseToken}
     AND status = 'running' AND "leaseUntil" > ${utcNow}`;
@@ -130,21 +128,7 @@ export async function settleSavedArticleJob(job: ClaimedJob, outcome: SavedArtic
     if (!current) return false;
     const retryAt = outcome.status === "retry" ? outcome.retryAt.toISOString() : null;
     const reason = outcome.status === "ready" ? null : outcome.reason;
-    if (blocks) {
-      const data = { contentVersion: imageKeys.size ? SAVED_ARTICLE_IMAGE_VERSION : SAVED_ARTICLE_CONTENT_VERSION,
-        blocks, sourceUrl: job.sourceUrl, extractedAt: new Date() };
-      await tx.savedArticle.upsert({ where: { savedItemId: job.savedItemId }, create: { savedItemId: job.savedItemId, ...data }, update: data });
-      await tx.savedArticleImage.deleteMany({ where: { savedItemId: job.savedItemId } });
-      let position = 0;
-      for (const imageKey of imageKeys) {
-        signal?.throwIfAborted();
-        const image = images.get(imageKey)!;
-        const upload = image.file ? await store(image.file) : null;
-        await tx.savedArticleImage.create({ data: {
-          savedItemId: job.savedItemId, imageKey, sourceUrl: image.sourceUrl, position: position++, uploadId: upload?.id,
-        } });
-      }
-    }
+    if (blocks && outcome.status === "ready") await writeSavedArticle(tx, store, job.savedItemId, job.sourceUrl, blocks, outcome.images ?? [], signal);
     const changed = await tx.$executeRaw(Prisma.sql`
       UPDATE "SavedArticleJob" SET status = ${outcome.status}::"SavedArticleJobStatus", reason = ${reason},
         "leaseToken" = NULL, "leaseUntil" = NULL,

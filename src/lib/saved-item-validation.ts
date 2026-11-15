@@ -1,5 +1,6 @@
 import { z } from "zod";
 import { hashtagQuery, MAX_PAGE_TAGS } from "@/lib/hashtags";
+import { MAX_ARTICLE_IMAGES, savedArticleBlocks, savedArticleImageKey } from "@/lib/saved-article-format";
 
 export const MAX_SAVED_ATTACHMENTS = 4;
 export const MAX_SAVED_JSON_BYTES = 512 * 1024;
@@ -80,6 +81,13 @@ export const deviceCaptureSchema = devicePreviewSchema.extend({
   version: z.literal(1),
   media: z.enum(["none", "unavailable"]).optional(),
   failure: z.enum(["network", "extraction", "access", "invalid"]).optional(),
+  article: z.strictObject({
+    blocks: savedArticleBlocks,
+    images: z.array(z.strictObject({
+      key: savedArticleImageKey,
+      sourceUrl: savedItemCreateSchema.shape.url.unwrap().unwrap(),
+    })).max(MAX_ARTICLE_IMAGES),
+  }).optional(),
 });
 
 export type SavedItemCreateInput = z.infer<typeof savedItemCreateSchema>;
