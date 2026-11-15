@@ -64,7 +64,26 @@ export const devicePreviewSchema = z.strictObject({
   siteName: previewText(160),
 });
 
+export const DEVICE_CAPTURE_HEADER = "x-notebook-device-capture";
+const captureFields = z.enum(["title", "description", "siteName", "canonicalUrl", "contentType", "author", "publishedAt", "videoId", "cover"]);
+const fieldSource = z.enum(["intent", "opengraph", "twitter", "schema", "html", "oembed", "noembed", "url", "server"]);
+export const deviceCaptureDetailsSchema = z.strictObject({
+  canonicalUrl: savedItemCreateSchema.shape.url.unwrap().unwrap().optional(),
+  contentType: z.enum(["article", "video", "social", "product"]).optional(),
+  author: previewText(160),
+  publishedAt: z.union([z.iso.date(), z.iso.datetime({ offset: true })]).optional(),
+  videoId: z.string().regex(/^[A-Za-z0-9_-]{11}$/u).optional(),
+  provenance: z.partialRecord(captureFields, fieldSource).optional(),
+});
+export const deviceCaptureSchema = devicePreviewSchema.extend({
+  ...deviceCaptureDetailsSchema.shape,
+  version: z.literal(1),
+  media: z.enum(["none", "unavailable"]).optional(),
+  failure: z.enum(["network", "extraction", "access", "invalid"]).optional(),
+});
+
 export type SavedItemCreateInput = z.infer<typeof savedItemCreateSchema>;
 export type SavedItemUpdateInput = z.infer<typeof savedItemUpdateSchema>;
 export type SavedItemListInput = z.infer<typeof savedItemListSchema>;
 export type DevicePreviewInput = z.infer<typeof devicePreviewSchema>;
+export type DeviceCaptureInput = z.infer<typeof deviceCaptureSchema>;

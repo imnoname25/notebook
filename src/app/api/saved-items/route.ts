@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { apiError, requireUser } from "@/lib/api";
 import { readIdempotencyKey, readSavedItemCreate, requireSavedItemMutation } from "@/lib/saved-item-api";
-import { savedItemListSchema } from "@/lib/saved-item-validation";
+import { DEVICE_CAPTURE_HEADER, savedItemListSchema } from "@/lib/saved-item-validation";
 import { createSavedItem, listSavedItems } from "@/lib/services/saved-item-service";
 
 export const runtime = "nodejs";
@@ -19,7 +19,7 @@ export async function POST(request: NextRequest) {
     const user = await requireSavedItemMutation(request);
     const key = readIdempotencyKey(request);
     const { input, files } = await readSavedItemCreate(request);
-    const { item, replayed } = await createSavedItem(user.id, key, input, files);
+    const { item, replayed } = await createSavedItem(user.id, key, input, files, request.headers.get(DEVICE_CAPTURE_HEADER) === "1");
     return NextResponse.json({ item }, { status: replayed ? 200 : 201 });
   } catch (error) { return apiError(error); }
 }

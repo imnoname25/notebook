@@ -67,7 +67,7 @@ final class NotebookShareSync {
         if (entry.status != NotebookShareRecord.Status.SENT) return false;
         try {
             onSaved.schedule(entry);
-            store.remove(entry.id);
+            if (!entry.androidFirst) store.remove(entry.id);
         } catch (IOException ignored) {
             // The persisted receipt prevents another send. Recovery retries cleanup.
         }

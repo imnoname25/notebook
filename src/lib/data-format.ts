@@ -7,7 +7,7 @@ import { TEMPLATE_ICONS } from "@/lib/template-icons";
 import { SECTION_ICONS } from "@/lib/section-icons";
 import { NOTEBOOK_COVER_GRADIENTS, NOTEBOOK_COVER_TYPES } from "@/lib/notebook-cover";
 import { hashtagQuery, MAX_PAGE_TAGS } from "@/lib/hashtags";
-import { MAX_SAVED_ATTACHMENTS, savedItemCreateSchema, savedItemReviewStatusSchema, savedItemTitleOriginSchema, savedPreviewFields, sharedTitleSchema } from "@/lib/saved-item-validation";
+import { deviceCaptureDetailsSchema, MAX_SAVED_ATTACHMENTS, savedItemCreateSchema, savedItemReviewStatusSchema, savedItemTitleOriginSchema, savedPreviewFields, sharedTitleSchema } from "@/lib/saved-item-validation";
 import {
   ACCENT_COLORS,
   PAGE_APPEARANCE_PRESETS,
@@ -19,7 +19,7 @@ import {
 } from "@/lib/content-appearance";
 
 export const DEVICE_PREVIEW_DATA_FORMAT_VERSION = 8 as const;
-export const DATA_FORMAT_VERSION = DEVICE_PREVIEW_DATA_FORMAT_VERSION;
+export const DATA_FORMAT_VERSION = 9 as const;
 export const SAVED_ITEMS_DATA_FORMAT_VERSION = 6 as const;
 export const FILE_INTEGRITY_DATA_FORMAT_VERSION = 6 as const;
 export const ARTICLES_DATA_FORMAT_VERSION = 7 as const;
@@ -186,6 +186,7 @@ const portableSavedItemSchema = z.strictObject({
     coverKey: portableKey.nullable(),
     fields: z.array(savedPreviewFields).max(3),
   }).optional(),
+  deviceCapture: deviceCaptureDetailsSchema.optional(),
   metadata: z.strictObject({
     title: portableMetadataText(300),
     description: portableMetadataText(1000),
@@ -207,6 +208,7 @@ export const manifestSchema = z
       z.literal(SECTION_ICONS_DATA_FORMAT_VERSION),
       z.literal(SAVED_ITEMS_DATA_FORMAT_VERSION),
       z.literal(ARTICLES_DATA_FORMAT_VERSION),
+      z.literal(DEVICE_PREVIEW_DATA_FORMAT_VERSION),
       z.literal(DATA_FORMAT_VERSION),
     ]),
     createdAt: portableDate,

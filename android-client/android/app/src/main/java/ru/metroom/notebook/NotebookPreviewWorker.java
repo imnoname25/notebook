@@ -1,9 +1,11 @@
 package ru.metroom.notebook;
 
 import android.content.Context;
+import android.os.Build;
 import androidx.annotation.NonNull;
 import androidx.work.BackoffPolicy;
 import androidx.work.Constraints;
+import androidx.work.OutOfQuotaPolicy;
 import androidx.work.Data;
 import androidx.work.ExistingWorkPolicy;
 import androidx.work.NetworkType;
@@ -16,11 +18,14 @@ import androidx.work.WorkerParameters;
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 import java.util.UUID;
+import java.util.concurrent.Semaphore;
 import java.util.concurrent.TimeUnit;
+import org.json.JSONException;
 
-/** Stores only the destination and receipt. Source URLs and session cookies never enter WorkManager. */
+/** WorkManager carries record IDs. Source URLs, payloads and cookies stay outside its database. */
 public final class NotebookPreviewWorker extends Worker {
     private static final int MAX_ATTEMPTS = 3;
+    private static final Semaphore CAPTURE_SLOTS = new Semaphore(2);
     private final NotebookPreviewNetwork network = new NotebookPreviewNetwork();
     private final NotebookShareHttp http = new NotebookShareHttp(20);
 
@@ -48,7 +53,31 @@ public final class NotebookPreviewWorker extends Worker {
         return "saved-preview-" + target;
     }
 
+    static Operation enqueueDraft(Context context, UUID id, boolean deliver) {
+        var builder = new OneTimeWorkRequest.Builder(NotebookPreviewWorker.class)
+                .setConstraints(new Constraints.Builder().setRequiredNetworkType(NetworkType.CONNECTED).build())
+                .setBackoffCriteria(BackoffPolicy.LINEAR, 10, TimeUnit.SECONDS)
+                .setInputData(new Data.Builder().putString("draft", id.toString()).putBoolean("deliver", deliver).build());
+        if (!deliver && Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+            builder.setExpedited(OutOfQuotaPolicy.RUN_AS_NON_EXPEDITED_WORK_REQUEST);
+        }
+        return WorkManager.getInstance(context).enqueueUniqueWork(
+                draftWork(id, deliver), ExistingWorkPolicy.KEEP, builder.build());
+    }
+
+    static void cancelDraft(Context context, UUID id) {
+        WorkManager manager = WorkManager.getInstance(context);
+        manager.cancelUniqueWork(draftWork(id, false));
+        manager.cancelUniqueWork(draftWork(id, true));
+    }
+
+    private static String draftWork(UUID id, boolean deliver) {
+        return (deliver ? "deliver-preview-" : "capture-preview-") + id;
+    }
+
     @NonNull @Override public Result doWork() {
+        String draft = getInputData().getString("draft");
+        if (draft != null) return draftPreview(UUID.fromString(draft), getInputData().getBoolean("deliver", false));
         String id = getInputData().getString("item"), expected = getInputData().getString("account");
         NotebookShareServer server = NotebookShareServer.parse(getInputData().getString("server"));
         if (id == null || !id.matches("[A-Za-z0-9_-]{1,128}") || expected == null || server == null) return Result.failure();
@@ -91,6 +120,82 @@ public final class NotebookPreviewWorker extends Worker {
         } catch (IOException failure) {
             return retryOrFail();
         }
+    }
+
+    private Result draftPreview(UUID id, boolean deliver) {
+        var shares = NotebookShareManager.get(getApplicationContext());
+        var store = shares.captureStore();
+        try {
+            var entry = store.read(id);
+            if (entry == null || !entry.androidFirst || isStopped()) return Result.success();
+            if (!deliver) {
+                if (store.hasPreview(id)) return Result.success();
+                if (!CAPTURE_SLOTS.tryAcquire()) return Result.retry();
+                try {
+                    var captured = capture(entry.url);
+                    if (!isStopped()) store.savePreview(id, captured);
+                } finally { CAPTURE_SLOTS.release(); }
+                return Result.success();
+            }
+            if (entry.status != NotebookShareRecord.Status.SENT || !entry.remoteId.matches("[A-Za-z0-9_-]{1,128}")) return Result.failure();
+            var preview = store.preview(id);
+            if (preview == null) {
+                if (getRunAttemptCount() < 5) {
+                    enqueueDraft(getApplicationContext(), id, false);
+                    return Result.retry();
+                }
+                return Result.failure();
+            }
+            var server = NotebookShareServer.parse(entry.server);
+            String cookie = server == null ? null : shares.previewCookie(server);
+            var account = cookie == null ? null : http.account(server, cookie);
+            if (account == null || !entry.accountId.equals(account.id) || !cookie.equals(shares.previewCookie(server)) || isStopped()) {
+                return retryOrFail();
+            }
+            int status = deliver(server, cookie, entry, preview, false);
+            if (status == 404 || status == 405) {
+                try {
+                    if (entry.url.equals(http.previewSource(server, cookie, entry.remoteId))) {
+                        status = deliver(server, cookie, entry, preview, true);
+                    } else status = 204; // Server predates the preview API.
+                } catch (NotebookPreviewNetwork.Unavailable missing) {
+                    if (missing.retryable) throw missing;
+                    status = 204; // The remote item no longer accepts previews.
+                }
+            }
+            if (status == 204) {
+                store.remove(id);
+                return Result.success();
+            }
+            if (status == 400 || status == 422) {
+                // Keep the confirmed bookmark and let the server run fallback.
+                int settled = http.uploadCapture(server, cookie, entry, NotebookCapturedPreview.unavailable("invalid"), false);
+                if (settled == 204) {
+                    store.remove(id);
+                    return Result.success();
+                }
+            }
+            return retryOrFail();
+        } catch (IOException | JSONException failure) {
+            return retryOrFail();
+        }
+    }
+
+    private NotebookCapturedPreview capture(String source) throws JSONException {
+        try {
+            return NotebookCapturedPreview.success(new NotebookLinkPreview(network::read).get(source, true));
+        } catch (NotebookPreviewNetwork.Unavailable failure) {
+            return NotebookCapturedPreview.unavailable(failure.restricted ? "access" : failure.retryable ? "network" : "extraction");
+        } catch (IOException failure) {
+            return NotebookCapturedPreview.unavailable("network");
+        }
+    }
+
+    private int deliver(NotebookShareServer server, String cookie, NotebookShareRecord entry, NotebookCapturedPreview preview,
+                        boolean legacy) throws IOException, JSONException {
+        int status = http.uploadCapture(server, cookie, entry, preview, legacy);
+        return (status == 413 || status == 415) && preview.cover() != null && !isStopped()
+                ? http.uploadCapture(server, cookie, entry, preview.withoutCover(), legacy) : status;
     }
 
     private Result retryOrFail() {

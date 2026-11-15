@@ -171,6 +171,8 @@ export async function searchNotebook(userId: string, rawQuery: string, limit = S
       SELECT jsonb_build_object(
         'title', saved.title, 'titleOrigin', saved."titleOrigin", 'sharedTitle', saved."sharedTitle",
         'metadataTitle', saved."metadataTitle", 'text', saved.text, 'url', saved.url,
+        'metadataSiteName', saved."metadataSiteName", 'metadataTitleSource', saved."deviceCapture"->'provenance'->>'title',
+        'androidCapture', saved."deviceCapture" IS NOT NULL OR saved."deviceCaptureUntil" IS NOT NULL,
         'fileName', (SELECT upload."originalName" FROM "SavedItemAttachment" attachment
           JOIN "Upload" upload ON upload.id = attachment."uploadId" AND upload."userId" = saved."userId"
           WHERE attachment."savedItemId" = saved.id ORDER BY attachment.position LIMIT 1)

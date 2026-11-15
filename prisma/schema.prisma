@@ -34,6 +34,7 @@ enum SavedItemOperation {
   create
   convert
   devicePreview
+  deviceCapture
 }
 
 enum SavedPreviewField {
@@ -380,6 +381,9 @@ model SavedItem {
   metadataImageUrl    String?
   androidMetadataFields SavedPreviewField[] @default([])
   previewUploadId     String? @unique
+  deviceCapture       Json?
+  deviceCaptureUntil  DateTime?
+  deviceCaptureFailure String?
   searchTags          String  @default("") @db.Text
   reviewStatus    SavedItemReviewStatus @default(pending)
   archivedAt      DateTime?

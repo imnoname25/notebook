@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState, useSyncExternalStore } from "react";
-import { Archive, ArrowLeft, ArrowUpRight, Bookmark, Ellipsis, FileText, ImageIcon, Link2, MessageSquare, Plus, Search, Video } from "lucide-react";
+import { Archive, ArrowLeft, ArrowUpRight, Bookmark, Ellipsis, FileText, ImageIcon, Link2, MessageSquare, Package, Plus, Search, Video } from "lucide-react";
 import * as DropdownMenu from "@radix-ui/react-dropdown-menu";
 import { Button, buttonVariants } from "@/components/ui/button";
 import { api, jsonOptions } from "@/lib/client-api";
@@ -18,7 +18,8 @@ type View = (typeof views)[number]["id"];
 const date = new Intl.DateTimeFormat("ru", { day: "numeric", month: "short", year: "numeric" });
 const noClientSubscription = () => () => undefined;
 const serverPreviewSnapshot = () => false;
-const linkKinds = { article: { label: "Ссылка", icon: Link2 }, video: { label: "Видео", icon: Video }, social: { label: "Публикация", icon: MessageSquare } };
+const linkKinds = { article: { label: "Ссылка", icon: Link2 }, video: { label: "Видео", icon: Video }, social: { label: "Публикация", icon: MessageSquare },
+  product: { label: "Товар", icon: Package } };
 
 function metadataPreview(item: SavedItem) {
   if (!item.metadata.hasPreview || (item.hasSavedArticle && item.linkKind === "article" && !item.metadata.coverOnDevice)) return undefined;
@@ -55,6 +56,7 @@ function videoCoverMissing(item: SavedItem) {
 }
 
 function metadataStatusLabel(item: SavedItem) {
+  if (item.deviceCaptureStatus === "pending") return "Ожидаем данные с устройства…";
   if (item.metadataStatus === "queued") return "Получаем превью…";
   if (item.metadataStatus === "failed") {
     switch (item.metadataFailure) {
@@ -78,6 +80,8 @@ function SavedFacts({ item }: { item: SavedItem }) {
   return <span className="flex min-w-0 flex-wrap items-center gap-x-2 gap-y-0.5 text-xs text-muted-foreground">
     {item.linkKind && <span className="font-medium text-foreground">{linkKinds[item.linkKind].label}</span>}
     {siteName && siteName.replace(/^www\./u, "") !== host && <span className="max-w-full [overflow-wrap:anywhere]">{siteName}</span>}
+    {item.capture?.author && !siteName?.includes(item.capture.author) &&
+      <span className="max-w-full [overflow-wrap:anywhere]">{item.capture.author}</span>}
     {host && <span className="max-w-full break-all">{host}</span>}
     <time dateTime={item.createdAt}>{date.format(new Date(item.createdAt))}</time>
     <span>{item.reviewStatus === "pending" ? "Неразобранное" : "Разобрано"}</span>

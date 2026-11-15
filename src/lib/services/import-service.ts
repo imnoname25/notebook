@@ -20,6 +20,7 @@ import {
   FILE_INTEGRITY_DATA_FORMAT_VERSION,
   ARTICLES_DATA_FORMAT_VERSION,
   DEVICE_PREVIEW_DATA_FORMAT_VERSION,
+  DATA_FORMAT_VERSION,
   manifestSchema,
   pageExportSchema,
   type ArchiveData,
@@ -44,6 +45,7 @@ import { syncLiveWidgetIndex } from "@/lib/services/live-widget-service";
 import { ATTACHMENT_EXTENSIONS, isValidAttachmentMime } from "@/lib/uploads";
 import { DEVICE_PREVIEW_MIME, MAX_DEVICE_PREVIEW_BYTES } from "@/lib/saved-item-validation";
 import { websiteTitle } from "@/lib/saved-item-title";
+import { captureCanonicalUrl } from "@/lib/saved-device-capture";
 import { discardUncommittedUploads, lockUserUploads } from "./upload-service";
 import {
   portableAttachmentKeysInContent,
@@ -118,6 +120,10 @@ function assertPortableReferences(data: ArchiveData, manifest: DataManifest) {
     if (manifest.version >= ARTICLES_DATA_FORMAT_VERSION &&
         (item.titleOrigin === "system" || item.titleOrigin === "share") && item.title !== "")
       throw new ApiError(400, "Некорректное происхождение заголовка Saved Item v7");
+    if (item.deviceCapture && (manifest.version < DATA_FORMAT_VERSION || !item.url ||
+      (item.deviceCapture.canonicalUrl && !captureCanonicalUrl(item.url, item.deviceCapture.canonicalUrl)))) {
+      throw new ApiError(400, "Некорректные данные захвата Android");
+    }
     const preview = item.devicePreview;
     if (preview) {
       if (manifest.version < DEVICE_PREVIEW_DATA_FORMAT_VERSION || !item.url || (!preview.coverKey && !preview.fields.length)
@@ -515,6 +521,7 @@ async function importSavedItems(
         metadataImageUrl: metadata.imageUrl,
         androidMetadataFields: item.devicePreview?.fields ?? [],
         previewUploadId: item.devicePreview?.coverKey ? attachmentIds.get(item.devicePreview.coverKey)! : null,
+        deviceCapture: item.deviceCapture ?? undefined,
         searchTags: item.tags.map(tag => tag.normalized).join(" "),
         // Import and restore never schedule requests to URLs from an archive.
         ...(item.url ? { metadataJob: { create: { finishedAt: new Date() } } } : {}),

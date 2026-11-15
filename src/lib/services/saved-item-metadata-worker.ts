@@ -3,6 +3,7 @@ import { db } from "@/lib/db";
 import type { SavedPreviewField } from "@/generated/prisma/enums";
 import { lockUserUploads } from "./upload-service";
 import { classifySavedLink } from "@/lib/saved-link";
+import { captureDetails } from "@/lib/saved-device-capture";
 import { fetchSavedMetadata } from "@/lib/saved-metadata";
 import { savedRequestFailure } from "@/lib/saved-metadata-network";
 import { claimSavedItemMetadataJob, MAX_METADATA_ATTEMPTS, settleSavedItemMetadataJob } from "./saved-item-metadata-queue";
@@ -41,17 +42,24 @@ export async function processSavedMetadataJob(signal: AbortSignal, fetchMetadata
     const owner = await tx.savedItem.findUnique({ where: { id: job.savedItemId }, select: { userId: true } });
     if (!owner) return;
     await lockUserUploads(tx, owner.userId);
-    const [item] = await tx.$queryRaw<{ androidMetadataFields: SavedPreviewField[]; previewUploadId: string | null; metadataImageUrl: string | null }[]>(Prisma.sql`
-      SELECT "androidMetadataFields"::text[] AS "androidMetadataFields", "previewUploadId", "metadataImageUrl"
+    const [item] = await tx.$queryRaw<{ androidMetadataFields: SavedPreviewField[]; previewUploadId: string | null; metadataImageUrl: string | null;
+      deviceCapture: unknown }[]>(Prisma.sql`
+      SELECT "androidMetadataFields"::text[] AS "androidMetadataFields", "previewUploadId", "metadataImageUrl", "deviceCapture"
       FROM "SavedItem" WHERE id = ${job.savedItemId} AND url = ${job.url} FOR NO KEY UPDATE`);
     if (!item) return;
     if (!(await settleSavedItemMetadataJob(tx, job, { status: "done" }))) return;
     const device = item.androidMetadataFields;
+    const capture = captureDetails(item.deviceCapture);
+    const title = device.includes("title") ? undefined : metadata.metadataTitle ?? undefined;
+    const description = device.includes("description") ? undefined : metadata.metadataDescription ?? undefined;
+    const siteName = device.includes("siteName") ? undefined : metadata.metadataSiteName;
+    const provenance = capture ? { ...capture.provenance,
+      ...(title ? { title: "server" } : {}), ...(description ? { description: "server" } : {}),
+      ...(siteName ? { siteName: "server" } : {}) } : undefined;
     return tx.savedItem.update({ where: { id: job.savedItemId }, data: {
-      metadataTitle: device.includes("title") ? undefined : metadata.metadataTitle ?? undefined,
-      metadataDescription: device.includes("description") ? undefined : metadata.metadataDescription ?? undefined,
-      metadataSiteName: device.includes("siteName") ? undefined : metadata.metadataSiteName,
-      metadataImageUrl: item.previewUploadId && item.metadataImageUrl ? undefined : metadata.metadataImageUrl ?? undefined,
+      metadataTitle: title, metadataDescription: description, metadataSiteName: siteName,
+      deviceCapture: capture ? { ...capture, provenance } : undefined,
+      metadataImageUrl: item.previewUploadId ? undefined : metadata.metadataImageUrl ?? undefined,
     }, select: { metadataImageUrl: true } });
   });
   if (stored && link.kind === "video" && link.provider === "youtube" && link.videoId) {

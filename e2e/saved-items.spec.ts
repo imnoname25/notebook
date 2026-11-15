@@ -91,6 +91,33 @@ async function mobileAction(page: Page, name: string) {
   await action.click();
 }
 
+test("shows a saved link during Android capture and updates its product card on desktop and mobile", async ({ page, baseURL }) => {
+  await login(page);
+  const headers = { origin: baseURL!, "idempotency-key": crypto.randomUUID() };
+  const created = await page.request.post("/api/saved-items", {
+    headers: { ...headers, "x-notebook-device-capture": "1" },
+    data: { url: "https://example.test/products/item?size=wide", sharedTitle: "Про" },
+  });
+  expect(created.status()).toBe(201);
+  const { item } = await created.json();
+  const address = `/app?view=saved&item=${item.id}`;
+  await page.setViewportSize({ width: 1440, height: 900 });
+  await page.goto(address);
+  await expect(detail(page).getByText("Ожидаем данные с устройства…")).toBeVisible();
+  await expect(detail(page).getByRole("heading", { name: "example.test" })).toBeVisible();
+  const accepted = await page.request.put(`/api/saved-items/${item.id}/device-capture`, {
+    headers, data: { version: 1, title: "Товар с устройства", description: "Описание товара", author: "Производитель",
+      contentType: "product", media: "none", provenance: { title: "schema", contentType: "schema", author: "schema" } },
+  });
+  expect(accepted.status()).toBe(204);
+  await expect(detail(page).getByRole("heading", { name: "Товар с устройства" })).toBeVisible({ timeout: 15_000 });
+  await expect(detail(page).getByText("Ожидаем данные с устройства…")).toHaveCount(0);
+  await page.setViewportSize({ width: 360, height: 800 });
+  await expect(detail(page).getByText("Товар", { exact: true })).toBeVisible();
+  await expect(detail(page).getByText("Производитель", { exact: true })).toBeVisible();
+  await expect(detail(page).getByRole("button", { name: "Сохранить статью" })).toHaveCount(0);
+});
+
 async function compact(page: Page, width: number) {
   await page.setViewportSize({ width, height: 900 });
   await expect.poll(() => page.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(width);

@@ -105,4 +105,25 @@ public class NotebookShareStoreTest {
         new NotebookShareStore(directory, new TestDisk()).recover();
         assertNull(store.read(entry.id));
     }
+
+    @Test public void retainsTheSameDraftPreviewAndReceiptUntilDelivery() throws Exception {
+        var directory = temp.newFolder();
+        var store = new NotebookShareStore(directory, new TestDisk());
+        var draft = store.capture(UUID.randomUUID(), System.currentTimeMillis(), "", "Shared text", "https://example.org/post",
+                List.of(), null, null, "Draft title", "");
+        var original = NotebookCapturedPreview.unavailable("network");
+        store.savePreview(draft.id, original);
+        store.savePreview(draft.id, NotebookCapturedPreview.unavailable("access"));
+        draft.status = NotebookShareRecord.Status.SENT;
+        draft.remoteId = "remote-card";
+        store.update(draft);
+        var reopened = new NotebookShareStore(directory, new TestDisk());
+        var scheduled = new java.util.ArrayList<String>();
+        reopened.recover(entry -> scheduled.add(entry.key()));
+        assertEquals(List.of(draft.key()), scheduled);
+        assertEquals("remote-card", reopened.read(draft.id).remoteId);
+        assertEquals("network", reopened.preview(draft.id).payload().getString("failure"));
+        reopened.remove(draft.id);
+        assertNull(reopened.preview(draft.id));
+    }
 }

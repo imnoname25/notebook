@@ -4,6 +4,7 @@ import { db } from "@/lib/db";
 import { ApiError } from "@/lib/errors";
 import { savedArticleBlocks, SAVED_ARTICLE_CONTENT_VERSION, SAVED_ARTICLE_IMAGE_VERSION, type SavedArticleBlocks } from "@/lib/saved-article-format";
 import { classifySavedLink } from "@/lib/saved-link";
+import { captureContentType, captureDetails } from "@/lib/saved-device-capture";
 import { metadataUrl } from "@/lib/saved-metadata-network";
 import type { PreparedArticleImage } from "./saved-article-images";
 import { withUploadWrites } from "./upload-service";
@@ -13,14 +14,14 @@ const LEASE_SECONDS = 30;
 const utcNow = Prisma.sql`(clock_timestamp() AT TIME ZONE 'UTC')`;
 const MANUAL_COOLDOWN_MS = 60_000;
 
-export async function enqueueNewSavedArticle(tx: Prisma.TransactionClient, savedItemId: string, url: string | null, hasAttachments: boolean) {
+export async function enqueueNewSavedArticle(tx: Prisma.TransactionClient, savedItemId: string, url: string | null, hasAttachments: boolean, availableAt?: Date) {
   if (process.env.SAVED_ARTICLE_AUTO_EXTRACT !== "1" || !url || hasAttachments) return;
   if (classifySavedLink(url).kind !== "article") return;
   try { metadataUrl(url); } catch { return; }
 
   await tx.$executeRaw`SAVEPOINT saved_article_capture`;
   try {
-    await tx.savedArticleJob.create({ data: { savedItemId, sourceUrl: url, generation: randomUUID() } });
+    await tx.savedArticleJob.create({ data: { savedItemId, sourceUrl: url, generation: randomUUID(), availableAt } });
   } catch {
     await tx.$executeRaw`ROLLBACK TO SAVEPOINT saved_article_capture`;
     console.warn("Notebook could not queue automatic article extraction for a new bookmark");
@@ -33,11 +34,14 @@ export async function enqueueSavedArticle(userId: string, savedItemId: string, {
     if (manual) {
       await tx.$queryRaw(Prisma.sql`SELECT 1 FROM pg_advisory_xact_lock(hashtextextended(${`notebook:article-requests:${userId}`}, 0))`);
     }
-    const [item] = await tx.$queryRaw<{ url: string | null }[]>(Prisma.sql`
-      SELECT url FROM "SavedItem" WHERE id = ${savedItemId} AND "userId" = ${userId} FOR NO KEY UPDATE`);
+    const [item] = await tx.$queryRaw<{ url: string | null; deviceCapture: unknown; waitingForDevice: boolean | null }[]>(Prisma.sql`
+      SELECT url, "deviceCapture", "deviceCaptureUntil" > ${utcNow} AS "waitingForDevice"
+      FROM "SavedItem" WHERE id = ${savedItemId} AND "userId" = ${userId} FOR NO KEY UPDATE`);
     if (!item) throw new ApiError(404, "Материал не найден");
     if (!item.url) throw new ApiError(409, "У материала нет ссылки");
-    if (classifySavedLink(item.url).kind !== "article") throw new ApiError(409, "Для этой ссылки доступна карточка");
+    if (item.waitingForDevice) throw new ApiError(409, "Notebook ожидает данные с устройства");
+    if (captureContentType(item.url, captureDetails(item.deviceCapture) ?? {}) !== "article")
+      throw new ApiError(409, "Для этой ссылки доступна карточка");
     try { metadataUrl(item.url); } catch { throw new ApiError(409, "Ссылка недоступна для извлечения"); }
 
     const now = new Date();
@@ -84,8 +88,9 @@ export async function claimSavedArticleJob(): Promise<ClaimedJob | null> {
       SELECT j."savedItemId", s."userId", CASE WHEN s.url IS DISTINCT FROM j."sourceUrl" THEN 'source-changed'
         WHEN j.attempts >= ${MAX_ARTICLE_ATTEMPTS} THEN 'lease-expired' END AS failure
       FROM "SavedArticleJob" j JOIN "SavedItem" s ON s.id = j."savedItemId"
-      WHERE (j.status IN ('queued', 'retry') AND j."availableAt" <= ${utcNow})
-         OR (j.status = 'running' AND j."leaseUntil" <= ${utcNow})
+      WHERE (s."deviceCaptureUntil" IS NULL OR s."deviceCaptureUntil" <= ${utcNow})
+        AND ((j.status IN ('queued', 'retry') AND j."availableAt" <= ${utcNow})
+          OR (j.status = 'running' AND j."leaseUntil" <= ${utcNow}))
       ORDER BY CASE WHEN j.status = 'running' THEN j."leaseUntil" ELSE j."availableAt" END, j."savedItemId"
       LIMIT 1 FOR UPDATE OF j SKIP LOCKED
     )

@@ -11,6 +11,7 @@ import {
   blockNoteContentSchema,
   ARTICLES_DATA_FORMAT_VERSION,
   DEVICE_PREVIEW_DATA_FORMAT_VERSION,
+  DATA_FORMAT_VERSION,
   EXPORT_FORMAT,
   PAGE_FORMAT,
   type ArchiveData,
@@ -33,7 +34,7 @@ import { blockNoteToMarkdown } from "@/lib/markdown-export";
 import { assertSafeArchivePath, createDataTempDirectory, createZipArchive } from "@/lib/archive";
 import { MAX_IMPORT_ENTRIES, MAX_IMPORT_JSON_BYTES, maxImportArchiveBytes, maxImportUncompressedBytes } from "@/lib/data-limits";
 import { ATTACHMENT_EXTENSIONS, isValidAttachmentMime } from "@/lib/uploads";
-import { DEVICE_PREVIEW_MIME } from "@/lib/saved-item-validation";
+import { deviceCaptureDetailsSchema, DEVICE_PREVIEW_MIME } from "@/lib/saved-item-validation";
 import { lockUserUploads } from "./upload-service";
 import { validatePortableArticleImage } from "./portable-article-files";
 import { blockNoteToSafeHtml, standalonePageHtml } from "@/lib/html-export";
@@ -321,8 +322,9 @@ export async function buildPortableExport(
       });
   const manifest: DataManifest = {
     format: options.backup ? BACKUP_FORMAT : EXPORT_FORMAT,
-    version: savedItems.some(item => item.previewUploadId || item.androidMetadataFields.length)
-      ? DEVICE_PREVIEW_DATA_FORMAT_VERSION : ARTICLES_DATA_FORMAT_VERSION,
+    version: savedItems.some(item => item.deviceCapture !== null) ? DATA_FORMAT_VERSION
+      : savedItems.some(item => item.previewUploadId || item.androidMetadataFields.length)
+        ? DEVICE_PREVIEW_DATA_FORMAT_VERSION : ARTICLES_DATA_FORMAT_VERSION,
     createdAt: new Date().toISOString(),
     app: "Notebook",
     scope: options.backup ? "backup" : options.notebookId ? "notebook" : "all",
@@ -362,6 +364,7 @@ export async function buildPortableExport(
               updatedAt: date(item.updatedAt),
               tags: item.tags.map(({ tag: { name, normalized } }) => ({ name, normalized })),
               attachmentKeys: item.attachments.map(({ uploadId }) => uploadKey.get(uploadId)!),
+              ...(item.deviceCapture !== null ? { deviceCapture: deviceCaptureDetailsSchema.parse(item.deviceCapture) } : {}),
               ...(item.previewUploadId || item.androidMetadataFields.length ? { devicePreview: {
                 coverKey: item.previewUploadId ? uploadKey.get(item.previewUploadId)! : null,
                 fields: item.androidMetadataFields,

@@ -88,11 +88,12 @@ final class NotebookShareHttp {
             }
             body = multipart.build();
         }
-        Request request = request(server, "/api/saved-items", cookie)
+        Request.Builder outgoing = request(server, "/api/saved-items", cookie)
                 .header("Origin", server.origin)
                 .header("Idempotency-Key", entry.key())
-                .post(body).build();
-        try (Response response = client.newCall(request).execute()) {
+                .post(body);
+        if (entry.androidFirst) outgoing.header("X-Notebook-Device-Capture", "1");
+        try (Response response = client.newCall(outgoing.build()).execute()) {
             int code = response.code();
             String id = code == 200 || code == 201 ? confirmedId(readJson(response.body(), 512 * 1024), entry) : null;
             return new NotebookShareSync.Result(code, id, code == 429 ? retryAfter(response.header("Retry-After")) : 0);
@@ -120,14 +121,27 @@ final class NotebookShareHttp {
         } catch (JSONException invalid) {
             throw new IOException("Invalid device preview");
         }
+        return uploadPreview(server, cookie, id, key, "device-preview", payload, preview.image(), preview.mime());
+    }
+
+    int uploadCapture(NotebookShareServer server, String cookie, NotebookShareRecord entry,
+                      NotebookCapturedPreview preview, boolean legacy) throws IOException, JSONException {
+        JSONObject payload = legacy ? preview.legacyFields() : preview.payload();
+        if (legacy && payload.length() == 0 && preview.cover() == null) return 204;
+        return uploadPreview(server, cookie, entry.remoteId, entry.key(), legacy ? "device-preview" : "device-capture",
+                payload, preview.cover(), preview.mime());
+    }
+
+    private int uploadPreview(NotebookShareServer server, String cookie, String id, String key, String route,
+                              JSONObject payload, byte[] cover, String mime) throws IOException {
         RequestBody body = RequestBody.create(payload.toString(), JSON);
-        if (preview.image() != null) {
+        if (cover != null) {
             body = new MultipartBody.Builder().setType(MultipartBody.FORM)
                     .addFormDataPart("payload", payload.toString())
-                    .addFormDataPart("cover", "preview", RequestBody.create(preview.image(), MediaType.get(preview.mime())))
+                    .addFormDataPart("cover", "preview", RequestBody.create(cover, MediaType.get(mime)))
                     .build();
         }
-        Request request = request(server, "/api/saved-items/" + id + "/device-preview", cookie)
+        Request request = request(server, "/api/saved-items/" + id + "/" + route, cookie)
                 .header("Origin", server.origin).header("Idempotency-Key", key).put(body).build();
         try (Response response = client.newCall(request).execute()) {
             return response.code();

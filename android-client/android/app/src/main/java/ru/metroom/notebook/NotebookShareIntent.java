@@ -43,18 +43,27 @@ final class NotebookShareIntent {
         } else {
             addFile(files, IntentCompat.getParcelableExtra(intent, Intent.EXTRA_STREAM, Uri.class), ownPackage);
         }
-        CharSequence text = intent.getCharSequenceExtra(Intent.EXTRA_TEXT);
+        var text = new LinkedHashSet<String>();
+        int textLength = 0;
+        if (multiple) {
+            var items = intent.getCharSequenceArrayListExtra(Intent.EXTRA_TEXT);
+            if (items != null) for (var item : items) textLength = addText(text, textLength, item);
+        }
+        if (text.isEmpty()) textLength = addText(text, textLength, intent.getCharSequenceExtra(Intent.EXTRA_TEXT));
         ClipData clip = intent.getClipData();
         if (clip != null) {
             for (int i = 0; i < clip.getItemCount(); i++) {
                 ClipData.Item item = clip.getItemAt(i);
-                addFile(files, item.getUri(), ownPackage);
-                if (text == null && !multiple) text = item.getText();
+                Uri uri = item.getUri();
+                if (uri != null && ("https".equalsIgnoreCase(uri.getScheme()) || "http".equalsIgnoreCase(uri.getScheme()))) {
+                    textLength = addText(text, textLength, uri.toString());
+                } else addFile(files, uri, ownPackage);
+                if (multiple || text.isEmpty()) textLength = addText(text, textLength, item.getText());
             }
         }
         if (!multiple && files.size() > 1) throw new IllegalArgumentException("Для нескольких файлов нужен общий выбор файлов.");
-        String original = NotebookShareInput.text(text);
-        if (files.isEmpty() && (multiple || !"text/plain".equals(intent.getType()) || original.trim().isEmpty())) {
+        String original = NotebookShareInput.text(String.join("\n", text));
+        if (files.isEmpty() && (!"text/plain".equals(intent.getType()) || original.trim().isEmpty())) {
             throw new IllegalArgumentException("Поделитесь текстом, ссылкой, изображением или PDF.");
         }
         String url = NotebookShareInput.url(original);
@@ -62,6 +71,17 @@ final class NotebookShareIntent {
                 NotebookShareInput.title(intent.getCharSequenceExtra(Intent.EXTRA_SUBJECT)),
                 NotebookShareInput.title(intent.getCharSequenceExtra(Intent.EXTRA_TITLE)),
                 original.trim().equals(url) ? "" : original, url, new ArrayList<>(files));
+    }
+
+    private static int addText(LinkedHashSet<String> text, int length, CharSequence value) {
+        if (value == null || value.length() == 0) return length;
+        String part = NotebookShareInput.text(value);
+        if (!text.add(part)) return length;
+        int combined = length + part.length() + (text.size() == 1 ? 0 : 1);
+        if (combined > NotebookShareInput.MAX_TEXT) {
+            throw new IllegalArgumentException("Текст слишком длинный или повреждён.");
+        }
+        return combined;
     }
 
     private static void addFile(LinkedHashSet<Uri> files, Uri uri, String ownPackage) {

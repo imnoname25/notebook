@@ -1,8 +1,11 @@
+import { once } from "node:events";
+import { createServer } from "node:http";
 import { mkdtemp, readFile, readdir, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
-import { savedItemCreateSchema, savedItemListSchema } from "@/lib/saved-item-validation";
+import { deviceCaptureSchema, savedItemCreateSchema, savedItemListSchema } from "@/lib/saved-item-validation";
+import { fetchSavedArticle } from "@/lib/saved-article-extraction";
 import { fetchSavedMetadata } from "@/lib/saved-metadata";
 import { fetchSavedMetadataResource, SavedMetadataError } from "@/lib/saved-metadata-network";
 import sharp from "sharp";
@@ -124,6 +127,97 @@ describe.skipIf(!enabled)("saved items on PostgreSQL with persistent files", () 
         { savedItemId: one.item.id, sourceUrl: shared.url, status: "queued" },
       ]);
     } finally { vi.unstubAllEnvs(); }
+  });
+
+  it("holds both queues and makes zero source requests for a complete Android card", async () => {
+    const { processSavedMetadataJob } = await import("./saved-item-metadata-worker");
+    const { processSavedArticleJob } = await import("./saved-article-worker");
+    const { enqueueSavedArticle } = await import("./saved-article-queue");
+    const { prepareDevicePreviewImage } = await import("./saved-device-preview-image");
+    const fixture = "<title>Source title</title><meta property='og:title' content='Source title'><article><p>" +
+      "Fixture article text long enough to be accepted by the existing local HTML extraction path. ".repeat(6) + "</p></article>";
+    let requests = 0;
+    const source = createServer((_request, response) => {
+      requests++;
+      response.writeHead(200, { "content-type": "text/html" }).end(fixture);
+    });
+    source.listen(0, "127.0.0.1");
+    await once(source, "listening");
+    const address = source.address();
+    if (!address || typeof address === "string") throw new Error("Expected a local fixture port");
+    const request = async (target: string, { signal }: { signal?: AbortSignal }) => {
+      // Only the test transport points at this fixture. The item retains its public URL.
+      const response = await fetch(`http://127.0.0.1:${address.port}`, { signal });
+      return { url: new URL(target), body: Buffer.from(await response.arrayBuffer()), mimeType: "text/html", contentType: "text/html" };
+    };
+    const signal = new AbortController().signal;
+    const metadata = () => processSavedMetadataJob(signal, (url, active) => fetchSavedMetadata(url, active, request));
+    const article = () => processSavedArticleJob(signal, (url, active) => fetchSavedArticle(url, active, request));
+    vi.stubEnv("SAVED_ARTICLE_AUTO_EXTRACT", "1");
+    try {
+      const url = "https://example.org/product?ref=unexpected";
+      const key = "android-first-complete";
+      const { item } = await saved.createSavedItem(owner, key, savedItemCreateSchema.parse({ url, sharedTitle: "Шрш" }), [], true);
+      expect(item).toMatchObject({ url, deviceCaptureStatus: "pending", displayTitle: "example.org" });
+      const where = { savedItemId: item.id };
+      expect(await db.savedItemMetadataJob.findUniqueOrThrow({ where })).toMatchObject({ attempts: 0 });
+      expect(await db.savedArticleJob.findUniqueOrThrow({ where })).toMatchObject({ attempts: 0, status: "queued" });
+      expect(await metadata()).toBe(false);
+      expect(await article()).toBe(false);
+      await expect(enqueueSavedArticle(owner, item.id, { manual: true })).rejects.toMatchObject({ status: 409 });
+      expect(requests).toBe(0);
+
+      const png = await sharp({ create: { width: 90, height: 90, channels: 3, background: "orange" } }).png().toBuffer();
+      const cover = await prepareDevicePreviewImage(new File([new Uint8Array(png)], "cover.png"));
+      const result = deviceCaptureSchema.parse({ version: 1, title: "Real product name", description: "Details",
+        contentType: "product", author: "Maker", canonicalUrl: "https://example.org/product", publishedAt: "2026-11-15",
+        provenance: { title: "schema", description: "schema", contentType: "schema", cover: "schema" } });
+      await saved.updateSavedItem(owner, item.id, { title: "My title", tags: ["inbox"], archived: true });
+      await expect(saved.applySavedDeviceCapture(owner, item.id, "wrong-key", result, cover)).rejects.toMatchObject({ status: 409 });
+      await Promise.all([saved.applySavedDeviceCapture(owner, item.id, key, result, cover),
+        saved.applySavedDeviceCapture(owner, item.id, key, result, cover)]);
+      expect(await saved.getSavedItem(owner, item.id)).toMatchObject({
+        url, title: "My title", displayTitle: "My title", tags: [{ normalized: "inbox" }], archivedAt: expect.any(Date),
+        deviceCaptureStatus: "received", capture: { author: "Maker", contentType: "product", canonicalUrl: "https://example.org/product" },
+        metadata: { hasPreview: true, coverOnDevice: true },
+      });
+      expect(await db.upload.count({ where: { userId: owner } })).toBe(1);
+      expect(await db.savedItemMetadataJob.findUniqueOrThrow({ where })).toMatchObject({ attempts: 0, finishedAt: expect.any(Date) });
+      expect(await db.savedArticleJob.findUniqueOrThrow({ where })).toMatchObject({ attempts: 0, status: "fallback", reason: "card" });
+      expect(await metadata()).toBe(false);
+      expect(await article()).toBe(false);
+      expect(requests).toBe(0);
+
+      const partialKey = "android-first-article";
+      const partial = (await saved.createSavedItem(owner, partialKey,
+        savedItemCreateSchema.parse({ url: "https://example.org/story" }), [], true)).item;
+      await saved.applySavedDeviceCapture(owner, partial.id, partialKey, deviceCaptureSchema.parse({
+        version: 1, title: "Story title", media: "none", provenance: { title: "opengraph" },
+      }), null);
+      expect(await metadata()).toBe(false);
+      expect(await article()).toBe(true);
+      expect(requests).toBe(1);
+      expect((await saved.getSavedItem(owner, partial.id)).hasSavedArticle).toBe(true);
+
+      const timedOut = (await saved.createSavedItem(owner, "expired-device",
+        savedItemCreateSchema.parse({ url: "https://example.org/timed-out" }), [], true)).item;
+      const past = new Date(Date.now() - 1000);
+      await db.savedItem.update({ where: { id: timedOut.id }, data: { deviceCaptureUntil: past } });
+      await db.savedItemMetadataJob.update({ where: { savedItemId: timedOut.id }, data: { availableAt: past } });
+      await db.savedArticleJob.update({ where: { savedItemId: timedOut.id }, data: { availableAt: past } });
+      expect(await metadata()).toBe(true);
+      expect(await article()).toBe(true);
+      expect(requests).toBe(3);
+      const archivedCopy = await db.savedArticle.findUniqueOrThrow({ where: { savedItemId: timedOut.id } });
+      await saved.applySavedDeviceCapture(owner, timedOut.id, "expired-device", deviceCaptureSchema.parse({
+        version: 1, failure: "access",
+      }), null);
+      expect(await db.savedArticle.findUniqueOrThrow({ where: { savedItemId: timedOut.id } })).toEqual(archivedCopy);
+    } finally {
+      source.closeAllConnections();
+      await new Promise<void>(resolve => source.close(() => resolve()));
+      vi.unstubAllEnvs();
+    }
   });
 
   it("commits the bookmark and its idempotency record if automatic queue insertion fails", async () => {

@@ -62,4 +62,15 @@ public class NotebookShareIntentTest {
         var longText = new Intent(Intent.ACTION_SEND).setType("text/plain").putExtra(Intent.EXTRA_TEXT, "x".repeat(50_001));
         assertThrows(IllegalArgumentException.class, () -> NotebookShareIntent.parse(longText, OWN));
     }
+
+    @Test public void acceptsMultipleTextAndKeepsQueryFromClipData() {
+        var intent = new Intent(Intent.ACTION_SEND_MULTIPLE).setType("text/plain");
+        intent.putCharSequenceArrayListExtra(Intent.EXTRA_TEXT, new ArrayList<>(Arrays.asList("Имя", "Описание")));
+        String url = "https://example.org/story?size=large&tag=value!";
+        intent.setClipData(ClipData.newRawUri("Link", Uri.parse(url)));
+        var parsed = NotebookShareIntent.parse(intent, OWN);
+        assertEquals(url, parsed.url);
+        assertEquals("Имя\nОписание\n" + url, parsed.text);
+        assertTrue(parsed.files.isEmpty());
+    }
 }

@@ -130,6 +130,32 @@ describe.skipIf(!enabled)("saved item routes over HTTP with real sessions", () =
     expect((await request(itemPath, { headers: { cookie: ownerCookie } })).status).toBe(404);
   }, 120_000);
 
+  it("accepts only a versioned Android capture tied to the original owned receipt", async () => {
+    const url = "https://youtu.be/testVideo_1?t=42";
+    const key = randomUUID();
+    const creation = json(ownerCookie, { url, sharedTitle: "Про" }, key);
+    const created = await request(endpoint, { ...creation, headers: { ...creation.headers, "X-Notebook-Device-Capture": "1" } });
+    expect(created.status).toBe(201);
+    const { item } = await created.json();
+    expect(item).toMatchObject({ url, deviceCaptureStatus: "pending", displayTitle: "youtu.be" });
+    const replay = await request(endpoint, creation);
+    expect(replay.status).toBe(200);
+    expect((await replay.json()).item.id).toBe(item.id);
+    const path = `${endpoint}/${item.id}/device-capture`;
+    const result = { version: 1, title: "Test video", author: "Creator", media: "none",
+      canonicalUrl: "https://www.youtube.com/watch?v=testVideo_1", provenance: { title: "oembed", author: "oembed" } };
+    expect((await request(path, json(otherCookie, result, key, "PUT"))).status).toBe(404);
+    expect((await request(path, json(ownerCookie, result, "unrelated", "PUT"))).status).toBe(409);
+    expect((await request(path, json(ownerCookie, { ...result, version: 2 }, key, "PUT"))).status).toBe(400);
+    expect((await request(path, json(ownerCookie, { ...result, imageUrl: "https://example.org/cover" }, key, "PUT"))).status).toBe(400);
+    expect((await request(path, json(ownerCookie, result, key, "PUT"))).status).toBe(204);
+    expect((await request(path, json(ownerCookie, result, key, "PUT"))).status).toBe(204);
+    expect(await (await request(`${endpoint}/${item.id}`, { headers: { cookie: ownerCookie } })).json()).toMatchObject({
+      item: { url, displayTitle: "Test video", deviceCaptureStatus: "received", metadataStatus: "ready",
+        capture: { contentType: "video", videoId: "testVideo_1", author: "Creator", canonicalUrl: result.canonicalUrl } },
+    });
+  }, 120_000);
+
   it("stores a multipart PDF privately and rejects unsupported attachments and excess files", async () => {
     const pdf = new File(["%PDF-1.7\n%%EOF"], "capture.pdf", { type: "application/pdf" });
     const multipart = (body: FormData, key: string) => request(endpoint, {

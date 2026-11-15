@@ -1,6 +1,8 @@
 package ru.metroom.notebook;
 
 import java.io.File;
+import java.io.DataInputStream;
+import java.io.DataOutputStream;
 import java.io.FileInputStream;
 import java.io.FileOutputStream;
 import java.io.IOException;
@@ -20,8 +22,10 @@ final class NotebookShareStore {
     interface Disk { void rename(File source, File target) throws IOException; void sync(File directory) throws IOException; }
 
     private static final String DATA = "entry.properties";
+    private static final String PREVIEW = "capture.bin";
     private static final int MAX_RECORDS = 50;
     private static final long MAX_QUEUE_BYTES = 256L * 1024 * 1024;
+    private static final long RECEIPT_RETENTION_MS = 7 * 24 * 60 * 60 * 1000L;
     private final File root;
     private final Disk disk;
 
@@ -35,6 +39,10 @@ final class NotebookShareStore {
     }
 
     synchronized void recover(NotebookShareSync.OnSaved onSaved) throws IOException {
+        recover(onSaved, entry -> {});
+    }
+
+    synchronized void recover(NotebookShareSync.OnSaved onSaved, NotebookShareSync.OnSaved onDraft) throws IOException {
         ensureRoot();
         for (File directory : children(root)) {
             String name = directory.getName();
@@ -45,8 +53,14 @@ final class NotebookShareStore {
                 if (id == null) continue;
                 NotebookShareRecord entry = read(id);
                 if (entry != null && entry.status == NotebookShareRecord.Status.SENT) {
+                    if (entry.androidFirst && System.currentTimeMillis() - entry.receivedAt > RECEIPT_RETENTION_MS) {
+                        remove(entry.id);
+                        continue;
+                    }
                     onSaved.schedule(entry);
-                    remove(entry.id);
+                    if (!entry.androidFirst) remove(entry.id);
+                } else if (entry != null && entry.androidFirst) {
+                    onDraft.schedule(entry);
                 }
             }
         }
@@ -65,9 +79,14 @@ final class NotebookShareStore {
         long remaining;
         synchronized (this) {
             ensureRoot();
-            List<NotebookShareRecord> pending = list();
+            List<NotebookShareRecord> pending = entries(true);
             remaining = MAX_QUEUE_BYTES;
-            for (NotebookShareRecord entry : pending) for (var file : entry.files) remaining -= file.size;
+            for (NotebookShareRecord entry : pending) {
+                if (entry.androidFirst) remaining -= NotebookLinkPreview.MAX_COVER_BYTES;
+                for (var file : entry.files) remaining -= file.size;
+            }
+            if (sharedSubject != null && !url.isEmpty()) remaining -= NotebookLinkPreview.MAX_COVER_BYTES;
+            if (remaining < 0) throw new IllegalArgumentException("Очередь заполнена. Отправьте или удалите старые материалы.");
             if (pending.size() >= MAX_RECORDS) throw new IllegalArgumentException("Очередь заполнена. Отправьте или удалите старые материалы.");
         }
         File stage = new File(root, ".incoming-" + id);
@@ -86,6 +105,7 @@ final class NotebookShareStore {
             var entry = new NotebookShareRecord(id, receivedAt, kind, title, text, url, files);
             entry.sharedSubject = sharedSubject;
             entry.sharedExtraTitle = sharedExtraTitle;
+            entry.androidFirst = sharedSubject != null && !url.isEmpty();
             if (selected != null) entry.server = selected.base;
             if (account != null && account.server.equals(selected)) {
                 entry.accountId = account.id;
@@ -134,13 +154,17 @@ final class NotebookShareStore {
     }
 
     synchronized List<NotebookShareRecord> list() throws IOException {
+        return entries(false);
+    }
+
+    private List<NotebookShareRecord> entries(boolean includeReceipts) throws IOException {
         ensureRoot();
         var result = new ArrayList<NotebookShareRecord>();
         for (File directory : children(root)) {
             UUID id = parseId(directory.getName());
             if (id == null) continue;
             var entry = read(id);
-            if (entry != null && entry.status != NotebookShareRecord.Status.SENT) result.add(entry);
+            if (entry != null && (includeReceipts || entry.status != NotebookShareRecord.Status.SENT)) result.add(entry);
         }
         result.sort(Comparator.comparingLong((NotebookShareRecord entry) -> entry.receivedAt).reversed());
         return result;
@@ -179,6 +203,7 @@ final class NotebookShareStore {
             entry.status = NotebookShareRecord.Status.valueOf(props.getProperty("status"));
             entry.attempts = Integer.parseInt(props.getProperty("attempts", "0"));
             entry.retryAt = Long.parseLong(props.getProperty("retryAt", "0"));
+            entry.androidFirst = Boolean.parseBoolean(props.getProperty("androidFirst", "false"));
             entry.remoteId = props.getProperty("remoteId", "");
             return entry;
         } catch (IllegalArgumentException | NullPointerException invalid) {
@@ -212,6 +237,7 @@ final class NotebookShareStore {
         props.setProperty("status", entry.status.name());
         props.setProperty("attempts", Integer.toString(entry.attempts));
         props.setProperty("retryAt", Long.toString(entry.retryAt));
+        props.setProperty("androidFirst", Boolean.toString(entry.androidFirst));
         props.setProperty("remoteId", entry.remoteId);
         props.setProperty("files", Integer.toString(entry.files.size()));
         for (int index = 0; index < entry.files.size(); index++) {
@@ -242,6 +268,34 @@ final class NotebookShareStore {
         disk.rename(directory, removed);
         disk.sync(root);
         erase(removed);
+    }
+
+    synchronized NotebookCapturedPreview preview(UUID id) throws IOException {
+        File file = new File(directory(id), PREVIEW);
+        if (!file.isFile()) return null;
+        try (var input = new DataInputStream(new FileInputStream(file))) {
+            return NotebookCapturedPreview.read(input);
+        }
+    }
+
+    synchronized boolean hasPreview(UUID id) { return new File(directory(id), PREVIEW).isFile(); }
+
+    synchronized void savePreview(UUID id, NotebookCapturedPreview preview) throws IOException {
+        File directory = directory(id);
+        File target = new File(directory, PREVIEW);
+        if (!directory.isDirectory() || target.exists()) return;
+        File temporary = new File(directory, PREVIEW + ".new");
+        try {
+            try (var out = new FileOutputStream(temporary); var data = new DataOutputStream(out)) {
+                preview.write(data);
+                data.flush();
+                out.getFD().sync();
+            }
+            disk.rename(temporary, target);
+            disk.sync(directory);
+        } finally {
+            temporary.delete();
+        }
     }
 
     File attachment(NotebookShareRecord entry, int index) throws IOException {

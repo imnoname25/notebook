@@ -6,8 +6,8 @@ import path from "node:path";
 import sharp from "sharp";
 import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
 import { createZipArchive } from "@/lib/archive";
-import { savedItemCreateSchema } from "@/lib/saved-item-validation";
-import { ARTICLES_DATA_FORMAT_VERSION, BACKUP_FORMAT, DEVICE_PREVIEW_DATA_FORMAT_VERSION, type ArchiveData, type DataManifest } from "@/lib/data-format";
+import { deviceCaptureSchema, savedItemCreateSchema } from "@/lib/saved-item-validation";
+import { ARTICLES_DATA_FORMAT_VERSION, BACKUP_FORMAT, DATA_FORMAT_VERSION, DEVICE_PREVIEW_DATA_FORMAT_VERSION, type ArchiveData, type DataManifest } from "@/lib/data-format";
 
 vi.mock("node:fs/promises", async importOriginal => {
   const fs = await importOriginal<typeof import("node:fs/promises")>();
@@ -201,6 +201,30 @@ describe.skipIf(!enabled)("Saved Items portable backup, real PostgreSQL and ZIP"
       expect(await db.savedItem.findFirst({ where: { userId: other } })).toMatchObject({
         title: "Old title", titleOrigin: "legacy", sharedTitle: null,
       });
+    } finally { await imports.disposePreparedImport(prepared); }
+  });
+
+  it("round-trips v9 device fields and original URL without requeueing extraction", async () => {
+    const key = "portable-android-capture";
+    const link = "https://youtu.be/testVideo_1?t=42";
+    const { item } = await saved.createSavedItem(owner, key, savedItemCreateSchema.parse({ url: link, title: "Keep this title" }), [], true);
+    await saved.applySavedDeviceCapture(owner, item.id, key, deviceCaptureSchema.parse({
+      version: 1, title: "Video title", author: "Artist", contentType: "video",
+      canonicalUrl: "https://www.youtube.com/watch?v=testVideo_1", publishedAt: "2026-10-10T10:00:00Z",
+      media: "unavailable", provenance: { author: "oembed", title: "oembed", canonicalUrl: "url" },
+    }), null);
+    const prepared = await imports.prepareImport(request(await readZip()), "backup");
+    try {
+      expect(prepared.manifest?.version).toBe(DATA_FORMAT_VERSION);
+      expect(JSON.stringify(prepared.data)).not.toMatch(/portable-android-capture|deviceCaptureUntil|deviceCaptureFailure/);
+      await imports.restoreBackupData(other, prepared);
+      const restored = await db.savedItem.findFirstOrThrow({ where: { userId: other } });
+      expect(await saved.getSavedItem(other, restored.id)).toMatchObject({
+        url: link, displayTitle: "Keep this title", deviceCaptureFailure: null,
+        capture: { author: "Artist", videoId: "testVideo_1", publishedAt: "2026-10-10T10:00:00Z",
+          canonicalUrl: "https://www.youtube.com/watch?v=testVideo_1", provenance: { author: "oembed", title: "oembed" } },
+      });
+      expect(await db.savedItemMetadataJob.count({ where: { savedItem: { userId: other }, finishedAt: null } })).toBe(0);
     } finally { await imports.disposePreparedImport(prepared); }
   });
 

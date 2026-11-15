@@ -2,7 +2,9 @@ package ru.metroom.notebook;
 
 import okhttp3.HttpUrl;
 import org.json.JSONException;
+import org.json.JSONArray;
 import org.json.JSONObject;
+import org.json.JSONTokener;
 import org.jsoup.Jsoup;
 import org.jsoup.nodes.Document;
 import org.jsoup.nodes.Element;
@@ -12,9 +14,14 @@ import java.io.ByteArrayInputStream;
 import java.io.IOException;
 import java.nio.charset.Charset;
 import java.nio.charset.StandardCharsets;
+import java.time.LocalDate;
+import java.time.OffsetDateTime;
+import java.time.format.DateTimeParseException;
 import java.util.HashSet;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Locale;
+import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.TimeUnit;
 import java.util.regex.Pattern;
@@ -52,26 +59,48 @@ final class NotebookLinkPreview {
         NotebookPreviewNetwork.Body read(HttpUrl url, int limit, List<String> types, boolean redirects, long deadline) throws IOException;
     }
 
-    record Result(String kind, String title, String description, String siteName, byte[] image, String mime) {}
-    private record Metadata(String title, String description, String siteName, HttpUrl cover) {}
+    record Result(String kind, String title, String description, String siteName, byte[] image, String mime,
+                  String canonical, String author, String publishedAt, String videoId, boolean expectedCover,
+                  Map<String, String> provenance) {
+        Result(String kind, String title, String description, String siteName, byte[] image, String mime) {
+            this(kind, title, description, siteName, image, mime, null, null, null, null, image != null, Map.of());
+        }
+    }
+    private record Metadata(String kind, String title, String description, String siteName, HttpUrl cover,
+                            String canonical, String author, String publishedAt, Map<String, String> provenance) {}
 
     private final Fetch fetch;
     NotebookLinkPreview(Fetch fetch) { this.fetch = fetch; }
 
     Result get(String original) throws IOException {
+        return get(original, false);
+    }
+
+    Result get(String original, boolean publicVideoDescription) throws IOException {
         HttpUrl url = NotebookPreviewNetwork.resolve(original, null);
         if (url == null) throw new NotebookPreviewNetwork.Unavailable(false);
         long deadline = System.nanoTime() + TimeUnit.SECONDS.toNanos(19);
-        String kind = kind(url);
+        String videoId = youtubeId(url);
         Metadata fields;
+        boolean usedVideoPage = false;
         if (isYoutube(url)) {
-            String id = youtubeId(url);
-            if (id == null) throw new NotebookPreviewNetwork.Unavailable(false);
-            fields = youtube(id, deadline);
+            if (videoId == null) throw new NotebookPreviewNetwork.Unavailable(false);
+            try {
+                fields = youtube(videoId, deadline);
+            } catch (IOException provider) {
+                if (!publicVideoDescription || Thread.currentThread().isInterrupted()
+                        || (provider instanceof NotebookPreviewNetwork.Unavailable denied && denied.restricted)) throw provider;
+                String canonical = videoUrl(videoId);
+                var body = fetch.read(HttpUrl.get(canonical), 512 * 1024, HTML, false, deadline);
+                var page = parseHtml(body, "video");
+                fields = new Metadata("video", page.title(), page.description(), page.siteName(), youtubeCover(page.cover(), videoId),
+                        canonical, page.author(), page.publishedAt(), page.provenance());
+                usedVideoPage = true;
+            }
         } else {
             if (isGateUrl(url)) throw new NotebookPreviewNetwork.Unavailable(false, true);
             var body = fetch.read(url, 512 * 1024, HTML, true, deadline);
-            fields = parseHtml(body);
+            fields = parseHtml(body, kind(url));
         }
 
         byte[] image = null;
@@ -88,11 +117,37 @@ final class NotebookLinkPreview {
                 // The title and description remain usable when the image host is unavailable.
             }
         }
-        return new Result(kind, fields.title(), fields.description(), fields.siteName(), image, mime);
+        String description = fields.description();
+        String author = fields.author();
+        String publishedAt = fields.publishedAt();
+        Map<String, String> attribution = new HashMap<>(fields.provenance());
+        if (publicVideoDescription && !usedVideoPage && videoId != null && (description == null || author == null || publishedAt == null)
+                && deadline - System.nanoTime() > TimeUnit.SECONDS.toNanos(1)) {
+            try {
+                var body = fetch.read(HttpUrl.get(fields.canonical()), 512 * 1024, HTML, false, deadline);
+                var page = parseHtml(body, "video");
+                if (description == null && page.description() != null) {
+                    description = page.description();
+                    attribution.put("description", page.provenance().get("description"));
+                }
+                if (author == null && page.author() != null) {
+                    author = page.author();
+                    attribution.put("author", page.provenance().get("author"));
+                }
+                if (publishedAt == null && page.publishedAt() != null) {
+                    publishedAt = page.publishedAt();
+                    attribution.put("publishedAt", page.provenance().get("publishedAt"));
+                }
+            } catch (IOException ignored) { /* The optional page may be inaccessible while oEmbed works. */ }
+        }
+        return new Result(fields.kind(), fields.title(), description, fields.siteName(), image, mime,
+                fields.canonical(), author, publishedAt, videoId, videoId != null || fields.cover() != null, attribution);
     }
 
+    private static String videoUrl(String id) { return "https://www.youtube.com/watch?v=" + id; }
+
     private Metadata youtube(String id, long deadline) throws IOException {
-        String source = "https://www.youtube.com/watch?v=" + id;
+        String source = videoUrl(id);
         try {
             return youtubeJson("https://www.youtube.com/oembed", source, id, false, deadline);
         } catch (IOException official) {
@@ -101,6 +156,7 @@ final class NotebookLinkPreview {
             try {
                 return youtubeJson("https://noembed.com/embed", source, id, true, deadline);
             } catch (NotebookPreviewNetwork.Unavailable alternative) {
+                if (alternative.restricted) throw alternative;
                 // Preserve a transient official failure when the fallback lacks data.
                 if (alternative.retryable || official instanceof NotebookPreviewNetwork.Unavailable failure && !failure.retryable) {
                     throw alternative;
@@ -114,30 +170,37 @@ final class NotebookLinkPreview {
         HttpUrl url = HttpUrl.get(endpoint).newBuilder().addQueryParameter("url", source).addQueryParameter("format", "json").build();
         byte[] bytes = fetch.read(url, 64 * 1024, fallback ? NOEMBED_JSON : JSON, false, deadline).bytes();
         try {
-            var data = new JSONObject(new String(bytes, StandardCharsets.UTF_8));
+            String raw = new String(bytes, StandardCharsets.UTF_8);
+            if (!withinJsonDepth(raw)) throw new JSONException("Invalid JSON");
+            var json = new JSONTokener(raw);
+            if (!(json.nextValue() instanceof JSONObject data) || json.nextClean() != 0) throw new JSONException("Invalid JSON");
             String type = data.optString("type");
-            if (data.has("error") || !("video".equals(type) || (fallback && "rich".equals(type) && "YouTube".equals(data.opt("provider_name"))))) {
+            if (data.has("error") || (fallback && !"YouTube".equals(data.opt("provider_name")))
+                    || !("video".equals(type) || (fallback && "rich".equals(type)))) {
                 throw new JSONException("No video metadata");
             }
             String title = clean(data.opt("title"), 300);
             String description = clean(data.opt("description"), 1000);
             String author = clean(data.opt("author_name"), 150);
             if (title != null && GATE_TITLE.matcher(title).matches()) throw new NotebookPreviewNetwork.Unavailable(false, true);
-            HttpUrl cover = imageUrl(data.opt("thumbnail_url"), null);
-            if (cover == null || !YOUTUBE_IMAGES.contains(cover.host())
-                    || (!cover.encodedPath().startsWith("/vi/" + id + "/") && !cover.encodedPath().startsWith("/vi_webp/" + id + "/"))) {
-                cover = null;
-            } else {
-                cover = cover.newBuilder().scheme("https").host("i.ytimg.com").query(null).build();
-            }
+            HttpUrl cover = youtubeCover(imageUrl(data.opt("thumbnail_url"), null), id);
             if (title == null && author == null && cover == null && description == null) throw new JSONException("Empty preview");
-            return new Metadata(title, description, author == null ? "YouTube" : "YouTube · " + author, cover);
+            String provider = fallback ? "noembed" : "oembed";
+            return new Metadata("video", title, description, author == null ? "YouTube" : "YouTube · " + author, cover,
+                    source, author, null, Map.of("title", provider, "description", provider, "author", provider,
+                    "siteName", provider, "canonicalUrl", "url", "contentType", "url", "videoId", "url", "cover", provider));
         } catch (JSONException invalid) { throw new NotebookPreviewNetwork.Unavailable(false); }
+    }
+
+    private static HttpUrl youtubeCover(HttpUrl cover, String id) {
+        if (cover == null || !YOUTUBE_IMAGES.contains(cover.host())
+                || (!cover.encodedPath().startsWith("/vi/" + id + "/") && !cover.encodedPath().startsWith("/vi_webp/" + id + "/"))) return null;
+        return cover.newBuilder().scheme("https").host("i.ytimg.com").query(null).build();
     }
 
     static boolean isGateUrl(HttpUrl url) { return GATE_URL.matcher(url.encodedPath()).find(); }
 
-    private static Metadata parseHtml(NotebookPreviewNetwork.Body body) throws IOException {
+    private static Metadata parseHtml(NotebookPreviewNetwork.Body body, String kind) throws IOException {
         if (isGateUrl(body.url())) throw new NotebookPreviewNetwork.Unavailable(false, true);
         var match = CHARSET.matcher(body.contentType());
         String charset = null;
@@ -164,10 +227,45 @@ final class NotebookLinkPreview {
             }
         }
         Element head = document.head();
-        String title = clean(tag(head, "og:title", "twitter:title"), 300);
+        Structured structured = structured(document);
+        Map<String, String> sources = new HashMap<>();
+        String ogType = tag(head, "og:type");
+        if ("article".equals(kind) && structured != null && ("product".equals(structured.kind())
+                || ("video".equals(structured.kind()) && !publicArticle && !"article".equals(ogType)))) {
+            kind = structured.kind();
+            sources.put("contentType", "schema");
+        } else if ("article".equals(kind) && ogType != null && ogType.startsWith("video.")) {
+            kind = "video";
+            sources.put("contentType", "opengraph");
+        } else sources.put("contentType", "url");
+        String qualified = structured == null ? null : clean(structured.value().opt("headline"), 300);
+        if (qualified == null && structured != null) qualified = clean(structured.value().opt("name"), 300);
+        String openGraph = clean(tag(head, "og:title"), 300);
+        String twitter = clean(tag(head, "twitter:title"), 300);
+        String html = clean(document.title(), 300);
+        String title = "product".equals(kind)
+                ? choose(sources, "title", "schema", qualified, "opengraph", openGraph, "twitter", twitter, "html", html)
+                : choose(sources, "title", "opengraph", openGraph, "schema", qualified, "twitter", twitter, "html", html);
         if (title != null && GATE_TITLE.matcher(title).matches()) throw new NotebookPreviewNetwork.Unavailable(false, true);
-        String description = clean(tag(head, "og:description", "twitter:description"), 1000);
-        String site = clean(tag(head, "og:site_name", "twitter:site"), 160);
+        String description = choose(sources, "description", "opengraph", clean(tag(head, "og:description"), 1000),
+                "schema", structured == null ? null : clean(structured.value().opt("description"), 1000),
+                "twitter", clean(tag(head, "twitter:description"), 1000), "html", clean(tag(head, "description"), 1000));
+        String site = choose(sources, "siteName", "opengraph", clean(tag(head, "og:site_name"), 160),
+                "twitter", clean(tag(head, "twitter:site"), 160));
+        String author = choose(sources, "author", "schema", structured == null ? null : named(structured.value().opt("author")),
+                "html", clean(tag(head, "author"), 160));
+        String publishedAt = choose(sources, "publishedAt", "opengraph", date(tag(head, "article:published_time")),
+                "schema", structured == null ? null : date(clean(structured.value().opt("datePublished"), 64)));
+        var canonicalTag = head.selectFirst("link[rel=canonical][href]");
+        HttpUrl canonical = imageUrl(canonicalTag == null ? null : canonicalTag.attr("href"), body.url());
+        String canonicalSource = "html";
+        if (canonical == null) {
+            canonical = imageUrl(tag(head, "og:url"), body.url());
+            canonicalSource = "opengraph";
+        }
+        if (canonical != null && host(canonical).equals(host(body.url())) && (!body.url().isHttps() || canonical.isHttps())) {
+            sources.put("canonicalUrl", canonicalSource);
+        } else canonical = null;
         Set<HttpUrl> auxiliaryImages = new HashSet<>();
         for (Element element : document.select("aside img,nav img,footer img,img[class],img[id],[class*=avatar] img,[class*=logo] img,[class*=advert] img")) {
             for (String attribute : List.of("src", "data-src")) {
@@ -185,12 +283,103 @@ final class NotebookLinkPreview {
                         && !auxiliaryImages.contains(candidate) && !ANCILLARY_IMAGE.matcher(candidate.encodedPath()).find()
                         && (!name.endsWith(":secure_url") || candidate.isHttps())) {
                     cover = candidate;
+                    sources.put("cover", name.startsWith("og:") ? "opengraph" : "twitter");
                     break;
                 }
             }
             if (cover != null) break;
         }
-        return new Metadata(title, description, site, cover);
+        if (cover == null && structured != null) {
+            HttpUrl candidate = imageUrl(imageValue(structured.value().opt("image")), body.url());
+            if (candidate != null && (!body.url().isHttps() || candidate.isHttps()) && !auxiliaryImages.contains(candidate)
+                    && !ANCILLARY_IMAGE.matcher(candidate.encodedPath()).find()) {
+                cover = candidate;
+                sources.put("cover", "schema");
+            }
+        }
+        return new Metadata(kind, title, description, site, cover, canonical == null ? null : canonical.toString(), author, publishedAt, sources);
+    }
+
+    private record Structured(String kind, JSONObject value, int priority) {}
+
+    private static Structured structured(Document document) {
+        Structured best = null;
+        int inspected = 0;
+        for (Element script : document.select("script[type=application/ld+json]")) {
+            if (inspected++ >= 24) break;
+            if (script.data().length() > 64 * 1024 || !withinJsonDepth(script.data())) continue;
+            try {
+                Structured candidate = structuredNode(new JSONTokener(script.data()).nextValue(), 0);
+                if (candidate != null && (best == null || candidate.priority() > best.priority())) best = candidate;
+            } catch (JSONException ignored) { /* Invalid JSON-LD is optional. */ }
+        }
+        return best;
+    }
+
+    private static boolean withinJsonDepth(String data) {
+        int depth = 0;
+        boolean quoted = false;
+        for (int index = 0; index < data.length(); index++) {
+            char value = data.charAt(index);
+            if (quoted && value == '\\') { index++; continue; }
+            if (value == '"') quoted = !quoted;
+            if (quoted) continue;
+            if ((value == '{' || value == '[') && ++depth > 32) return false;
+            if (value == '}' || value == ']') depth--;
+        }
+        return true;
+    }
+
+    private static Structured structuredNode(Object node, int depth) {
+        if (depth > 4) return null;
+        Structured best = null;
+        if (node instanceof JSONArray array) {
+            for (int item = 0; item < Math.min(32, array.length()); item++) {
+                Structured candidate = structuredNode(array.opt(item), depth + 1);
+                if (candidate != null && (best == null || candidate.priority() > best.priority())) best = candidate;
+            }
+        } else if (node instanceof JSONObject object) {
+            String type = object.optString("@type", "");
+            if (type.matches(".*(?:^|[\\W])Product(?:$|[\\W]).*")) return new Structured("product", object, 3);
+            if (type.matches(".*(?:Article|BlogPosting|DiscussionForumPosting).*")) return new Structured("article", object, 2);
+            if (type.contains("VideoObject")) return new Structured("video", object, 1);
+            best = structuredNode(object.opt("mainEntity"), depth + 1);
+            if (best == null) best = structuredNode(object.opt("@graph"), depth + 1);
+        }
+        return best;
+    }
+
+    private static String choose(Map<String, String> sources, String field, String... candidates) {
+        int first = -1;
+        for (int index = 0; index < candidates.length; index += 2) {
+            String value = candidates[index + 1];
+            if (value == null) continue;
+            if (first < 0) first = index;
+            if (!field.equals("title") || !(value.endsWith("…") || value.endsWith("..."))) {
+                first = index;
+                break;
+            }
+        }
+        if (first < 0) return null;
+        sources.put(field, candidates[first]);
+        return candidates[first + 1];
+    }
+
+    private static String named(Object value) {
+        if (value instanceof JSONArray list) value = list.opt(0);
+        return clean(value instanceof JSONObject object ? object.opt("name") : value, 160);
+    }
+
+    private static Object imageValue(Object value) {
+        if (value instanceof JSONArray list) value = list.opt(0);
+        return value instanceof JSONObject object ? object.optString("url", object.optString("contentUrl", "")) : value;
+    }
+
+    private static String date(String value) {
+        if (value == null) return null;
+        try {
+            return value.length() == 10 ? LocalDate.parse(value).toString() : OffsetDateTime.parse(value).toInstant().toString();
+        } catch (DateTimeParseException invalid) { return null; }
     }
 
     private static String tag(Element head, String... names) {

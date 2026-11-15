@@ -16,7 +16,7 @@ import static org.junit.Assert.*;
 public class NotebookLinkPreviewTest {
     private static final String WATCH = "https://www.youtube.com/watch?v=testVideo_1";
     private static final String COVER = "https://i.ytimg.com/vi/testVideo_1/hqdefault.jpg";
-    private static final String OEMBED = "{\"type\":\"video\",\"title\":\"Night trail\",\"author_name\":\"Field notes\","
+    private static final String OEMBED = "{\"type\":\"video\",\"provider_name\":\"YouTube\",\"title\":\"Night trail\",\"author_name\":\"Field notes\","
             + "\"thumbnail_url\":\"" + COVER + "\",\"html\":\"<iframe>ignored</iframe>\"}";
 
     @Test public void readsYoutubeCoverBytesAndUsesOnlyCanonicalIdForProvider() throws Exception {
@@ -128,6 +128,47 @@ public class NotebookLinkPreviewTest {
         }
         assertNull(NotebookLinkPreview.youtubeId(HttpUrl.get("https://www.youtube.com/playlist?list=example")));
         assertNull(NotebookLinkPreview.youtubeId(HttpUrl.get("https://example.org/watch?v=testVideo_1")));
+    }
+
+    @Test public void readsProductSchemaCanonicalAndRasterWithoutUsingTruncatedTitle() throws Exception {
+        String page = """
+                <link rel=canonical href='/catalog/sku?size=large'>
+                <meta property=og:title content='Про...'>
+                <script type=application/ld+json>
+                  {"@graph":[{"@type":"Organization","name":"Brand"},
+                  {"@type":"Product","name":"Full product title","description":"A useful product description","image":"/sku.webp"}]}
+                </script>
+                """;
+        byte[] webp = {'R', 'I', 'F', 'F', 0, 0, 0, 0, 'W', 'E', 'B', 'P'};
+        var reader = new NotebookLinkPreview((url, limit, types, redirects, deadline) ->
+                url.encodedPath().equals("/sku.webp") ? new NotebookPreviewNetwork.Body(webp, url, "image/webp", "image/webp")
+                        : body(url, page, "text/html"));
+        var data = reader.get("https://example.org/catalog/sku?size=large&ref=share");
+        assertEquals("product", data.kind());
+        assertEquals("Full product title", data.title());
+        assertEquals("schema", data.provenance().get("title"));
+        assertEquals("https://example.org/catalog/sku?size=large", data.canonical());
+        assertArrayEquals(webp, data.image());
+    }
+
+    @Test public void obtainsYoutubeDescriptionAfterTheCoverUsingOnlyPublicMetadata() throws Exception {
+        var reader = new NotebookLinkPreview((url, limit, types, redirects, deadline) -> {
+            if (url.encodedPath().equals("/oembed")) return body(url, OEMBED, "application/json");
+            if (url.host().equals("i.ytimg.com")) {
+                byte[] jpeg = {(byte) 255, (byte) 216, (byte) 255, 1};
+                return new NotebookPreviewNetwork.Body(jpeg, url, "image/jpeg", "image/jpeg");
+            }
+            assertEquals(WATCH, url.toString());
+            return body(url, "<meta property=og:description content='Public video description'>", "text/html");
+        });
+        var data = reader.get("https://m.youtube.com/shorts/testVideo_1?si=private-token", true);
+        var capture = NotebookCapturedPreview.success(data);
+        assertEquals("Public video description", capture.payload().getString("description"));
+        assertEquals("Field notes", capture.payload().getString("author"));
+        assertEquals("opengraph", capture.payload().getJSONObject("provenance").getString("description"));
+        assertEquals("oembed", capture.payload().getJSONObject("provenance").getString("cover"));
+        assertFalse(capture.legacyFields().has("version"));
+        assertEquals("unavailable", capture.withoutCover().payload().getString("media"));
     }
 
     @Test public void validatesPublicAddressesAndRefusesLocalUrlsBeforeNetworkAccess() throws Exception {

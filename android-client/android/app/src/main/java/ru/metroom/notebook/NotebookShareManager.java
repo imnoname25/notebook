@@ -85,10 +85,6 @@ final class NotebookShareManager {
         selected = NotebookShareServer.parse(settings.getString("server", ""));
         store = new NotebookShareStore(new File(context.getNoBackupFilesDir(), "saved-share-queue"), new NotebookShareDisk());
         connectivity = context.getSystemService(ConnectivityManager.class);
-        disk.execute(() -> {
-            try { store.recover(this::schedulePreview); }
-            catch (IOException failure) { message("Не удалось полностью восстановить локальную очередь."); }
-        });
     }
 
     void selectServer(NotebookShareServer server) {
@@ -119,6 +115,10 @@ final class NotebookShareManager {
             }
         }
         while (!recent.isEmpty()) value.received(recent.removeFirst());
+        disk.execute(() -> {
+            try { store.recover(this::schedulePreview, this::scheduleDraftCapture); }
+            catch (IOException failure) { message("Не удалось полностью восстановить локальную очередь."); }
+        });
         value.changed();
         requestSync();
     }
@@ -161,8 +161,10 @@ final class NotebookShareManager {
         disk.execute(() -> {
             try {
                 var payload = NotebookShareIntent.parse(intent, context.getPackageName());
-                store.capture(id, receivedAt, "", payload.text, payload.url, payload.sources(context), server, account,
+                var draft = store.capture(id, receivedAt, "", payload.text, payload.url, payload.sources(context), server, account,
                         payload.subject, payload.extraTitle);
+                try { scheduleDraftCapture(draft); }
+                catch (RuntimeException ignored) { /* The durable draft is still available on the next resume. */ }
                 main.post(() -> {
                     if (listener == null) recent.addLast(id);
                     else {
@@ -249,7 +251,11 @@ final class NotebookShareManager {
 
     void remove(UUID id) {
         sync.execute(() -> {
-            try { store.remove(id); changed(); }
+            try {
+                store.remove(id);
+                NotebookPreviewWorker.cancelDraft(context, id);
+                changed();
+            }
             catch (IOException failure) { message("Не удалось удалить локальный материал."); }
         });
     }
@@ -353,12 +359,19 @@ final class NotebookShareManager {
         return server.equals(selected) ? cookie(server) : null;
     }
 
+    NotebookShareStore captureStore() { return store; }
+
+    private void scheduleDraftCapture(NotebookShareRecord entry) {
+        if (entry.androidFirst) NotebookPreviewWorker.enqueueDraft(context, entry.id, false);
+    }
+
     private void schedulePreview(NotebookShareRecord entry) throws IOException {
         var server = NotebookShareServer.parse(entry.server);
         if (entry.url.isEmpty() || server == null || entry.accountId.isEmpty() || !entry.remoteId.matches("[A-Za-z0-9_-]{1,128}")) return;
         try {
-            NotebookPreviewWorker.enqueue(context, server, entry.accountId, entry.remoteId, false)
-                    .operation().getResult().get(2, TimeUnit.SECONDS);
+            var operation = entry.androidFirst ? NotebookPreviewWorker.enqueueDraft(context, entry.id, true)
+                    : NotebookPreviewWorker.enqueue(context, server, entry.accountId, entry.remoteId, false).operation();
+            operation.getResult().get(2, TimeUnit.SECONDS);
         } catch (InterruptedException interrupted) {
             Thread.currentThread().interrupt();
             throw new IOException("Preview scheduling interrupted", interrupted);

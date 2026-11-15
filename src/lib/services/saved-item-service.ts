@@ -4,9 +4,10 @@ import type { SavedItemOperation } from "@/generated/prisma/client";
 import { db } from "@/lib/db";
 import { ApiError } from "@/lib/errors";
 import { resolveSavedItemTitle, savedItemTitleOriginsEnabled, websiteTitle } from "@/lib/saved-item-title";
+import { captureCanonicalUrl, captureContentType, captureDetails } from "@/lib/saved-device-capture";
 import { classifySavedLink } from "@/lib/saved-link";
 import { extractHashtags } from "@/lib/hashtags";
-import type { DevicePreviewInput, SavedItemCreateInput, SavedItemListInput, SavedItemUpdateInput } from "@/lib/saved-item-validation";
+import { deviceCaptureDetailsSchema, type DeviceCaptureInput, type DevicePreviewInput, type SavedItemCreateInput, type SavedItemListInput, type SavedItemUpdateInput } from "@/lib/saved-item-validation";
 import { createPageInTransaction } from "./page-service";
 import { enqueueNewSavedArticle } from "./saved-article-queue";
 import { syncSavedItemTags } from "./tag-service";
@@ -16,6 +17,7 @@ const itemSelect = {
   id: true, title: true, titleOrigin: true, sharedTitle: true, text: true, url: true, reviewStatus: true,
   metadataTitle: true, metadataDescription: true, metadataSiteName: true, metadataImageUrl: true,
   androidMetadataFields: true, previewUploadId: true,
+  deviceCapture: true, deviceCaptureUntil: true, deviceCaptureFailure: true,
   archivedAt: true, convertedAt: true, convertedPageId: true, createdAt: true, updatedAt: true,
   tags: { orderBy: { tag: { normalized: "asc" } }, select: { tag: { select: { name: true, normalized: true } } } },
   attachments: { orderBy: { position: "asc" }, select: { upload: { select: { id: true, originalName: true, mimeType: true, size: true } } } },
@@ -23,27 +25,37 @@ const itemSelect = {
   article: { select: { sourceUrl: true } },
 } as const satisfies Prisma.SavedItemSelect;
 type Item = Prisma.SavedItemGetPayload<{ select: typeof itemSelect }>;
+const DEVICE_CAPTURE_WAIT_MS = 90_000;
 
 function attachmentUrl(id: string) { return `/api/uploads/${id}`; }
 
 function displayTitle(item: Item) {
-  return resolveSavedItemTitle({ ...item, fileName: item.attachments[0]?.upload.originalName });
+  return resolveSavedItemTitle({ ...item, androidCapture: Boolean(item.deviceCapture || item.deviceCaptureUntil),
+    metadataTitleSource: captureDetails(item.deviceCapture)?.provenance?.title,
+    fileName: item.attachments[0]?.upload.originalName });
 }
 
 function serializeItem(record: Item) {
   const {
     attachments, tags, metadataJob, metadataTitle, metadataDescription, metadataSiteName, metadataImageUrl,
-    androidMetadataFields, previewUploadId, article, ...item
+    androidMetadataFields, previewUploadId, deviceCapture, deviceCaptureUntil, deviceCaptureFailure, article, ...item
   } = record;
   const sourceTitle = websiteTitle(metadataTitle) || null;
   const hasPreview = Boolean(previewUploadId || metadataImageUrl);
   const hasMetadata = Boolean(sourceTitle || metadataDescription || hasPreview);
   const hasDevicePreview = Boolean(previewUploadId || androidMetadataFields.length);
   const deviceReady = hasDevicePreview && Boolean(hasMetadata || metadataSiteName);
+  const waitingForDevice = Boolean(deviceCaptureUntil && deviceCaptureUntil.getTime() > Date.now());
+  const capture = captureDetails(deviceCapture);
   return {
     ...item,
-    linkKind: item.url ? classifySavedLink(item.url).kind : null,
+    linkKind: item.url ? captureContentType(item.url, capture ?? {}) : null,
     supportsDevicePreview: item.url !== null,
+    supportsDeviceCapture: item.url !== null,
+    capture: capture ?? null,
+    deviceCaptureStatus: waitingForDevice ? "pending" : deviceCaptureUntil ? "expired"
+      : deviceCaptureFailure ? "partial" : capture ? "received" : null,
+    deviceCaptureFailure,
     hasSavedArticle: article !== null && article.sourceUrl === item.url,
     displayTitle: displayTitle(record),
     canUseWebsiteTitle: savedItemTitleOriginsEnabled() && Boolean(sourceTitle)
@@ -52,7 +64,8 @@ function serializeItem(record: Item) {
     attachments: attachments.map(({ upload }) => ({ ...upload, url: attachmentUrl(upload.id) })),
     metadata: { title: sourceTitle, description: metadataDescription, siteName: metadataSiteName, hasPreview,
       androidFields: androidMetadataFields, coverOnDevice: Boolean(previewUploadId) },
-    metadataStatus: deviceReady ? "ready" : !metadataJob ? "skipped" : !metadataJob.finishedAt ? "queued"
+    metadataStatus: waitingForDevice || (capture && metadataJob && !metadataJob.finishedAt) ? "queued"
+      : deviceReady ? "ready" : !metadataJob ? "skipped" : !metadataJob.finishedAt ? "queued"
       : metadataJob.failed ? "failed" : hasMetadata ? "ready" : "empty",
     metadataFailure: !deviceReady && metadataJob?.failed ? metadataJob.failureReason : null,
   };
@@ -107,21 +120,38 @@ export async function getSavedItem(userId: string, id: string) {
 }
 
 export async function applySavedDevicePreview(userId: string, id: string, key: string, input: DevicePreviewInput, cover: PreparedUpload | null) {
+  return saveDevicePreview(userId, id, key, input, cover);
+}
+
+export async function applySavedDeviceCapture(userId: string, id: string, key: string, input: DeviceCaptureInput, cover: PreparedUpload | null) {
+  return saveDevicePreview(userId, id, key, input, cover, input);
+}
+
+async function saveDevicePreview(
+  userId: string, id: string, key: string, input: DevicePreviewInput, cover: PreparedUpload | null, capture?: DeviceCaptureInput,
+) {
   const title = websiteTitle(input.title ?? null);
   if (input.title && !title) throw new ApiError(422, "Источник вернул служебную страницу");
-  if (!title && !input.description && !input.siteName && !cover) throw new ApiError(400, "Превью пустое");
-  const hash = fingerprint([id, title, input.description, input.siteName, cover?.sha256]);
+  if (!capture && !title && !input.description && !input.siteName && !cover) throw new ApiError(400, "Превью пустое");
+  const hash = fingerprint(capture ? [id, capture, cover?.sha256] : [id, title, input.description, input.siteName, cover?.sha256]);
   await withUploadWrites(userId, async (tx, store) => {
     const item = await findOwnedItem(tx, userId, id);
     if (!item) throw new ApiError(404, "Материал не найден");
     if (!item.url) throw new ApiError(409, "У материала нет ссылки");
-    const operation = "devicePreview";
+    const operation = capture ? "deviceCapture" : "devicePreview";
     if (await previousResult(tx, userId, operation, key, hash)) return;
+    if (capture) {
+      const receipt = await tx.savedItemRequest.findUnique({
+        where: { userId_operation_key: { userId, operation: "create", key } }, select: { resultId: true },
+      });
+      if (receipt?.resultId !== id) throw new ApiError(409, "Ключ захвата не соответствует сохранённой ссылке");
+    }
     const fields = new Set(item.androidMetadataFields);
     const updates: Prisma.SavedItemUpdateInput = {};
-    if (title && !websiteTitle(item.metadataTitle)) {
+    const titleSource = capture?.provenance?.title;
+    if (title && (!capture || titleSource) && !websiteTitle(item.metadataTitle)) {
       updates.metadataTitle = title;
-      fields.add("title");
+      if (titleSource !== "intent" && titleSource !== "html") fields.add("title");
     }
     if (input.description && !item.metadataDescription) {
       updates.metadataDescription = input.description;
@@ -132,6 +162,44 @@ export async function applySavedDevicePreview(userId: string, id: string, key: s
       fields.add("siteName");
     }
     if (cover && item.previewUploadId === null) updates.previewUpload = { connect: { id: (await store(cover)).id } };
+    if (capture) {
+      const kind = captureContentType(item.url, capture);
+      const link = classifySavedLink(item.url);
+      const canonicalUrl = captureCanonicalUrl(item.url, capture.canonicalUrl);
+      const videoId = link.kind === "video" && link.provider === "youtube" ? link.videoId ?? undefined : undefined;
+      const hasCover = Boolean(cover || item.previewUploadId);
+      const reliableTitle = Boolean(title && capture.provenance?.title && capture.provenance.title !== "intent");
+      const complete = reliableTitle && (hasCover || capture.media === "none") && !capture.failure;
+      const fieldsAccepted = {
+        title: updates.metadataTitle, description: updates.metadataDescription, siteName: updates.metadataSiteName,
+        cover: updates.previewUpload, canonicalUrl, contentType: kind, author: capture.author,
+        publishedAt: capture.publishedAt, videoId,
+      };
+      const provenance = Object.fromEntries(Object.entries(capture.provenance ?? {})
+        .filter(([field]) => fieldsAccepted[field as keyof typeof fieldsAccepted]));
+      const details = deviceCaptureDetailsSchema.parse({
+        canonicalUrl, contentType: kind, author: capture.author, publishedAt: capture.publishedAt, videoId, provenance,
+      });
+      // Prisma JSON omits optional properties when they are absent.
+      updates.deviceCapture = Object.fromEntries(Object.entries(details).filter(([, value]) => value !== undefined));
+      updates.deviceCaptureUntil = null;
+      updates.deviceCaptureFailure = capture.failure ?? (!hasCover && capture.media === "unavailable" ? "media" : null);
+
+      const now = new Date();
+      const waiting = { savedItemId: id, finishedAt: null, attempts: 0, leaseToken: null };
+      await tx.savedItemMetadataJob.updateMany({
+        where: complete ? { savedItemId: id, finishedAt: null } : waiting,
+        data: complete ? { finishedAt: now, leaseToken: null, failed: false, failureReason: null } : { availableAt: now },
+      });
+      const articleComplete = item.article?.sourceUrl === item.url;
+      await tx.savedArticleJob.updateMany({
+        where: { savedItemId: id, status: kind !== "article" || articleComplete ? { in: ["queued", "retry", "running"] } : "queued" },
+        data: kind !== "article" || articleComplete
+          ? { status: articleComplete ? "ready" : "fallback", reason: articleComplete ? null : "card",
+              finishedAt: now, leaseToken: null, leaseUntil: null }
+          : { availableAt: now },
+      });
+    }
     if (Object.keys(updates).length) {
       updates.androidMetadataFields = [...fields];
       await tx.savedItem.update({ where: { id }, data: updates });
@@ -145,14 +213,15 @@ export async function retrySavedItemMetadata(userId: string, id: string) {
   if (!item) throw new ApiError(404, "Материал не найден");
   if (!item.url) throw new ApiError(409, "У материала нет ссылки");
   const changed = await db.savedItemMetadataJob.updateMany({
-    where: { savedItemId: id, savedItem: { userId }, finishedAt: { lte: new Date(Date.now() - 30_000) } },
+    where: { savedItemId: id, savedItem: { userId, OR: [{ deviceCaptureUntil: null }, { deviceCaptureUntil: { lte: new Date() } }] },
+      finishedAt: { lte: new Date(Date.now() - 30_000) } },
     data: { availableAt: new Date(), finishedAt: null, failed: false, failureReason: null, leaseToken: null, attempts: 0 },
   });
   if (!changed.count) throw new ApiError(409, "Проверка уже в очереди или завершилась менее 30 секунд назад");
   return getSavedItem(userId, id);
 }
 
-export async function createSavedItem(userId: string, key: string, input: SavedItemCreateInput, files: PreparedUpload[]) {
+export async function createSavedItem(userId: string, key: string, input: SavedItemCreateInput, files: PreparedUpload[], androidFirst = false) {
   const { title, sharedTitle, text, url, tags } = input;
   if (!title && !sharedTitle && !text.trim() && !url && !files.length) throw new ApiError(400, "Материал пуст");
   const payload = [title, text, url, tags, files.map(({ originalName, mimeType, size, sha256 }) => [originalName, mimeType, size, sha256])];
@@ -165,11 +234,13 @@ export async function createSavedItem(userId: string, key: string, input: SavedI
       return { item: serializeItem(previous), replayed: true };
     }
 
+    const deviceCaptureUntil = androidFirst && url ? new Date(Date.now() + DEVICE_CAPTURE_WAIT_MS) : null;
     const { id } = await tx.savedItem.create({
       data: {
         userId, title, sharedTitle, text, url,
         titleOrigin: title ? "manual" : sharedTitle ? "share" : "system",
-        ...(url ? { metadataJob: { create: {} } } : {}),
+        deviceCaptureUntil,
+        ...(url ? { metadataJob: { create: deviceCaptureUntil ? { availableAt: deviceCaptureUntil } : {} } } : {}),
       },
       select: { id: true },
     });
@@ -179,7 +250,7 @@ export async function createSavedItem(userId: string, key: string, input: SavedI
       await tx.savedItemAttachment.create({ data: { savedItemId: id, uploadId: upload.id, position } });
     }
     await tx.savedItemRequest.create({ data: { userId, operation: "create", key, fingerprint: hash, resultId: id } });
-    await enqueueNewSavedArticle(tx, id, url, files.length > 0);
+    await enqueueNewSavedArticle(tx, id, url, files.length > 0, deviceCaptureUntil ?? undefined);
     const item = await tx.savedItem.findUniqueOrThrow({ where: { id }, select: itemSelect });
     return { item: serializeItem(item), replayed: false };
   });

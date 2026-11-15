@@ -26,23 +26,29 @@ final class NotebookShareInput {
     }
 
     static String url(String text) {
+        String standalone = text.trim();
+        if (standalone.length() <= 2048 && LINK.matcher(standalone).matches() && validWebUri(standalone)) return standalone;
         var matcher = LINK.matcher(text);
         while (matcher.find()) {
             String candidate = matcher.group();
             if (candidate.length() > 2048) continue;
-            candidate = candidate.replaceFirst("[.,!?;:\\]}]+$", "");
+            if (!candidate.contains("?") && !candidate.contains("#")) candidate = candidate.replaceFirst("[.,!;:\\]}]+$", "");
             if (candidate.endsWith(")") && candidate.chars().filter(ch -> ch == ')').count()
                     > candidate.chars().filter(ch -> ch == '(').count()) {
                 candidate = candidate.substring(0, candidate.length() - 1);
             }
-            try {
-                URI uri = URI.create(candidate);
-                if (uri.getHost() != null && uri.getRawUserInfo() == null) return candidate;
-            } catch (IllegalArgumentException ignored) {
-                // Continue to the next URL in the shared text.
-            }
+            if (validWebUri(candidate)) return candidate;
         }
         return "";
+    }
+
+    private static boolean validWebUri(String value) {
+        try {
+            URI uri = URI.create(value);
+            return uri.getHost() != null && uri.getRawUserInfo() == null;
+        } catch (IllegalArgumentException ignored) {
+            return false;
+        }
     }
 
     static String title(CharSequence value) {

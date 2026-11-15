@@ -14,6 +14,7 @@ export async function claimSavedItemMetadataJob() {
       SELECT j."savedItemId", s.url
       FROM "SavedItemMetadataJob" j JOIN "SavedItem" s ON s.id = j."savedItemId"
       WHERE j."finishedAt" IS NULL AND j."availableAt" <= (now() AT TIME ZONE 'UTC')
+        AND (s."deviceCaptureUntil" IS NULL OR s."deviceCaptureUntil" <= (now() AT TIME ZONE 'UTC'))
         AND s.url IS NOT NULL
       ORDER BY j."availableAt", j."savedItemId"
       LIMIT 1 FOR UPDATE OF j SKIP LOCKED

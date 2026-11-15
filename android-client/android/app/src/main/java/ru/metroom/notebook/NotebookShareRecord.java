@@ -29,6 +29,7 @@ final class NotebookShareRecord {
     String sharedSubject;
     String sharedExtraTitle = "";
     boolean titleEdited;
+    boolean androidFirst;
     String comment = "";
     List<String> tags = new ArrayList<>();
     String server = "";
