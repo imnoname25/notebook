@@ -24,7 +24,6 @@ import { t } from "@/lib/i18n/messages";
 import { PageKnowledge } from "./page-knowledge";
 import type { EditorSaveController, PageDocument } from "./types";
 import { extractPageOutline, type PageOutlineItem } from "@/lib/page-outline";
-import { extractBlockNoteText } from "@/lib/blocknote-text";
 import { HASHTAG_PATTERN } from "@/lib/hashtags";
 import { parseSmartPasteUrl } from "@/lib/smart-paste";
 import {
@@ -48,6 +47,7 @@ import { blockIdFromHash, pageIdFromPath } from "@/lib/workspace-navigation";
 import { EditorSaveQueue } from "@/lib/editor-save-queue";
 import { unsupportedEditorBlocks } from "@/lib/editor-compatibility";
 import { handleSharedEditorPaste } from "./editor-paste";
+import { isPlainPaste } from "./editor-plain-text-paste";
 import { extractPageVariables, type PageVariable } from "@/lib/page-variables";
 
 import { documentSearchExtension } from "./document-search-extension";
@@ -110,7 +110,7 @@ export function RichTextEditor({
   const outlineTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const hashtagTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const linkPreviewTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const [smartPaste, setSmartPaste] = useState<{ url: string; blockId: string } | null>(null);
+  const [smartPaste, setSmartPaste] = useState<{ url: string; text: string; blockId: string } | null>(null);
   const [linkPreview, setLinkPreview] = useState<{ title: string; icon: string | null; excerpt: string; sectionTitle: string; notebookTitle: string; x: number; y: number } | null>(null);
   const [variablesOpen, setVariablesOpen] = useState(false);
   const [variables, setVariables] = useState<PageVariable[]>(() => extractPageVariables(page.content));
@@ -175,6 +175,18 @@ export function RichTextEditor({
   const [blockActionsHost, setBlockActionsHost] = useState<HTMLDivElement | null>(null);
   const [picker, setPicker] = useState(false);
   const openPagePicker = useCallback(() => setPicker(true), []);
+  function applySmartPaste(kind: "text" | "link" | "card") {
+    if (!smartPaste || !editor.isEditable) return;
+    const block = editor.getBlock(smartPaste.blockId);
+    setSmartPaste(null);
+    if (!block || block.type !== "paragraph" || block.content.length || block.children.length) return;
+    if (kind === "card") {
+      editor.updateBlock(block, { type: "bookmark", props: { url: smartPaste.url, title: new URL(smartPaste.url).hostname, description: smartPaste.text } });
+    } else {
+      editor.updateBlock(block, { content: kind === "text" ? smartPaste.text : [{ type: "link", href: smartPaste.url, content: smartPaste.text }] });
+    }
+    editor.focus();
+  }
   const [initialContentFingerprint] = useState(() => JSON.stringify(editor.document));
   const lastContentFingerprint = useRef(initialContentFingerprint);
 
@@ -523,13 +535,16 @@ export function RichTextEditor({
         onPasteCapture={(event) => {
           if (handleSharedEditorPaste(event, editor)) return;
           if (event.target instanceof HTMLInputElement || event.target instanceof HTMLTextAreaElement || event.target instanceof HTMLSelectElement) return;
-          if (event.clipboardData.types.includes("text/html") || event.clipboardData.types.includes("blocknote/html")) return;
-          const url = parseSmartPasteUrl(event.clipboardData.getData("text/plain"));
+          if (!editor.isEditable || isPlainPaste(editor, event.nativeEvent) || !editor.prosemirrorState.selection.empty) return;
+          if (event.clipboardData.types.includes("text/html") || event.clipboardData.types.includes("blocknote/html") || event.clipboardData.files.length) return;
+          const text = event.clipboardData.getData("text/plain");
+          if (text !== text.trim()) return;
+          const url = parseSmartPasteUrl(text);
           if (!url) return;
           const current = editor.getTextCursorPosition().block;
-          if (extractBlockNoteText([current])) return;
+          if (current.type !== "paragraph" || current.content.length || current.children.length) return;
           event.preventDefault();
-          setSmartPaste({ url, blockId: current.id });
+          setSmartPaste({ url, text, blockId: current.id });
         }}
         onMouseOverCapture={(event) => {
           if (!window.matchMedia("(hover: hover) and (pointer: fine)").matches) return;
@@ -573,7 +588,7 @@ export function RichTextEditor({
         <PageKnowledge pageId={page.id} revision={page.revision} onNavigate={onInternalNavigate}/>
       </div>
       {picker && <PageLinkPicker editor={editor} onClose={() => setPicker(false)}/>}
-      {smartPaste && <div className="notebook-smart-paste notebook-no-print absolute bottom-4 left-1/2 z-30 w-[calc(100%-2rem)] max-w-md -translate-x-1/2 rounded-xl border border-border bg-popover p-3 shadow-xl" role="dialog" aria-label={t("editor.pasteAs")}><p className="mb-2 truncate text-xs text-muted-foreground">{smartPaste.url}</p><div className="grid grid-cols-3 gap-2"><button className="min-h-11 rounded-lg bg-accent px-2 text-sm font-medium" onClick={() => { editor.insertInlineContent([{ type: "link", href: smartPaste.url, content: smartPaste.url }]); setSmartPaste(null); }}>{t("editor.pasteLink")}</button><button className="min-h-11 rounded-lg bg-primary px-2 text-sm font-medium text-primary-foreground" onClick={() => { const hostname = new URL(smartPaste.url).hostname; editor.updateBlock(smartPaste.blockId, { type: "bookmark", props: { url: smartPaste.url, title: hostname, description: smartPaste.url } }); setSmartPaste(null); }}>{t("editor.pasteCard")}</button><button className="min-h-11 rounded-lg bg-accent px-2 text-sm font-medium" onClick={() => { editor.insertInlineContent(smartPaste.url); setSmartPaste(null); }}>{t("editor.pasteText")}</button></div></div>}
+      {smartPaste && <div className="notebook-smart-paste notebook-no-print absolute bottom-4 left-1/2 z-30 w-[calc(100%-2rem)] max-w-md -translate-x-1/2 rounded-xl border border-border bg-popover p-3 shadow-xl" role="dialog" aria-label={t("editor.pasteAs")}><p className="mb-2 truncate text-xs text-muted-foreground">{smartPaste.url}</p><div className="grid grid-cols-3 gap-2"><button className="min-h-11 rounded-lg bg-accent px-2 text-sm font-medium" onClick={() => applySmartPaste("link")}>{t("editor.pasteLink")}</button><button className="min-h-11 rounded-lg bg-primary px-2 text-sm font-medium text-primary-foreground" onClick={() => applySmartPaste("card")}>{t("editor.pasteCard")}</button><button className="min-h-11 rounded-lg bg-accent px-2 text-sm font-medium" onClick={() => applySmartPaste("text")}>{t("editor.pasteText")}</button></div></div>}
       {linkPreview && <aside className="notebook-no-print pointer-events-none fixed z-40 w-80 rounded-xl border border-border bg-popover p-3 shadow-xl" style={{ left: Math.max(12, linkPreview.x), top: Math.max(12, linkPreview.y) }}><div className="flex gap-2"><span className="text-xl">{linkPreview.icon ?? ""}</span><span className="min-w-0"><strong className="block truncate text-sm">{linkPreview.title}</strong><span className="block truncate text-xs text-muted-foreground">{linkPreview.notebookTitle} · {linkPreview.sectionTitle}</span></span></div>{linkPreview.excerpt && <p className="mt-2 line-clamp-2 text-sm leading-5 text-muted-foreground">{linkPreview.excerpt}</p>}</aside>}
       <PageVariablesDialog open={variablesOpen} initial={variables} onOpenChange={setVariablesOpen} onApply={(next) => {
         const existing = editor.document.find((block) => block.type === "pageVariables");

@@ -11,8 +11,9 @@ import { NotebookSideMenu } from "./editor-block-menu";
 import { literalTextPasteHandler, plainTextLinesExtension } from "./editor-plain-text-paste";
 import { notebookClipboardExtension } from "./editor-clipboard";
 import { NotebookLinkToolbar } from "./editor-link-toolbar";
+import { notebookLinksExtension } from "./editor-links";
 import { formattingFocusExtension } from "./editor-formatting-focus";
-export const sharedEditorBaseOptions = { schema: notebookEditorSchema, dictionary: notebookBlockNoteDictionary, pasteHandler: literalTextPasteHandler, extensions: [notebookSyntaxHighlighting, plainTextLinesExtension(), notebookClipboardExtension(), formattingFocusExtension()], tables: { headers: true, splitCells: true } };
+export const sharedEditorBaseOptions = { schema: notebookEditorSchema, dictionary: notebookBlockNoteDictionary, pasteHandler: literalTextPasteHandler, disableExtensions: ["link"], extensions: [notebookSyntaxHighlighting, plainTextLinesExtension(), notebookClipboardExtension(), notebookLinksExtension(), formattingFocusExtension()], tables: { headers: true, splitCells: true } };
 export function sharedEditorOptions(content: unknown[]) { return { ...sharedEditorBaseOptions, initialContent: normalizeEditorBlocks(content) }; }
 /** No autosave, uploads, page revision, recovery or navigation state belongs here. */
 export function SharedEditorMenus({ editor, mode = "page", pageId, onPagePicker, blockActionsHost, disabled = false }: { editor: NotebookEditor; mode?: "page" | "template"; pageId?: string; onPagePicker(): void; blockActionsHost?: HTMLDivElement | null; disabled?: boolean }) {
