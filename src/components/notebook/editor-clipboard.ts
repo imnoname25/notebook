@@ -94,7 +94,10 @@ export function selectionClipboardText(selection: Selection): string {
 function copySelection(view: EditorView, event: ClipboardEvent, cut: boolean): boolean {
   const { selection } = view.state;
   const clipboard = event.clipboardData;
-  const textSelection = view.root.getSelection();
+  const root = view.root;
+  const textSelection = "getSelection" in root && typeof root.getSelection === "function"
+    ? root.getSelection() as globalThis.Selection | null
+    : view.dom.ownerDocument.getSelection();
   const target = event.target;
   if (!clipboard || selection.empty || (target instanceof Element && target.closest("input,textarea,select")) ||
     (textSelection && !textSelection.isCollapsed && textSelection.focusNode?.parentElement?.closest('[contenteditable="false"]') &&

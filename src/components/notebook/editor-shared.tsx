@@ -1,6 +1,6 @@
 "use client";
 import { useCallback, useEffect, useRef, useState } from "react";
-import { FormattingToolbar, FormattingToolbarController, getFormattingToolbarItems, LinkToolbarController, SideMenuController, SuggestionMenuController, type DefaultReactSuggestionItem } from "@blocknote/react";
+import { FormattingToolbarController, LinkToolbarController, SideMenuController, SuggestionMenuController, type DefaultReactSuggestionItem } from "@blocknote/react";
 import { FileText } from "lucide-react";
 import { api } from "@/lib/client-api";
 import { notebookBlockNoteDictionary } from "@/lib/i18n/blocknote";
@@ -11,6 +11,7 @@ import { NotebookSideMenu } from "./editor-block-menu";
 import { literalTextPasteHandler, plainTextLinesExtension } from "./editor-plain-text-paste";
 import { notebookClipboardExtension } from "./editor-clipboard";
 import { NotebookLinkToolbar } from "./editor-link-toolbar";
+import { NotebookFloatingFormattingToolbar } from "./editor-format-controls";
 import { notebookLinksExtension } from "./editor-links";
 import { formattingFocusExtension } from "./editor-formatting-focus";
 export const sharedEditorBaseOptions = { schema: notebookEditorSchema, dictionary: notebookBlockNoteDictionary, pasteHandler: literalTextPasteHandler, disableExtensions: ["link"], extensions: [notebookSyntaxHighlighting, plainTextLinesExtension(), notebookClipboardExtension(), notebookLinksExtension(), formattingFocusExtension()], tables: { headers: true, splitCells: true } };
@@ -33,6 +34,7 @@ export function SharedEditorMenus({ editor, mode = "page", pageId, onPagePicker,
   }, [editor]);
   const slash = useCallback(async (query: string) => slashMenuItems(editor, onPagePicker, query, mode), [editor, mode, onPagePicker]);
   const side = useCallback(() => <NotebookSideMenu pageId={pageId} onDragChange={setBlockDragging}/>, [pageId]);
+  const floating = useCallback(() => <NotebookFloatingFormattingToolbar editor={editor} onPagePicker={onPagePicker}/>, [editor, onPagePicker]);
   const shouldOpen = useCallback((transaction: Parameters<NonNullable<React.ComponentProps<typeof SuggestionMenuController>["shouldOpen"]>>[0]) => !transaction.selection.$from.parent.type.spec.code && !transaction.selection.$from.marks().some(mark => mark.type.spec.code) && !editor.prosemirrorView.composing, [editor]);
   return <>
     <EditorBlockActions disabled={disabled} host={blockActionsHost ?? null} pageId={pageId}/>
@@ -40,6 +42,6 @@ export function SharedEditorMenus({ editor, mode = "page", pageId, onPagePicker,
     <SuggestionMenuController triggerCharacter="[[" shouldOpen={shouldOpen} getItems={mentions}/>
     <SideMenuController sideMenu={side}/>
     <LinkToolbarController linkToolbar={NotebookLinkToolbar}/>
-    {!blockDragging && <FormattingToolbarController formattingToolbar={() => <FormattingToolbar>{getFormattingToolbarItems()}<button type="button" aria-label="Ссылка на страницу" className="bn-button" onMouseDown={event => event.preventDefault()} onClick={onPagePicker}><FileText size={16}/></button></FormattingToolbar>}/>}
+    {!blockDragging && <FormattingToolbarController formattingToolbar={floating}/>}
   </>;
 }
