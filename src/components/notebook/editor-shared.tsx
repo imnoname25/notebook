@@ -1,6 +1,6 @@
 "use client";
 import { useCallback, useEffect, useRef, useState } from "react";
-import { FormattingToolbar, FormattingToolbarController, getFormattingToolbarItems, SideMenuController, SuggestionMenuController, type DefaultReactSuggestionItem } from "@blocknote/react";
+import { FormattingToolbar, FormattingToolbarController, getFormattingToolbarItems, LinkToolbarController, SideMenuController, SuggestionMenuController, type DefaultReactSuggestionItem } from "@blocknote/react";
 import { FileText } from "lucide-react";
 import { api } from "@/lib/client-api";
 import { notebookBlockNoteDictionary } from "@/lib/i18n/blocknote";
@@ -9,9 +9,10 @@ import { notebookEditorSchema, notebookSyntaxHighlighting, normalizeEditorBlocks
 import { EditorBlockActions } from "./editor-block-actions";
 import { NotebookSideMenu } from "./editor-block-menu";
 import { literalTextPasteHandler, plainTextLinesExtension } from "./editor-plain-text-paste";
-import { linkCopyExtension } from "./editor-link-copy";
+import { notebookClipboardExtension } from "./editor-clipboard";
+import { NotebookLinkToolbar } from "./editor-link-toolbar";
 import { formattingFocusExtension } from "./editor-formatting-focus";
-export const sharedEditorBaseOptions = { schema: notebookEditorSchema, dictionary: notebookBlockNoteDictionary, pasteHandler: literalTextPasteHandler, extensions: [notebookSyntaxHighlighting, plainTextLinesExtension(), linkCopyExtension(), formattingFocusExtension()], tables: { headers: true, splitCells: true } };
+export const sharedEditorBaseOptions = { schema: notebookEditorSchema, dictionary: notebookBlockNoteDictionary, pasteHandler: literalTextPasteHandler, extensions: [notebookSyntaxHighlighting, plainTextLinesExtension(), notebookClipboardExtension(), formattingFocusExtension()], tables: { headers: true, splitCells: true } };
 export function sharedEditorOptions(content: unknown[]) { return { ...sharedEditorBaseOptions, initialContent: normalizeEditorBlocks(content) }; }
 /** No autosave, uploads, page revision, recovery or navigation state belongs here. */
 export function SharedEditorMenus({ editor, mode = "page", pageId, onPagePicker, blockActionsHost, disabled = false }: { editor: NotebookEditor; mode?: "page" | "template"; pageId?: string; onPagePicker(): void; blockActionsHost?: HTMLDivElement | null; disabled?: boolean }) {
@@ -37,6 +38,7 @@ export function SharedEditorMenus({ editor, mode = "page", pageId, onPagePicker,
     <SuggestionMenuController triggerCharacter="/" shouldOpen={shouldOpen} getItems={slash} floatingUIOptions={{ elementProps: { className: "notebook-slash-popover" } }}/>
     <SuggestionMenuController triggerCharacter="[[" shouldOpen={shouldOpen} getItems={mentions}/>
     <SideMenuController sideMenu={side}/>
+    <LinkToolbarController linkToolbar={NotebookLinkToolbar}/>
     {!blockDragging && <FormattingToolbarController formattingToolbar={() => <FormattingToolbar>{getFormattingToolbarItems()}<button type="button" aria-label="Ссылка на страницу" className="bn-button" onMouseDown={event => event.preventDefault()} onClick={onPagePicker}><FileText size={16}/></button></FormattingToolbar>}/>}
   </>;
 }

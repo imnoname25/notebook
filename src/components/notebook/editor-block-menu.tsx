@@ -9,6 +9,7 @@ import { ArrowDown, ArrowUp, Check, Clipboard, Copy, GripVertical, Plus, Link2, 
 import { BLOCK_BACKGROUND_TOKENS } from "@/lib/editor-block-appearance";
 import { getPageHref } from "@/lib/workspace-navigation";
 import type { NotebookBlock, NotebookEditor, NotebookFullBlock } from "./editor-schema";
+import { blockClipboardText } from "./editor-clipboard";
 import { TableBlockSubmenu } from "./table-actions";
 
 const BACKGROUND_LABELS = {
@@ -83,7 +84,7 @@ export function NotebookBlockMenu({ pageId, target }: { pageId?: string; target?
   if (!Components || !block) return null;
   const typedBlock = block as NotebookFullBlock;
   const copy = async (plainOnly: boolean) => {
-    const text = editor.blocksToMarkdownLossy([typedBlock]).trim();
+    const text = blockClipboardText(editor, typedBlock);
     if (!plainOnly && typeof ClipboardItem !== "undefined" && navigator.clipboard?.write) {
       const payload = encodeURIComponent(JSON.stringify([freshBlock(typedBlock)]));
       const html = `<div data-notebook-block-clipboard="1" data-notebook-block-json="${payload}">${editor.blocksToHTMLLossy([typedBlock])}</div>`;

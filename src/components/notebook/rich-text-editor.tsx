@@ -553,6 +553,7 @@ export function RichTextEditor({
           editor={editor}
           editable={!navigationBusy && !working}
           formattingToolbar={false}
+          linkToolbar={false}
           slashMenu={false}
           sideMenu={false}
           tableHandles={false}
