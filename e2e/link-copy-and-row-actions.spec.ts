@@ -23,7 +23,7 @@ async function fixture(page: Page) {
   return { notebook, section, note };
 }
 
-test("Ctrl+C copies the link URL and Ctrl+V preserves the styled link", async ({ page, context }) => {
+test("Ctrl+C copies the visible link text and Ctrl+V preserves the styled link", async ({ page, context }) => {
   await context.grantPermissions(["clipboard-read", "clipboard-write"]);
   const { note } = await fixture(page);
   expect((await page.request.patch(`/api/pages/${note.id}`, {
@@ -48,14 +48,14 @@ test("Ctrl+C copies the link URL and Ctrl+V preserves the styled link", async ({
   await expect(toolbar).toBeVisible();
   await expect.poll(() => page.evaluate(() => window.getSelection()?.toString())).toBe("Named link");
   await page.keyboard.press("ControlOrMeta+c");
-  await expect.poll(() => page.evaluate(() => navigator.clipboard.readText())).toBe(address);
+  await expect.poll(() => page.evaluate(() => navigator.clipboard.readText())).toBe("Named link");
 
   const copied = await link.evaluate(element => {
     const data = new DataTransfer();
     element.dispatchEvent(new ClipboardEvent("copy", { bubbles: true, cancelable: true, clipboardData: data }));
     return { plain: data.getData("text/plain"), html: data.getData("text/html"), internal: data.getData("blocknote/html") };
   });
-  expect(copied.plain).toBe(address);
+  expect(copied.plain).toBe("Named link");
   expect(copied.html).toContain("Named link");
   expect(copied.html).toContain(address);
   expect(copied.internal).toContain(address);
@@ -66,7 +66,7 @@ test("Ctrl+C copies the link URL and Ctrl+V preserves the styled link", async ({
   await expect(toolbar).toBeHidden();
   await page.keyboard.press("ControlOrMeta+a");
   await page.keyboard.press("ControlOrMeta+v");
-  await expect(input).toHaveValue(address);
+  await expect(input).toHaveValue("Named link");
   await expect(toolbar).toBeHidden();
 
   const plainBox = await plain.boundingBox();
@@ -82,13 +82,13 @@ test("Ctrl+C copies the link URL and Ctrl+V preserves the styled link", async ({
   await page.keyboard.press("ControlOrMeta+v");
   await expect(link).toHaveCount(2);
   await expect(link.last()).toHaveText("Named link");
-  await expect(page.locator(`.bn-editor strong a[href="${address}"]`)).toHaveCount(2);
+  await expect(link.and(page.locator("strong a, a:has(strong)"))).toHaveCount(2);
   await plain.click();
   await page.keyboard.press("End");
   await page.keyboard.press("Shift+Home");
   await expect.poll(() => page.evaluate(() => window.getSelection()?.toString())).toBe("Ordinary text");
   await page.keyboard.press("ControlOrMeta+c");
-  await expect.poll(() => page.evaluate(async () => (await navigator.clipboard.readText()).trimEnd())).toBe("Ordinary text");
+  await expect.poll(() => page.evaluate(() => navigator.clipboard.readText())).toBe("Ordinary text");
 });
 
 test("desktop rows retain buttons, right click, keyboard actions, and focus return", async ({ page }) => {

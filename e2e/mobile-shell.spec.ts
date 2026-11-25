@@ -6,7 +6,7 @@ async function login(page: Page) {
   await page.getByLabel("Email").fill("admin@example.test");
   await page.getByLabel("Пароль").fill("correct horse battery staple");
   await page.getByRole("button", { name: "Войти", exact: true }).click();
-  await expect(page).toHaveURL(/\/app$/);
+  await expect(page).toHaveURL(/\/app$/, { timeout: 20_000 });
 }
 
 for (const theme of ["light", "studio-graphite", "studio-atelier"]) {

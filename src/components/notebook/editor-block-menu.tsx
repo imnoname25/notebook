@@ -10,7 +10,7 @@ import { BLOCK_BACKGROUND_TOKENS } from "@/lib/editor-block-appearance";
 import { getPageHref } from "@/lib/workspace-navigation";
 import type { NotebookBlock, NotebookEditor, NotebookFullBlock } from "./editor-schema";
 import { blockClipboardText } from "./editor-clipboard";
-import { applyEditorBlockFormat, selectedFormattingBlocks } from "./editor-format-commands";
+import { applyEditorBlockFormat } from "./editor-format-commands";
 import { TableBlockSubmenu } from "./table-actions";
 
 const BACKGROUND_LABELS = {
@@ -100,8 +100,8 @@ export function NotebookBlockMenu({ pageId, target }: { pageId?: string; target?
     editor.focus();
   };
   const transform = (type: "paragraph" | "heading" | "bulletListItem" | "numberedListItem" | "checkListItem" | "quote" | "toggleListItem" | "callout") => {
-    const selection = selectedFormattingBlocks(editor);
-    const targets = selection.some(selected => selected.id === block.id) ? selection : [typedBlock];
+    const selection = editor.getSelection()?.blocks;
+    const targets = selection?.some(selected => selected.id === block.id) ? selection : [typedBlock];
     applyEditorBlockFormat(editor, type === "heading" ? { type, props: { level: 2 } } : { type }, targets.filter(canTransform).map(target => target.id));
   };
   return <DragHandleMenu>
