@@ -2,31 +2,34 @@ import { blockToNode, createExtension } from "@blocknote/core";
 import { Extension } from "@tiptap/core";
 import { Slice, type Fragment, type Node } from "prosemirror-model";
 import { NodeSelection, Plugin, TextSelection, type Selection } from "prosemirror-state";
-import { CellSelection } from "prosemirror-tables";
+import { CellSelection, TableMap } from "prosemirror-tables";
 import type { EditorView } from "prosemirror-view";
 import type { NotebookEditor, NotebookFullBlock } from "./editor-schema";
 
-function inlineText(node: Node): string {
+type PageLinkLabels = ReadonlyMap<Node, string>;
+type TableTextLayout = { firstColumn: number; width: number };
+
+function inlineText(node: Node, labels?: PageLinkLabels): string {
   if (node.isText) return node.text ?? "";
   if (node.type.name === "hardBreak") return "\n";
-  if (node.type.name === "pageLink") return String(node.attrs.text || "Страница");
-  return directText(node.content);
+  if (node.type.name === "pageLink") return labels?.get(node) ?? String(node.attrs.text || "Страница");
+  return directText(node.content, labels);
 }
 
-function directText(content: Fragment): string {
+function directText(content: Fragment, labels?: PageLinkLabels): string {
   let text = "";
-  content.forEach(node => { text += inlineText(node); });
+  content.forEach(node => { text += inlineText(node, labels); });
   return text;
 }
 
-function tableText(table: Node): string {
+function tableText(table: Node, labels?: PageLinkLabels, layout?: TableTextLayout): string {
   const rows: string[][] = [];
   table.forEach((row, _offset, rowIndex) => {
     const values = rows[rowIndex] ??= [];
-    let column = 0;
+    let column = rowIndex === 0 ? layout?.firstColumn ?? 0 : 0;
     row.forEach(cell => {
       while (values[column] !== undefined) column++;
-      const value = plainText(cell.content);
+      const value = plainText(cell.content, labels);
       values[column] = /["\t\r\n]/.test(value) ? `"${value.replaceAll('"', '""')}"` : value;
       const colspan = Number(cell.attrs.colspan ?? 1);
       const rowspan = Number(cell.attrs.rowspan ?? 1);
@@ -37,24 +40,24 @@ function tableText(table: Node): string {
       column += colspan;
     });
   });
-  const width = rows.reduce((max, row) => Math.max(max, row.length), 0);
+  const width = rows.reduce((max, row) => Math.max(max, row.length), layout?.width ?? 0);
   return rows.map(row => Array.from({ length: width }, (_, x) => row[x] ?? "").join("\t")).join("\n");
 }
 
-function plainText(content: Fragment): string {
+function plainText(content: Fragment, labels?: PageLinkLabels, tableLayout?: TableTextLayout): string {
   const lines: string[] = [];
   let inline = "";
   let hasInline = false;
   content.forEach(node => {
     if (node.isInline) {
-      inline += inlineText(node);
+      inline += inlineText(node, labels);
       hasInline = true;
     } else if (node.type.spec.tableRole === "table") {
-      lines.push(tableText(node));
+      lines.push(tableText(node, labels, tableLayout));
     } else if (node.isTextblock) {
-      lines.push(directText(node.content));
+      lines.push(directText(node.content, labels));
     } else if (node.childCount) {
-      lines.push(plainText(node.content));
+      lines.push(plainText(node.content, labels, tableLayout));
     }
   });
   return hasInline ? inline : lines.join("\n");
@@ -67,7 +70,9 @@ export function blockClipboardText(editor: NotebookEditor, block: NotebookFullBl
 function tableCellAt(position: Selection["$from"]) {
   for (let depth = position.depth; depth > 0; depth--) {
     const role = position.node(depth).type.spec.tableRole;
-    if (role === "cell" || role === "header_cell") return position.before(depth);
+    if (role === "cell" || role === "header_cell") {
+      return { pos: position.before(depth), table: position.node(depth - 2), tableStart: position.start(depth - 2) };
+    }
   }
 }
 
@@ -76,19 +81,43 @@ function clipboardSlice(selection: Selection): Slice {
     const { $from, $to } = selection;
     if ($from.sameParent($to)) return $from.doc.slice(selection.from, selection.to);
     const startCell = tableCellAt($from), endCell = tableCellAt($to);
-    if (startCell !== endCell && (startCell !== undefined || endCell !== undefined)) {
+    if (startCell?.pos !== endCell?.pos) {
       return $from.doc.slice(selection.from, selection.to, true);
     }
   }
   return selection.content();
 }
 
-export function selectionClipboardText(selection: Selection): string {
+export function selectionClipboardText(selection: Selection, labels?: PageLinkLabels): string {
   const { content } = clipboardSlice(selection);
   if (selection instanceof CellSelection && content.firstChild?.type.spec.tableRole === "row") {
-    return tableText(selection.$anchorCell.node(-1).type.create(null, content));
+    return tableText(selection.$anchorCell.node(-1).type.create(null, content), labels);
   }
-  return plainText(content);
+  let layout: TableTextLayout | undefined;
+  if (selection instanceof TextSelection) {
+    const first = tableCellAt(selection.$from), last = tableCellAt(selection.$to);
+    if (first && last && first.tableStart === last.tableStart && first.pos !== last.pos) {
+      const map = TableMap.get(first.table);
+      const start = map.findCell(first.pos - first.tableStart);
+      const end = map.findCell(last.pos - last.tableStart);
+      if (start.top !== end.top) layout = { firstColumn: start.left, width: map.width };
+    }
+  }
+  return plainText(content, labels, layout);
+}
+
+function visiblePageLinkLabels(view: EditorView, selection: Selection): PageLinkLabels {
+  const labels = new Map<Node, string>();
+  for (const { $from, $to } of selection.ranges) {
+    view.state.doc.nodesBetween($from.pos, $to.pos, (node, pos) => {
+      if (node.type.name !== "pageLink") return;
+      const element = view.nodeDOM(pos);
+      if (!(element instanceof Element)) return;
+      const link = element.matches("[data-target-page]") ? element : element.querySelector("[data-target-page]");
+      if (link?.textContent) labels.set(node, link.textContent);
+    });
+  }
+  return labels;
 }
 
 function copySelection(view: EditorView, event: ClipboardEvent, cut: boolean): boolean {
@@ -117,7 +146,7 @@ function copySelection(view: EditorView, event: ClipboardEvent, cut: boolean): b
   const html = `<div style="white-space: pre-wrap">${dom.innerHTML}</div>`;
   clipboard.setData("blocknote/html", internalHTML);
   clipboard.setData("text/html", html);
-  clipboard.setData("text/plain", selectionClipboardText(selection));
+  clipboard.setData("text/plain", selectionClipboardText(selection, visiblePageLinkLabels(view, selection)));
   event.preventDefault();
   if (cut && view.editable) view.dispatch(view.state.tr.deleteSelection().scrollIntoView().setMeta("uiEvent", "cut"));
   return true;

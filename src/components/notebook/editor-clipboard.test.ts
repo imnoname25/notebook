@@ -1,5 +1,6 @@
 import { Schema, type Node } from "prosemirror-model";
 import { TextSelection } from "prosemirror-state";
+import { CellSelection, tableNodes } from "prosemirror-tables";
 import { describe, expect, it } from "vitest";
 import { selectionClipboardText } from "./editor-clipboard";
 
@@ -11,6 +12,28 @@ const schema = new Schema({
     text: { group: "inline" },
   },
   marks: { link: { attrs: { href: {} } }, bold: {} },
+});
+
+it("retains columns for text spanning rows and exports rectangle selections as TSV", () => {
+  const tm = new Schema({ nodes: {
+    doc: { content: "block+" },
+    paragraph: { group: "block", content: "text*" },
+    text: {},
+    ...tableNodes({ tableGroup: "block", cellContent: "paragraph+", cellAttributes: {} }),
+  } });
+  const cell = (value: string) => tm.node("table_cell", null, tm.node("paragraph", null, tm.text(value)));
+  const row = (...values: string[]) => tm.node("table_row", null, values.map(cell));
+  const doc = tm.node("doc", null, tm.node("table", null, [row("A1", "B1"), row("A2", "B\t2")]));
+  const cells: number[] = [];
+  const positions = new Map<string, number>();
+  doc.descendants((node, position) => {
+    if (node.type.spec.tableRole === "cell") cells.push(position);
+    if (node.text) positions.set(node.text, position);
+  });
+  const textRange = TextSelection.create(doc, positions.get("B1")!, positions.get("A2")! + 2);
+  expect(selectionClipboardText(textRange)).toBe("\tB1\nA2\t");
+  const rectangle = CellSelection.create(doc, cells[0], cells[3]);
+  expect(selectionClipboardText(rectangle)).toBe('A1\tB1\nA2\t"B\t2"');
 });
 const paragraph = (...content: Node[]) =>
   schema.node("paragraph", null, content);

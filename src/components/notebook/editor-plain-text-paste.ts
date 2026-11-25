@@ -19,8 +19,8 @@ export function isPlainPaste(editor: NotebookEditor, event: ClipboardEvent): boo
   return plain;
 }
 
-export function pasteRichEditorHtml(editor: NotebookEditor, html: string): void {
-  if (!html) return;
+export function pasteRichEditorHtml(editor: NotebookEditor, html: string, event?: ClipboardEvent): boolean {
+  if (!html) return false;
   const source = new globalThis.DOMParser().parseFromString(html, "text/html");
   const content = source.body.textContent ?? "";
   let parsed = html;
@@ -36,9 +36,9 @@ export function pasteRichEditorHtml(editor: NotebookEditor, html: string): void 
     parsed = source.body.innerHTML;
   }
   const blocks = editor.tryParseHTMLToBlocks(parsed);
-  if (!blocks.length) return;
+  if (!blocks.length) return false;
   const fullHtml = editor.blocksToFullHTML(blocks);
-  editor.pasteHTML(marker ? fullHtml.replaceAll(marker, "\uFFFC") : fullHtml, true);
+  return editor.prosemirrorView.pasteHTML(marker ? fullHtml.replaceAll(marker, "\uFFFC") : fullHtml, event);
 }
 
 export const literalTextPasteHandler: NonNullable<Options["pasteHandler"]> = ({ defaultPasteHandler, editor, event }) => {
@@ -55,9 +55,9 @@ export const literalTextPasteHandler: NonNullable<Options["pasteHandler"]> = ({ 
   if (data.types.includes("vscode-editor-data")) {
     return defaultPasteHandler({ plainTextAsMarkdown: false, prioritizeMarkdownOverHTML: false });
   }
-  if (native) editor.pasteHTML(native, true);
-  else if (html) pasteRichEditorHtml(editor, html);
-  else if (text) editor.pasteText(text);
+  if (native && editor.prosemirrorView.pasteHTML(native, event)) return true;
+  if (html && pasteRichEditorHtml(editor, html, event)) return true;
+  if (text) editor.pasteText(text);
   else if (data.files.length) return defaultPasteHandler({ plainTextAsMarkdown: false, prioritizeMarkdownOverHTML: false });
   return true;
 };

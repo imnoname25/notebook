@@ -120,6 +120,7 @@ export function applyEditorLink(editor: NotebookEditor, selection: TextSelection
   if (!editor.isEditable || editor.prosemirrorView.composing || !isEditorLink(href)) return;
   editor.transact(tr => {
     if (selection.$from.doc !== tr.doc) return;
+    tr.setSelection(selection);
     const mark = tr.doc.type.schema.marks.link.create({ href });
     const { from, to } = selection;
     if (!selection.empty) {

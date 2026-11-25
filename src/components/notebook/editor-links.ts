@@ -29,7 +29,7 @@ const notebookLinkMark = Mark.create({
   inclusive: false,
   keepOnSplit: false,
   exitable: true,
-  addAttributes: () => ({ href: { default: null } }),
+  addAttributes: () => ({ href: { default: null, parseHTML: (element: HTMLElement) => element.getAttribute("href") } }),
   parseHTML: () => [{
     tag: "a[href]",
     getAttrs: element => isEditorLink(element.getAttribute("href") ?? "") ? null : false,
@@ -39,6 +39,7 @@ const notebookLinkMark = Mark.create({
       href: isEditorLink(HTMLAttributes.href ?? "") ? HTMLAttributes.href : "",
       class: "bn-inline-content-section",
       "data-inline-content-type": "link",
+      draggable: "false",
       target: "_blank",
       rel: "noopener noreferrer nofollow",
     }), 0];
