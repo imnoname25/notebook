@@ -172,6 +172,7 @@ export function RichTextEditor({
 
   const documentSearch = useDocumentSearch(editor, title, searchMatch, onSearchMatchClose, editorRoot);
 
+  const [formattingHost, setFormattingHost] = useState<HTMLDivElement | null>(null);
   const [blockActionsHost, setBlockActionsHost] = useState<HTMLDivElement | null>(null);
   const [picker, setPicker] = useState(false);
   const openPagePicker = useCallback(() => setPicker(true), []);
@@ -422,6 +423,7 @@ export function RichTextEditor({
           : undefined
       }
     >
+      <div ref={setFormattingHost} className="editor-formatting-host"/>
       <RecoveryNotice drafts={drafts} page={page} discard={async draft => { if (!await discardDraft(draft)) throw new Error("Черновик изменился в другой вкладке; откройте его заново");setDrafts(items => items.filter(item => item.key !== draft.key)); }} restore={async draft => {
         if (writer.current?.isDirty() || barrier.current) throw new Error("Сначала сохраните изменения текущего редактора или сравните их отдельно");
         if (unsupportedEditorBlocks(draft.content).length) throw new Error("Черновик содержит неизвестные блоки. Он остаётся в локальном хранилище; обновите клиент перед восстановлением.");
@@ -566,6 +568,7 @@ export function RichTextEditor({
       >
         <PageLinksProvider ids={[...internalPageIdsInContent(editor.document)]} adjacent={Boolean(onAdjacentNavigate)} navigate={(id, adjacent, permanent) => adjacent && onAdjacentNavigate ? onAdjacentNavigate(id) : onInternalNavigate(id, permanent)}><EditorActivityContext.Provider value={paneActive}><LiveWidgetPageContext.Provider value={page.id}><div ref={setBlockActionsHost} className="notebook-block-actions-host"/><BlockNoteView
           editor={editor}
+          portalElements={formattingHost ? { default: formattingHost } : undefined}
           editable={!navigationBusy && !working}
           formattingToolbar={false}
           linkToolbar={false}
@@ -582,7 +585,7 @@ export function RichTextEditor({
             });
           }}
         >
-          <SharedEditorMenus disabled={navigationBusy || working} blockActionsHost={blockActionsHost} editor={editor} pageId={page.id} onPagePicker={openPagePicker}/>
+          <SharedEditorMenus formattingHost={formattingHost} disabled={navigationBusy || working} blockActionsHost={blockActionsHost} editor={editor} pageId={page.id} onPagePicker={openPagePicker}/>
           <EditorSuggestionOverlayBridge/>
         </BlockNoteView></LiveWidgetPageContext.Provider></EditorActivityContext.Provider></PageLinksProvider>
         <PageKnowledge pageId={page.id} revision={page.revision} onNavigate={onInternalNavigate}/>

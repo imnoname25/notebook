@@ -18,6 +18,7 @@ import {
   UploadCloud,
   X,
 } from "lucide-react";
+import { FormattingToolbarSettings } from "./formatting-toolbar-settings";
 import { useNotebookTheme } from "./appearance-provider";
 import { ThemeSettings } from "./theme-settings";
 import { AndroidAppInfo } from "./android-app-info";
@@ -155,11 +156,11 @@ const accountTabs: { id: Tab; label: string }[] = [
   { id: "profile", label: t("account.profile") },
   { id: "security", label: t("account.security") },
   { id: "appearance", label: t("appearance.settings") },
+  { id: "editor", label: "Редактор" },
 ];
 const adminTabs: { id: Tab; label: string }[] = [
   { id: "users", label: t("account.users") },
   { id: "general", label: "Общие" },
-  { id: "editor", label: "Редактор" },
   { id: "templates", label: "Шаблоны" },
   { id: "backups", label: "Резервные копии" },
   { id: "storage", label: "Хранилище" },
@@ -471,7 +472,8 @@ export function SettingsDialog({
     tab === "profile" ||
     tab === "security" ||
     tab === "appearance" ||
-    tab === "users";
+    tab === "users" ||
+    tab === "editor" && user.role !== "ADMIN";
   const change = <K extends keyof SettingsData>(
     key: K,
     value: SettingsData[K],
@@ -541,6 +543,7 @@ export function SettingsDialog({
               {tab === "users" && user.role === "ADMIN" && (
                 <UserManagement currentUserId={user.id} onError={onError} />
               )}{" "}
+              {tab === "editor" && user.role !== "ADMIN" && <Section title="Редактор"><FormattingToolbarSettings/></Section>}
               {!accountTab &&
                 (!draft ? (
                   <Loader2 className="animate-spin" />
@@ -573,6 +576,7 @@ export function SettingsDialog({
                     )}
                     {tab === "editor" && (
                       <Section title="Редактор">
+                        <FormattingToolbarSettings/>
                         <Check
                           label="Проверка орфографии"
                           checked={draft.editorSpellcheck}

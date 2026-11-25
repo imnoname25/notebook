@@ -1,5 +1,6 @@
 import { expect, test, type Locator, type Page } from "@playwright/test";
 import { z } from "zod";
+import { setTestTheme } from "./theme-fixture";
 
 const idSchema = z.object({ id: z.string() });
 const blockSchema = z.object({ id: z.string(), type: z.string(), content: z.unknown(), children: z.array(z.unknown()).optional() });
@@ -9,7 +10,7 @@ const paragraph = (id: string, content: unknown[] = [], children: unknown[] = []
 const link = (href: string, ...content: ReturnType<typeof text>[]) => ({ type: "link", href, content });
 const pasteShortcut = process.platform === "darwin" ? "Meta" : "Control";
 
-async function openNote(page: Page, content: unknown[]) {
+async function openNote(page: Page, content: unknown[], theme?: "studio-graphite" | "studio-atelier") {
   page.setDefaultTimeout(12_000);
   await page.context().grantPermissions(["clipboard-read", "clipboard-write"]);
   await page.setViewportSize({ width: 1440, height: 900 });
@@ -20,6 +21,7 @@ async function openNote(page: Page, content: unknown[]) {
   const { section } = z.object({ section: idSchema }).parse(await page.request.post("/api/sections", { data: { notebookId: notebook.id, title: "Synthetic documents" } }).then(r => r.json()));
   const { page: note } = z.object({ page: idSchema.extend({ revision: z.number() }) }).parse(await page.request.post("/api/pages", { data: { sectionId: section.id, title: "Synthetic clipboard data" } }).then(r => r.json()));
   expect((await page.request.patch(`/api/pages/${note.id}`, { data: { expectedRevision: note.revision, content } })).ok()).toBe(true);
+  if (theme) await setTestTheme(page, theme);
   await page.goto(`/pages/${note.id}`);
   await expect(page.locator(".bn-editor[contenteditable=true]")).toBeVisible();
   return async () => pageSchema.parse(await page.request.get(`/api/pages/${note.id}`).then(r => r.json())).page;
@@ -206,57 +208,77 @@ test("literal and rich paste keep technical data and URL replacement semantics",
   await expect(page.locator(".bn-editor table td strong")).toHaveText("2");
 });
 
-test("floating heading splits one legacy line and autosaves a deep-link-safe Undo/Redo", async ({ page }) => {
-  test.setTimeout(60_000);
-  const saved = await openNote(page, [
-    paragraph("legacy", [text("Before\n"), link("https://example.test/line", text("Middle", { bold: true })), text("\nAfter", { italic: true })], [
-      paragraph("child", [text("Nested child")]),
-    ]),
-    paragraph("neighbor", [text("Neighbor")]),
-  ]);
-  const middle = block(page, "legacy").locator("a");
-  await dragText(page, middle, middle, true);
-  await expect.poll(() => page.evaluate(() => getSelection()?.toString())).toBe("Middle");
-  const toolbar = page.locator(".bn-formatting-toolbar").filter({ visible: true });
-  await toolbar.getByRole("combobox").filter({ hasText: "Параграф" }).click();
-  await page.getByRole("option", { name: "Заголовок 2 уровня", exact: true }).click();
-  await expect(page.locator(".bn-editor h2")).toHaveText("Middle");
-  await expect(page.locator(".bn-editor h2 strong")).toHaveText("Middle");
-  await expect(inline(page, "legacy")).toHaveText("Before");
-  await expect(inline(page, "neighbor")).toHaveText("Neighbor");
-  await expect(inline(page, "child")).toHaveText("Nested child");
-  const splitIds = async () => (await saved()).content.map(item => item.id);
-  await expect.poll(splitIds).toHaveLength(4);
-  const ids = await splitIds();
-  expect(new Set(ids).size).toBe(ids.length);
-  expect(ids[0]).toBe("legacy");
-  await page.keyboard.press(`${pasteShortcut}+z`);
-  await expect(page.locator(".bn-editor h2")).toHaveCount(0);
-  await expect.poll(splitIds).toEqual(["legacy", "neighbor"]);
-  await page.keyboard.press(`${pasteShortcut}+Shift+z`);
-  await expect.poll(splitIds).toEqual(ids);
-  await page.reload();
-  await page.setViewportSize({ width: 360, height: 800 });
-  await expect(page.locator(".bn-editor h2")).toHaveText("Middle");
-  await expect(inline(page, "legacy")).toHaveText("Before");
-  await expect(inline(page, "child")).toHaveText("Nested child");
-  expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(360);
-});
+for (const panel of ["floating", "persistent"] as const) {
+  test(`${panel} heading splits one legacy line and autosaves a deep-link-safe Undo/Redo`, async ({ page }) => {
+    test.setTimeout(60_000);
+    const saved = await openNote(page, [
+      paragraph("legacy", [text("Before\n"), link("https://example.test/line", text("Middle", { bold: true })), text("\nAfter", { italic: true })], [
+        paragraph("child", [text("Nested child")]),
+      ]),
+      paragraph("neighbor", [text("Neighbor")]),
+    ], panel === "floating" ? "studio-graphite" : "studio-atelier");
+    const middle = block(page, "legacy").locator("a");
+    await dragText(page, middle, middle, panel === "floating");
+    await expect.poll(() => page.evaluate(() => getSelection()?.toString())).toBe("Middle");
+    if (panel === "floating") {
+      const toolbar = page.locator(".bn-formatting-toolbar").filter({ visible: true });
+      await toolbar.getByRole("combobox").filter({ hasText: "Параграф" }).click();
+      await page.getByRole("option", { name: "Заголовок 2 уровня", exact: true }).click();
+    } else {
+      await page.getByRole("toolbar", { name: "Форматирование документа" }).getByLabel("Формат блока").selectOption("h2");
+    }
+    await expect(page.locator(".bn-editor h2")).toHaveText("Middle");
+    await expect(page.locator(".bn-editor h2 strong")).toHaveText("Middle");
+    await expect(inline(page, "legacy")).toHaveText("Before");
+    await expect(inline(page, "neighbor")).toHaveText("Neighbor");
+    await expect(inline(page, "child")).toHaveText("Nested child");
+    const splitIds = async () => (await saved()).content.map(item => item.id);
+    await expect.poll(splitIds).toHaveLength(4);
+    const ids = await splitIds();
+    expect(new Set(ids).size).toBe(ids.length);
+    expect(ids[0]).toBe("legacy");
+    await page.keyboard.press(`${pasteShortcut}+z`);
+    await expect(page.locator(".bn-editor h2")).toHaveCount(0);
+    await expect.poll(splitIds).toEqual(["legacy", "neighbor"]);
+    await page.keyboard.press(`${pasteShortcut}+Shift+z`);
+    await expect.poll(splitIds).toEqual(ids);
+    await page.reload();
+    await page.setViewportSize({ width: 360, height: 800 });
+    await expect(page.locator(".bn-editor h2")).toHaveText("Middle");
+    await expect(inline(page, "legacy")).toHaveText("Before");
+    await expect(inline(page, "child")).toHaveText("Nested child");
+    expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(360);
+  });
 
-test("a link command retains an exact mixed-mark selection while its form has focus", async ({ page }) => {
-  const saved = await openNote(page, [paragraph("mixed", [
-    text("Before "), text("AB", { bold: true }), text("cd", { italic: true }), text(" after"),
-  ])]);
-  const mixed = block(page, "mixed");
-  await dragText(page, mixed.locator("strong"), mixed.locator("em"), false, 1);
-  await expect.poll(() => page.evaluate(() => getSelection()?.toString())).toBe("Bc");
-  await page.locator(".bn-formatting-toolbar").getByRole("button", { name: "Создать ссылку", exact: true }).click();
-  await page.getByRole("textbox", { name: "Адрес", exact: true }).fill("https://example.test/formatting");
-  await page.getByRole("button", { name: "Применить ссылку", exact: true }).click();
-  await expect(mixed).toHaveText("Before ABcd after");
-  await expect.poll(async () => (await saved()).content[0]?.content).toEqual([
-    text("Before "), text("A", { bold: true }),
-    link("https://example.test/formatting", text("B", { bold: true }), text("c", { italic: true })),
-    text("d", { italic: true }), text(" after"),
-  ]);
-});
+  test(`${panel} link command retains an exact mixed-mark selection while its form has focus`, async ({ page }) => {
+    const saved = await openNote(page, [paragraph("mixed", [
+      text("Before "), text("AB", { bold: true }), text("cd", { italic: true }), text(" after"),
+    ])], panel === "floating" ? "studio-atelier" : "studio-graphite");
+    await page.setViewportSize({ width: 1920, height: 1080 });
+    const mixed = block(page, "mixed");
+    await dragText(page, mixed.locator("strong"), mixed.locator("em"), false, 1);
+    await expect.poll(() => page.evaluate(() => getSelection()?.toString())).toBe("Bc");
+    if (panel === "floating") {
+      await page.locator(".bn-formatting-toolbar").getByRole("button", { name: "Создать ссылку", exact: true }).click();
+    } else {
+      const toolbar = page.getByRole("toolbar", { name: "Форматирование документа" });
+      await toolbar.getByRole("button", { name: "Вставить ссылку", exact: true }).click();
+    }
+    await page.getByRole("textbox", { name: "Адрес", exact: true }).fill("https://example.test/formatting");
+    await page.getByRole("button", { name: "Применить ссылку", exact: true }).click();
+    await expect(mixed).toHaveText("Before ABcd after");
+    await expect.poll(async () => (await saved()).content[0]?.content).toEqual([
+      text("Before "), text("A", { bold: true }),
+      link("https://example.test/formatting", text("B", { bold: true }), text("c", { italic: true })),
+      text("d", { italic: true }), text(" after"),
+    ]);
+
+    await page.reload();
+    await mixed.locator("a").first().hover();
+    await page.getByRole("button", { name: "Удалить ссылку", exact: true }).click();
+    await expect(mixed.locator("a")).toHaveCount(0);
+    await expect.poll(async () => (await saved()).content[0]?.content).toEqual([
+      text("Before "), text("AB", { bold: true }), text("cd", { italic: true }), text(" after"),
+    ]);
+  });
+}

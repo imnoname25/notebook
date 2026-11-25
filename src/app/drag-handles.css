@@ -1,7 +1,7 @@
 /* Native SideMenu owns hover visibility and drag preview; these rules only style our trigger. */
-.notebook-editor .bn-side-menu .notebook-block-handle { width: 1.5rem; min-width: 1.5rem; height: 1.75rem; min-height: 1.75rem; border: 0; background: transparent; border-radius: 3px; color: var(--muted-foreground); box-shadow: none; }
-.notebook-editor .bn-side-menu .notebook-block-handle:hover { background: var(--accent); }
-.notebook-editor .bn-side-menu .notebook-block-handle:focus-visible { outline: 2px solid var(--ring); outline-offset: 1px; }
+:is(.notebook-editor, .editor-formatting-host) .bn-side-menu .notebook-block-handle { width: 1.5rem; min-width: 1.5rem; height: 1.75rem; min-height: 1.75rem; border: 0; background: transparent; border-radius: 3px; color: var(--muted-foreground); box-shadow: none; }
+:is(.notebook-editor, .editor-formatting-host) .bn-side-menu .notebook-block-handle:hover { background: var(--accent); }
+:is(.notebook-editor, .editor-formatting-host) .bn-side-menu .notebook-block-handle:focus-visible { outline: 2px solid var(--ring); outline-offset: 1px; }
 .notebook-page-row [data-page-select] { cursor: grab; }
 .notebook-page-row [data-page-select][aria-pressed="true"] { cursor: grabbing; }
 .notebook-page-row:has([data-page-select][aria-pressed="true"]) { user-select: none; }

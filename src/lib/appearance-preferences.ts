@@ -8,6 +8,7 @@ export const FONT_LABELS: Record<string, string> = {
   manrope: "Manrope", "source-sans-3": "Source Sans 3", literata: "Literata", "jetbrains-mono": "JetBrains Mono",
 };
 const fields = {
+  formattingToolbarMode: z.enum(["compact", "full"]),
   theme: z.enum(THEMES),
   uiFont: z.enum(UI_FONTS),
   editorFont: z.enum(EDITOR_FONTS),
@@ -15,6 +16,7 @@ const fields = {
   lineHeight: z.enum(["compact", "normal", "relaxed"]),
 };
 export const appearanceSchema = z.object({
+  formattingToolbarMode: fields.formattingToolbarMode.default("full"),
   theme: fields.theme.default("system"),
   uiFont: fields.uiFont.default("theme"),
   editorFont: fields.editorFont.default("theme"),
@@ -35,6 +37,7 @@ export const THEME_FONTS: Record<string, { ui: string; editor: string }> = Objec
 export function normalizeAppearance(input: unknown): AppearancePreferences {
   const value = input && typeof input === "object" ? input as Record<string, unknown> : {};
   return {
+    formattingToolbarMode: appearanceSchema.shape.formattingToolbarMode.safeParse(value.formattingToolbarMode).data ?? DEFAULT_APPEARANCE.formattingToolbarMode,
     theme: appearanceSchema.shape.theme.safeParse(value.theme).data ?? DEFAULT_APPEARANCE.theme,
     uiFont: appearanceSchema.shape.uiFont.safeParse(value.uiFont).data ?? DEFAULT_APPEARANCE.uiFont,
     editorFont: appearanceSchema.shape.editorFont.safeParse(value.editorFont).data ?? DEFAULT_APPEARANCE.editorFont,
