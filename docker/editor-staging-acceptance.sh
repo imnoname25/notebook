@@ -34,7 +34,8 @@ start_app() {
     -e "DATABASE_URL=$database" -e "APP_ORIGIN=$E2E_BASE_URL" -e SETTINGS_ENCRYPTION_KEY \
     -e "SAVED_ITEM_TITLE_ORIGINS=$1" -e PUID=99 -e PGID=100 \
     --tmpfs /data/uploads --tmpfs /data/backups "$image" >/dev/null
-  curl --fail --retry 45 --retry-delay 2 --retry-connrefused --max-time 5 \
+  # The published port can reset connections before the entrypoint starts Next.js.
+  curl --fail --retry 45 --retry-delay 2 --retry-all-errors --retry-max-time 90 --max-time 5 \
     --silent --show-error "$E2E_BASE_URL/api/health/ready" > editor-ci-logs/readiness.json
 }
 
