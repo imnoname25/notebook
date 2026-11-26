@@ -43,13 +43,9 @@ for (const failFirst of [false, true]) test(`page order persists rapid intents w
   await page.goto(`/pages/${a.id}`);
   const list = page.locator(".notebook-page-list");
   const order = () => list.locator("[data-page-title]").evaluateAll(rows => rows.map(row => row.getAttribute("data-page-title")));
-  const move = async (title: string, key: "ArrowUp" | "ArrowDown") => {
-    const row = list.locator(`[data-page-title="${title}"] [data-page-select]`);
-    await row.focus();
-    await page.keyboard.press("Space");
-    await expect(row).toHaveAttribute("aria-pressed", "true");
-    await page.keyboard.press(key);
-    await page.keyboard.press("Space");
+  const move = async (title: string, direction: "выше" | "ниже") => {
+    await list.getByRole("button", { name: `Действия страницы ${title}`, exact: true }).click();
+    await page.getByRole("button", { name: `Переместить ${direction}`, exact: true }).click();
   };
   const first = Promise.withResolvers<void>(), release = Promise.withResolvers<void>();
   const requests: string[][] = [];
@@ -67,12 +63,12 @@ for (const failFirst of [false, true]) test(`page order persists rapid intents w
   });
   try {
     await expect.poll(order).toEqual([a.title, b.title, c.title]);
-    await move(b.title, "ArrowDown");
+    await move(b.title, "ниже");
     await first.promise;
     await expect.poll(order).toEqual([a.title, c.title, b.title]);
-    await move(b.title, "ArrowUp");
+    await move(b.title, "выше");
     await expect.poll(order).toEqual([a.title, b.title, c.title]);
-    await move(b.title, "ArrowUp");
+    await move(b.title, "выше");
     await expect.poll(order).toEqual([b.title, a.title, c.title]);
     expect(requests).toEqual([[a.id, c.id, b.id]]);
   } finally {
