@@ -2,7 +2,7 @@ name: Docker image
 
 on:
   push:
-    branches: [main, staging/studio-4.4-e]
+    branches: [main, staging/studio-4.4-e, staging/editor-release-g]
     paths-ignore: ["docs/**"]
     tags: ["v*"]
   pull_request:
@@ -50,7 +50,7 @@ jobs:
           range="-1"
           if [[ "$SCAN_BASE" =~ ^[0-9a-f]{40}$ ]]; then
             if [[ "$SCAN_BASE" == "0000000000000000000000000000000000000000" ]]; then
-              if [[ "$GITHUB_REF" == "refs/heads/staging/studio-4.4-e" ]]; then
+              if [[ "$GITHUB_REF" == "refs/heads/staging/studio-4.4-e" || "$GITHUB_REF" == "refs/heads/staging/editor-release-g" ]]; then
                 range="$(git merge-base HEAD origin/main)..HEAD"
               else
                 range="HEAD"
@@ -100,7 +100,7 @@ jobs:
   smoke:
     needs: validate
     runs-on: ubuntu-latest
-    timeout-minutes: 30
+    timeout-minutes: 60
     steps:
       - name: Check out repository
         uses: actions/checkout@v7
@@ -114,9 +114,9 @@ jobs:
           tags: notebook:smoke
           platforms: linux/amd64
           build-args: |
-            NOTEBOOK_VERSION=${{ github.ref == 'refs/heads/staging/studio-4.4-e' && 'staging-4.4-g' || 'smoke' }}
+            NOTEBOOK_VERSION=${{ github.ref == 'refs/heads/staging/editor-release-g' && 'staging-editor-g' || github.ref == 'refs/heads/staging/studio-4.4-e' && 'staging-4.4-g' || 'smoke' }}
             NOTEBOOK_GIT_SHA=${{ github.sha }}
-            NOTEBOOK_CHANNEL=${{ github.ref == 'refs/heads/staging/studio-4.4-e' && 'staging' || 'smoke' }}
+            NOTEBOOK_CHANNEL=${{ (github.ref == 'refs/heads/staging/studio-4.4-e' || github.ref == 'refs/heads/staging/editor-release-g') && 'staging' || 'smoke' }}
             OCI_SOURCE=https://github.com/${{ github.repository }}
           cache-from: type=gha,scope=notebook-smoke
           cache-to: type=gha,mode=max,scope=notebook-smoke
@@ -233,14 +233,36 @@ jobs:
           # Same image and PostgreSQL 17, no public egress: upgrade and failure gates.
           bash docker/startup-smoke.sh notebook:smoke
 
+      - name: Set up Node.js for editor staging acceptance
+        if: github.event_name == 'push' && github.ref == 'refs/heads/staging/editor-release-g'
+        uses: actions/setup-node@v6
+        with:
+          node-version: "24"
+          cache: npm
+      - name: Install editor staging test dependencies
+        if: github.event_name == 'push' && github.ref == 'refs/heads/staging/editor-release-g'
+        run: |
+          npm ci --legacy-peer-deps
+          npx --no-install playwright install --with-deps chromium
+      - name: Accept production container with PostgreSQL and Chromium
+        if: github.event_name == 'push' && github.ref == 'refs/heads/staging/editor-release-g'
+        run: bash docker/editor-staging-acceptance.sh notebook:smoke
+      - name: Save editor acceptance evidence
+        if: ${{ always() && github.event_name == 'push' && github.ref == 'refs/heads/staging/editor-release-g' }}
+        uses: actions/upload-artifact@v6
+        with:
+          name: notebook-editor-acceptance-${{ github.sha }}
+          path: editor-ci-logs/
+          retention-days: 14
+          if-no-files-found: ignore
 
       - name: Export tested staging image
-        if: github.ref == 'refs/heads/staging/studio-4.4-e' && github.event_name != 'pull_request'
+        if: (github.ref == 'refs/heads/staging/studio-4.4-e' && github.event_name != 'pull_request') || (github.ref == 'refs/heads/staging/editor-release-g' && github.event_name == 'push')
         run: |
           set -Eeuo pipefail
           docker save notebook:smoke | gzip -1 > "$RUNNER_TEMP/notebook-staging.tar.gz"
       - uses: actions/upload-artifact@v6
-        if: github.ref == 'refs/heads/staging/studio-4.4-e' && github.event_name != 'pull_request'
+        if: (github.ref == 'refs/heads/staging/studio-4.4-e' && github.event_name != 'pull_request') || (github.ref == 'refs/heads/staging/editor-release-g' && github.event_name == 'push')
         with:
           name: notebook-staging-runtime-${{ github.sha }}
           path: ${{ runner.temp }}/notebook-staging.tar.gz
@@ -248,7 +270,7 @@ jobs:
           if-no-files-found: error
 
   publish-staging:
-    if: github.event_name != 'pull_request' && github.ref == 'refs/heads/staging/studio-4.4-e'
+    if: (github.ref == 'refs/heads/staging/studio-4.4-e' && github.event_name != 'pull_request') || (github.ref == 'refs/heads/staging/editor-release-g' && github.event_name == 'push')
     needs: smoke
     runs-on: ubuntu-latest
     timeout-minutes: 15
@@ -283,13 +305,28 @@ jobs:
         run: |
           set -Eeuo pipefail
           image="ghcr.io/${GITHUB_REPOSITORY_OWNER,,}/notebook"
-          for tag in staging-4.4-g "staging-4.4-g-$GITHUB_SHA"; do
+          case "$GITHUB_REF" in
+            refs/heads/staging/editor-release-g)
+              test "$GITHUB_EVENT_NAME" = push
+              [[ "$GITHUB_SHA" =~ ^[a-f0-9]{40}$ ]]
+              revision_tag="staging-editor-g-$GITHUB_SHA"
+              tags=("$revision_tag")
+              ;;
+            refs/heads/staging/studio-4.4-e)
+              revision_tag="staging-4.4-g-$GITHUB_SHA"
+              tags=(staging-4.4-g "$revision_tag")
+              ;;
+            *) exit 1 ;;
+          esac
+          for tag in "${tags[@]}"; do
             docker tag notebook:smoke "$image:$tag"
             docker push "$image:$tag"
           done
-          digest="$(docker buildx imagetools inspect "$image:staging-4.4-g-$GITHUB_SHA" --format '{{json .Manifest}}' | jq -er '.digest')"
+          digest="$(docker buildx imagetools inspect "$image:$revision_tag" --format '{{json .Manifest}}' | jq -er '.digest')"
           [[ "$digest" =~ ^sha256:[0-9a-f]{64}$ ]]
-          test "$(docker buildx imagetools inspect "$image:staging-4.4-g" --format '{{json .Manifest}}' | jq -er '.digest')" = "$digest"
+          for tag in "${tags[@]}"; do
+            test "$(docker buildx imagetools inspect "$image:$tag" --format '{{json .Manifest}}' | jq -er '.digest')" = "$digest"
+          done
           docker pull "$image@$digest"
           test "$(docker image inspect "$image@$digest" --format '{{index .Config.Labels "org.opencontainers.image.revision"}}')" = "$GITHUB_SHA"
           test "$(docker image inspect "$image@$digest" --format '{{.Os}}/{{.Architecture}}')" = linux/amd64

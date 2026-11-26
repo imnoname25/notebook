@@ -228,6 +228,8 @@ npm run test:e2e
 
 Playwright-сценарии проверяют первого администратора, BlockNote/autosave, избранное, поиск, корзину, DnD, version restore/reload, move/breadcrumbs, appearance persistence и unauthenticated access к новым sensitive API.
 
+Для приёмки уже запущенной standalone-сборки укажите `E2E_EXTERNAL_SERVER=1` и `E2E_BASE_URL`. Playwright проверит readiness и использует указанную тестовую БД с применёнными миграциями. Флаг `E2E_RESET_DATABASE=1` обязателен.
+
 ## Поиск и горячие клавиши
 
 Быстрый поиск открывается в компактной строке общей шапки или через `Ctrl/Cmd + K`: выпадающая панель не меняет экран и сохраняет текущий редактор. «Все результаты» / «Расширенный поиск» явно открывают Search View с фильтрами, пагинацией и Back/Forward. Команды доступны через `Ctrl/Cmd + Shift + P`. Оба режима используют `/api/search` и PostgreSQL FTS с generated `tsvector` и GIN indexes для Page/Section/Notebook. Для обычных слов поддерживаются префиксы в заголовке и содержимом; кавычки и операторы сохраняют websearch-семантику. Фильтры выполняются на сервере и не наследуются быстрым поиском. Диагностика и границы проверки: [STUDIO_SEARCH_3_2.md](docs/STUDIO_SEARCH_3_2.md).

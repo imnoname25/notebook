@@ -33,6 +33,7 @@ import { DocumentTabs } from "./document-tabs";
 import { DesktopPanelResizers } from "./desktop-panel-resizers";
 import { NotebookSidebar } from "./notebook-sidebar";
 import { PageList } from "./page-list";
+import { applyPageOrder, PageOrderQueue } from "./page-order";
 import { CommandPalette } from "./search-dialog";
 import type { DocumentSearchRequest } from "@/lib/document-search";
 import { QuickSearch } from "./quick-search";
@@ -177,6 +178,7 @@ function NotebookWorkspace({ user, initialLocation }: NotebookAppProps) {
   const [pagesLoading, setPagesLoading] = useState(false);
   const [pagesError, setPagesError] = useState("");
   const pagesSection = useRef<string | null>(null);
+  const [pageOrder] = useState(() => new PageOrderQueue());
   const [mobileView, setMobileView] = useState<MobileView>("navigation");
   const [error, setError] = useState("");
   const [actionTarget, setActionTarget] = useState<ActionTarget | null>(null);
@@ -421,18 +423,31 @@ function NotebookWorkspace({ user, initialLocation }: NotebookAppProps) {
     };
   }, [initialLocation, user.id, report]);
   useEffect(() => {
+    const guard = (event: BeforeUnloadEvent) => {
+      if (pageOrder.busy) {
+        event.preventDefault();
+        event.returnValue = "";
+      }
+    };
+    window.addEventListener("beforeunload", guard);
+    return () => window.removeEventListener("beforeunload", guard);
+  }, [pageOrder]);
+  useEffect(() => {
     const sectionId = activeSection?.id;
     if (!sectionId) return;
     const controller = new AbortController();
     Promise.resolve()
       .then(() => {
         if (controller.signal.aborted) return null;
-        if (pagesSection.current !== sectionId) setPages([]);
+        if (pagesSection.current !== sectionId) {
+          pagesSection.current = null;
+          setPages([]);
+        }
         setPagesLoading(true);setPagesError("");
-        return api<{ pages: PageSummary[] }>(
+        return pageOrder.read(sectionId, () => api<{ pages: PageSummary[] }>(
           `/api/pages?sectionId=${encodeURIComponent(sectionId)}`,
           { signal: controller.signal },
-        );
+        ));
       })
       .then((result) => { if (result && !controller.signal.aborted) { pagesSection.current = sectionId;setPages(result.pages); } })
       .catch((cause) => {
@@ -442,7 +457,7 @@ function NotebookWorkspace({ user, initialLocation }: NotebookAppProps) {
         if (!controller.signal.aborted) setPagesLoading(false);
       });
     return () => controller.abort();
-  }, [activeSection?.id, report, workspaceRevision]);
+  }, [activeSection?.id, pageOrder, report, workspaceRevision]);
 
   function setPageUrl(pageId: string, mode: "push" | "replace" = "push") {
     const url = getPageHref(pageId);
@@ -1062,20 +1077,23 @@ function NotebookWorkspace({ user, initialLocation }: NotebookAppProps) {
     }
   }
   async function savePageOrder(ids: string[]) {
-    if (!activeSection) return;
-    const snapshot = pages;
-    setPages((items) =>
-      items.map((item) => ({ ...item, sortOrder: ids.indexOf(item.id) })),
-    );
-    try {
-      await api(
-        "/api/reorder/pages",
-        jsonOptions("POST", { sectionId: activeSection.id, ids }),
-      );
-    } catch (cause) {
-      setPages(snapshot);
+    const sectionId = activeSection?.id;
+    if (!sectionId || pagesSection.current !== sectionId) return;
+    const before = [...pages].sort((a, b) => a.sortOrder - b.sortOrder).map(page => page.id);
+    setPages(items => applyPageOrder(items, ids));
+    await pageOrder.save(sectionId, before, ids, () => api(
+      "/api/reorder/pages",
+      jsonOptions("POST", { sectionId, ids }),
+    ), async (cause, confirmed) => {
+      const server = await api<{ pages: PageSummary[] }>(
+        `/api/pages?sectionId=${encodeURIComponent(sectionId)}`,
+      ).catch(() => undefined);
+      if (pageOrder.current(sectionId) !== ids) return;
+      if (pagesSection.current === sectionId) {
+        setPages(items => server?.pages ?? applyPageOrder(items, confirmed));
+      }
       report(cause);
-    }
+    });
   }
   useEffect(() => { window.dispatchEvent(new Event("notebook:page-metadata-changed")); }, [workspaceRevision]);
 
@@ -1083,7 +1101,7 @@ function NotebookWorkspace({ user, initialLocation }: NotebookAppProps) {
     workspace.updatePage(page);
     tabs.title(page.id, page.title);
     setPages((items) =>
-      items.map((item) => (item.id === page.id ? { ...item, ...page } : item)),
+      items.map((item) => (item.id === page.id ? { ...item, ...page, sortOrder: item.sortOrder } : item)),
     );
     if (activePageRef.current?.id === page.id) activePageRef.current = page;
     setActivePage((current) => (current?.id === page.id ? page : current));
@@ -1882,7 +1900,7 @@ function NotebookWorkspace({ user, initialLocation }: NotebookAppProps) {
           onSaved={(page) => {
             setPages((items) =>
               items.map((item) =>
-                item.id === page.id ? { ...item, ...page } : item,
+                item.id === page.id ? { ...item, ...page, sortOrder: item.sortOrder } : item,
               ),
             );
             if (activePageRef.current?.id === page.id) {

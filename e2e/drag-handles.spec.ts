@@ -1,6 +1,7 @@
 import { setTestTheme } from "./theme-fixture";
 import { tableAction } from "./table-controls";
 import { expect, test, type Page } from "@playwright/test";
+import { Client } from "pg";
 import { z } from "zod";
 const entity = z.object({ id: z.string() });
 const noteSchema = entity.extend({ title: z.string(), revision: z.number(), content: z.array(z.record(z.string(), z.unknown())) });
@@ -35,6 +36,68 @@ async function dragBlock(page: Page, id: string, destination: string, scope: Ret
   await page.mouse.move(source.x + source.width / 2, source.y + source.height / 2);await page.mouse.down();const y = edge === "before" ? target.y + 1 : target.y + target.height - 1;await page.mouse.move(target.x + 70, y, { steps: 15 });await page.mouse.move(target.x + 72, y);
   await expect(page.locator(".bn-drag-preview")).toHaveCount(1);await expect(page.locator(".prosemirror-dropcursor-block, .prosemirror-dropcursor-inline").first()).toBeVisible();await page.mouse.up();
 }
+
+for (const failFirst of [false, true]) test(`page order persists rapid intents when the first write ${failFirst ? "fails" : "is delayed"}`, async ({ page }) => {
+  const { create, section } = await setup(page);
+  const a = await create("Порядок А"), b = await create("Порядок Б"), c = await create("Порядок В");
+  await page.goto(`/pages/${a.id}`);
+  const list = page.locator(".notebook-page-list");
+  const order = () => list.locator("[data-page-title]").evaluateAll(rows => rows.map(row => row.getAttribute("data-page-title")));
+  const move = async (title: string, key: "ArrowUp" | "ArrowDown") => {
+    const row = list.locator(`[data-page-title="${title}"] [data-page-select]`);
+    await row.focus();
+    await page.keyboard.press("Space");
+    await expect(row).toHaveAttribute("aria-pressed", "true");
+    await page.keyboard.press(key);
+    await page.keyboard.press("Space");
+  };
+  const first = Promise.withResolvers<void>(), release = Promise.withResolvers<void>();
+  const requests: string[][] = [];
+  const completed: number[] = [];
+  await page.route("**/api/reorder/pages", async route => {
+    const { ids } = z.object({ ids: z.array(z.string()) }).parse(route.request().postDataJSON());
+    const number = requests.push(ids);
+    if (number === 1) {
+      first.resolve();
+      await release.promise;
+    }
+    if (number === 1 && failFirst) await route.fulfill({ status: 500, json: { error: "Ошибка тестовой перестановки" } });
+    else await route.fulfill({ response: await route.fetch() });
+    completed.push(number);
+  });
+  try {
+    await expect.poll(order).toEqual([a.title, b.title, c.title]);
+    await move(b.title, "ArrowDown");
+    await first.promise;
+    await expect.poll(order).toEqual([a.title, c.title, b.title]);
+    await move(b.title, "ArrowUp");
+    await expect.poll(order).toEqual([a.title, b.title, c.title]);
+    await move(b.title, "ArrowUp");
+    await expect.poll(order).toEqual([b.title, a.title, c.title]);
+    expect(requests).toEqual([[a.id, c.id, b.id]]);
+  } finally {
+    release.resolve();
+  }
+  await expect.poll(() => completed).toEqual([1, 2, 3]);
+  expect(requests).toEqual([[a.id, c.id, b.id], [a.id, b.id, c.id], [b.id, a.id, c.id]]);
+
+  const db = new Client({ connectionString: process.env.E2E_DATABASE_URL });
+  await db.connect();
+  try {
+    const { rows } = await db.query<{ id: string }>(
+      'SELECT id FROM "Page" WHERE "sectionId" = $1 AND "deletedAt" IS NULL ORDER BY "sortOrder"', [section.id],
+    );
+    expect(rows.map(row => row.id)).toEqual([b.id, a.id, c.id]);
+  } finally {
+    await db.end();
+  }
+  await page.reload();
+  await expect.poll(order).toEqual([b.title, a.title, c.title]);
+  await page.goto("/");
+  await page.goto(`/pages/${a.id}`);
+  await expect.poll(order).toEqual([b.title, a.title, c.title]);
+});
+
 for (const theme of ["studio-graphite", "studio-atelier"]) {
   test(`${theme}: page rows drag without handles, accidental navigation or action conflicts`, async ({ page, browser }, info) => {
     test.setTimeout(120_000);const { create, section } = await setup(page);const a = await create("Открытая страница"), b = await create("Перетаскиваемая страница"), c = await create("Последняя страница");
@@ -49,9 +112,10 @@ for (const theme of ["studio-graphite", "studio-atelier"]) {
     await page.mouse.move(source.x + 70, source.y + source.height / 2);await page.mouse.down();await page.mouse.move(source.x + 72, source.y + source.height / 2 + 2);expect(orders).toHaveLength(0);await page.mouse.move(destination.x + 70, destination.y + destination.height - 4, { steps: 12 });
     await expect(select(b.title)).toHaveAttribute("aria-pressed", "true");await page.mouse.up();await expect.poll(() => orders.length).toBe(1);await expect(page).toHaveURL(new RegExp(`/pages/${a.id}`));
     const titles = () => list.locator("[data-page-title]").evaluateAll(nodes => nodes.map(node => node.getAttribute("data-page-title")));await expect.poll(titles).toEqual([a.title, c.title, b.title]);
+    const savedOrder = page.waitForResponse(response => new URL(response.url()).pathname === "/api/reorder/pages" && response.request().postDataJSON()?.ids?.[1] === b.id);
     await select(b.title).focus();await page.keyboard.press("Space");await expect(select(b.title)).toHaveAttribute("aria-pressed", "true");await page.keyboard.press("ArrowUp");await expect(row(c.title)).toHaveAttribute("data-drop-target", "true");await page.keyboard.press("Space");await expect.poll(titles).toEqual([a.title, b.title, c.title]);await expect(page).toHaveURL(new RegExp(`/pages/${a.id}`));
     await expect.poll(() => orders.length).toBe(2);await row(b.title).getByRole("button", { name: `Действия страницы ${b.title}`, exact: true }).click();expect(orders).toHaveLength(2);await page.keyboard.press("Escape");
-    await page.reload();await expect.poll(titles).toEqual([a.title, b.title, c.title]);await page.screenshot({ path: info.outputPath(`${theme}-page-rows.png`), animations: "disabled" });
+    expect((await savedOrder).ok()).toBe(true);await page.reload();await expect.poll(titles).toEqual([a.title, b.title, c.title]);await page.screenshot({ path: info.outputPath(`${theme}-page-rows.png`), animations: "disabled" });
     const result = await page.request.get(`/api/pages?sectionId=${section.id}`);expect(result.ok()).toBe(true);
     for (let i = 0; i < 12; i++) await create(`Scroll fixture ${i}`);
     for (const width of [360, 840]) {
