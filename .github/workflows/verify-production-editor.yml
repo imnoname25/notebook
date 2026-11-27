@@ -275,9 +275,18 @@ jobs:
           text = spec.read_text()
           start = 'import { setTestTheme } from "./theme-fixture";'
           reset = '  await setTestTheme(page, "studio-graphite");'
-          assert text.count(start) == text.count(reset) == 1
-          text = text.replace(start, start + '\nimport { recordInheritedToolbarPreferences } from "./editor-toolbar-probe";')
+          key_sequence = '  await page.keyboard.press("ArrowUp");\n  await page.keyboard.press("End");\n  await page.keyboard.press("Shift+Home");'
+          assert text.count(start) == text.count(reset) == text.count(key_sequence) == 1
+          text = text.replace(start, start + '\nimport { recordInheritedToolbarPreferences, waitForLinkCaret } from "./editor-toolbar-probe";')
           text = text.replace(reset, '  await recordInheritedToolbarPreferences(page);\n' + reset)
+          text = text.replace(key_sequence, '''  await page.keyboard.press("ArrowUp");
+            await waitForLinkCaret(page, "start");
+            await page.keyboard.press("End");
+            await waitForLinkCaret(page, "end");
+            await page.keyboard.press("Shift+Home");''')
+          toolbar = '  await expect(toolbar).toBeVisible();\n  await expect.poll(() => page.evaluate(() => window.getSelection()?.toString())).toBe("Named link");'
+          assert text.count(toolbar) == 1
+          text = text.replace(toolbar, '\n'.join(reversed(toolbar.splitlines())))
           spec.write_text(text)
           drag_spec = Path("e2e/drag-handles.spec.ts")
           drag_spec.write_text('import "./editor-drag-probe";\n' + drag_spec.read_text())
@@ -300,6 +309,7 @@ jobs:
           set -e""")
           text = text.replace("SAVED_ITEM_TITLE_ORIGINS=1 npx", "set +e\nSAVED_ITEM_TITLE_ORIGINS=1 npx")
           text += '\nflag_status=$?\nset -e\nprintf "Context run: %s, ten repeats: %s, five drag repeats: %s, feature flag: %s\\n" "$context_status" "$ten_status" "$drag_status" "$flag_status"\n(( context_status == 0 && ten_status == 0 && drag_status == 0 && flag_status == 0 ))\n'
+          text += '\ndocker logs "$app" > editor-ci-logs/container-feature-flag.log 2>&1\ndocker rm -fv "$app" >/dev/null\nstart_app 0\n' + full + '\n'
           script.write_text(text)
           PY
           bash -n "$acceptance"

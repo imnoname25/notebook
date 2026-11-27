@@ -1,4 +1,4 @@
-import { test, type Page } from "@playwright/test";
+import { expect, test, type Page } from "@playwright/test";
 
 const target = "Ctrl+C copies the visible link text and Ctrl+V preserves the styled link";
 const inherited = new WeakMap<Page, object>();
@@ -11,6 +11,29 @@ async function appearanceOf(page: Page) {
 
 export async function recordInheritedToolbarPreferences(page: Page) {
   if (test.info().title === target) inherited.set(page, await appearanceOf(page));
+}
+
+export async function waitForLinkCaret(page: Page, edge: "start" | "end") {
+  await expect.poll(() => page.evaluate(edge => {
+    const editor = document.querySelector(".bn-editor.ProseMirror") as (HTMLElement & {
+      editor?: { view: {
+        hasFocus(): boolean;
+        posAtDOM(node: Node, offset: number): number;
+        state: { selection: { head: number; empty: boolean } };
+      } };
+    }) | null;
+    const selection = window.getSelection();
+    const line = editor?.querySelector('[data-id="copy-link"] .bn-inline-content');
+    const view = editor?.editor?.view;
+    if (!selection?.isCollapsed || !selection.focusNode || !line?.contains(selection.focusNode) ||
+        !view?.hasFocus() || !view.state.selection.empty) return false;
+    const distance = document.createRange();
+    distance.selectNodeContents(line);
+    if (edge === "start") distance.setEnd(selection.focusNode, selection.focusOffset);
+    else distance.setStart(selection.focusNode, selection.focusOffset);
+    return distance.toString() === "" &&
+      view.state.selection.head === view.posAtDOM(selection.focusNode, selection.focusOffset);
+  }, edge), { message: `The browser and ProseMirror agree on the ${edge} of Named link` }).toBe(true);
 }
 
 test.beforeEach(async ({ page }, info) => {
