@@ -233,7 +233,40 @@ jobs:
           npm ci --legacy-peer-deps
           npx --no-install playwright install --with-deps chromium
       - name: Accept production container with PostgreSQL and Chromium
-        run: bash docker/editor-staging-acceptance.sh notebook:smoke
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+          acceptance="$RUNNER_TEMP/editor-acceptance.sh"
+          bash -s "$acceptance" <<'BASH'
+          set -Eeuo pipefail
+          source="$1.source"
+          git show HEAD:docker/editor-staging-acceptance.sh > "$source"
+          run='npx --no-install vitest run --config vitest.integration.config.mts'
+          original="$run | tee editor-ci-logs/integration.log"
+          test "$(grep -Fxc "$original" "$source")" = 1
+
+          while IFS= read -r line; do
+            if [[ "$line" != "$original" ]]; then
+              printf '%s\n' "$line"
+              continue
+            fi
+            cat <<'INTEGRATION'
+          # The live application's worker can claim fixtures owned by the database-only tests.
+          docker stop "$app" >/dev/null
+          http_api=src/lib/services/saved-item-api.integration.test.ts
+          http_backup=src/lib/services/saved-article-backup-http.integration.test.ts
+          npx --no-install vitest run --config vitest.integration.config.mts \
+            --exclude "$http_api" --exclude "$http_backup" | tee editor-ci-logs/integration-postgresql.log
+          docker start "$app" >/dev/null
+          curl --fail --retry 45 --retry-delay 2 --retry-all-errors --retry-max-time 90 --max-time 5 \
+            --silent --show-error "$E2E_BASE_URL/api/health/ready" > editor-ci-logs/readiness-after-integration-restart.json
+          npx --no-install vitest run --config vitest.integration.config.mts \
+            "$http_api" "$http_backup" | tee editor-ci-logs/integration-http.log
+          INTEGRATION
+          done < "$source" > "$1"
+          BASH
+          bash -n "$acceptance"
+          bash "$acceptance" notebook:smoke
       - name: Save editor acceptance evidence
         if: always()
         uses: actions/upload-artifact@v6
