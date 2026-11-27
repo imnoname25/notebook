@@ -267,6 +267,7 @@ jobs:
           done < "$source" > "$1"
           BASH
           git show "$GITHUB_SHA:.github/workflows/editor-toolbar-probe.ts" > e2e/editor-toolbar-probe.ts
+          git show "$GITHUB_SHA:.github/workflows/editor-drag-probe.ts" > e2e/editor-drag-probe.ts
           python3 - "$acceptance" <<'PY'
           from pathlib import Path
           import sys
@@ -278,6 +279,8 @@ jobs:
           text = text.replace(start, start + '\nimport { recordInheritedToolbarPreferences } from "./editor-toolbar-probe";')
           text = text.replace(reset, '  await recordInheritedToolbarPreferences(page);\n' + reset)
           spec.write_text(text)
+          drag_spec = Path("e2e/drag-handles.spec.ts")
+          drag_spec.write_text('import "./editor-drag-probe";\n' + drag_spec.read_text())
 
           script = Path(sys.argv[1])
           text = script.read_text()
@@ -290,9 +293,13 @@ jobs:
             --grep 'preserves the styled link' --repeat-each 10 --workers 1 --retries 0 \\
             --output=editor-ci-logs/playwright-toolbar-ten | tee editor-ci-logs/playwright-toolbar-ten.log
           ten_status=$?
+          npx --no-install playwright test e2e/drag-handles.spec.ts \\
+            --grep 'studio-atelier: page rows drag without handles' --repeat-each 5 --workers 1 --retries 0 \\
+            --output=editor-ci-logs/playwright-drag-five | tee editor-ci-logs/playwright-drag-five.log
+          drag_status=$?
           set -e""")
           text = text.replace("SAVED_ITEM_TITLE_ORIGINS=1 npx", "set +e\nSAVED_ITEM_TITLE_ORIGINS=1 npx")
-          text += '\nflag_status=$?\nset -e\nprintf "Context run: %s, ten repeats: %s, feature flag: %s\\n" "$context_status" "$ten_status" "$flag_status"\n(( context_status == 0 && ten_status == 0 && flag_status == 0 ))\n'
+          text += '\nflag_status=$?\nset -e\nprintf "Context run: %s, ten repeats: %s, five drag repeats: %s, feature flag: %s\\n" "$context_status" "$ten_status" "$drag_status" "$flag_status"\n(( context_status == 0 && ten_status == 0 && drag_status == 0 && flag_status == 0 ))\n'
           script.write_text(text)
           PY
           bash -n "$acceptance"
