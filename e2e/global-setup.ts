@@ -8,6 +8,13 @@ export default async function globalSetup() {
   if (!databaseUrl) throw new Error("E2E_DATABASE_URL must point to a dedicated PostgreSQL test database");
   if (process.env.E2E_RESET_DATABASE !== "1") throw new Error("Set E2E_RESET_DATABASE=1 to confirm that the dedicated E2E database may be cleared");
   process.env.DATABASE_URL = databaseUrl;
+  const baseURL = process.env.E2E_BASE_URL ?? "http://127.0.0.1:3100";
+  const externalServer = process.env.E2E_EXTERNAL_SERVER === "1";
+  if (externalServer) {
+    const ready = await fetch(new URL("/api/health/ready", baseURL), { signal: AbortSignal.timeout(15_000) });
+    if (!ready.ok) throw new Error(`External E2E server is not ready (${ready.status})`);
+    await ready.arrayBuffer();
+  }
   // Execute the installed CLI through Node: .cmd files cannot be execFileSync'd on Windows.
   const require = createRequire(path.join(process.cwd(), "package.json"));
   const prismaCli = path.join(path.dirname(require.resolve("prisma/package.json")), "build", "index.js");
@@ -19,12 +26,11 @@ export default async function globalSetup() {
     if (result.rows[0]?.folded !== sample.toLowerCase()) {
       throw new Error("E2E PostgreSQL locale must support Unicode case folding. Use a Unicode-capable locale, for example ICU und; plain Windows libc C does not fold Cyrillic.");
     }
-    execFileSync(process.execPath, [prismaCli, "migrate", "deploy"], { stdio: "inherit", env: process.env });
+    if (!externalServer) execFileSync(process.execPath, [prismaCli, "migrate", "deploy"], { stdio: "inherit", env: process.env });
     await client.query('TRUNCATE TABLE "User" RESTART IDENTITY CASCADE');
   } finally { await client.end(); }
   // Cold compilation is test preparation, not a timed user interaction. The
   // first fresh webpack run spent 23s compiling / before showing the login UI.
-  const baseURL = process.env.E2E_BASE_URL ?? "http://127.0.0.1:3100";
   const publicPaths = ["/", "/login", "/app"];
   const authPaths = ["/api/auth/setup", "/api/auth/login"];
   const protectedPaths = ["/api/account/preferences", "/api/notifications", "/api/notebooks"];

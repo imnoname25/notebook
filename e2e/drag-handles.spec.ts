@@ -1,6 +1,7 @@
 import { setTestTheme } from "./theme-fixture";
 import { tableAction } from "./table-controls";
 import { expect, test, type Page } from "@playwright/test";
+import { Client } from "pg";
 import { z } from "zod";
 const entity = z.object({ id: z.string() });
 const noteSchema = entity.extend({ title: z.string(), revision: z.number(), content: z.array(z.record(z.string(), z.unknown())) });
@@ -24,14 +25,75 @@ async function readyDocument(page: Page, pageId: string, navigate: () => Promise
   await navigate();await loaded;
   await expect(page.locator(`[data-page-id="${pageId}"] .bn-editor`)).toHaveAttribute("contenteditable", "true");
 }
+function blockMenuHost(editor: ReturnType<Page["locator"]>) {
+  return editor.locator("..");
+}
 async function blockMenu(page: Page, id: string, scope = page.locator(".notebook-editor").first()) {
-  await expect(scope.locator(".bn-editor")).toHaveAttribute("contenteditable", "true");await scope.locator(`[data-id="${id}"]`).first().hover();const handle = scope.getByRole("button", { name: "Действия с блоком", exact: true });await expect(handle).toBeVisible();await handle.click();
+  await expect(scope.locator(".bn-editor")).toHaveAttribute("contenteditable", "true");await scope.locator(`[data-id="${id}"]`).first().hover();const handle = blockMenuHost(scope).getByRole("button", { name: "Действия с блоком", exact: true });await expect(handle).toHaveAttribute("data-block-id", id);await handle.click();
 }
 async function dragBlock(page: Page, id: string, destination: string, scope: ReturnType<Page["locator"]>, edge: "before" | "after" = "after") {
-  await scope.locator(`[data-id="${id}"]`).first().hover();const source = (await scope.locator(".notebook-block-handle").boundingBox())!, target = (await scope.locator(`[data-id="${destination}"]`).first().boundingBox())!;
+  await scope.locator(`[data-id="${id}"]`).first().hover();const handle = blockMenuHost(scope).locator(".notebook-block-handle");await expect(handle).toHaveAttribute("data-block-id", id);const source = (await handle.boundingBox())!, target = (await scope.locator(`[data-id="${destination}"]`).first().boundingBox())!;
   await page.mouse.move(source.x + source.width / 2, source.y + source.height / 2);await page.mouse.down();const y = edge === "before" ? target.y + 1 : target.y + target.height - 1;await page.mouse.move(target.x + 70, y, { steps: 15 });await page.mouse.move(target.x + 72, y);
   await expect(page.locator(".bn-drag-preview")).toHaveCount(1);await expect(page.locator(".prosemirror-dropcursor-block, .prosemirror-dropcursor-inline").first()).toBeVisible();await page.mouse.up();
 }
+
+for (const failFirst of [false, true]) test(`page order persists rapid intents when the first write ${failFirst ? "fails" : "is delayed"}`, async ({ page }) => {
+  const { create, section } = await setup(page);
+  const a = await create("Порядок А"), b = await create("Порядок Б"), c = await create("Порядок В");
+  await page.goto(`/pages/${a.id}`);
+  const list = page.locator(".notebook-page-list");
+  const order = () => list.locator("[data-page-title]").evaluateAll(rows => rows.map(row => row.getAttribute("data-page-title")));
+  const move = async (title: string, direction: "выше" | "ниже") => {
+    await list.getByRole("button", { name: `Действия страницы ${title}`, exact: true }).click();
+    await page.getByRole("button", { name: `Переместить ${direction}`, exact: true }).click();
+  };
+  const first = Promise.withResolvers<void>(), release = Promise.withResolvers<void>();
+  const requests: string[][] = [];
+  const completed: number[] = [];
+  await page.route("**/api/reorder/pages", async route => {
+    const { ids } = z.object({ ids: z.array(z.string()) }).parse(route.request().postDataJSON());
+    const number = requests.push(ids);
+    if (number === 1) {
+      first.resolve();
+      await release.promise;
+    }
+    if (number === 1 && failFirst) await route.fulfill({ status: 500, json: { error: "Ошибка тестовой перестановки" } });
+    else await route.fulfill({ response: await route.fetch() });
+    completed.push(number);
+  });
+  try {
+    await expect.poll(order).toEqual([a.title, b.title, c.title]);
+    await move(b.title, "ниже");
+    await first.promise;
+    await expect.poll(order).toEqual([a.title, c.title, b.title]);
+    await move(b.title, "выше");
+    await expect.poll(order).toEqual([a.title, b.title, c.title]);
+    await move(b.title, "выше");
+    await expect.poll(order).toEqual([b.title, a.title, c.title]);
+    expect(requests).toEqual([[a.id, c.id, b.id]]);
+  } finally {
+    release.resolve();
+  }
+  await expect.poll(() => completed).toEqual([1, 2, 3]);
+  expect(requests).toEqual([[a.id, c.id, b.id], [a.id, b.id, c.id], [b.id, a.id, c.id]]);
+
+  const db = new Client({ connectionString: process.env.E2E_DATABASE_URL });
+  await db.connect();
+  try {
+    const { rows } = await db.query<{ id: string }>(
+      'SELECT id FROM "Page" WHERE "sectionId" = $1 AND "deletedAt" IS NULL ORDER BY "sortOrder"', [section.id],
+    );
+    expect(rows.map(row => row.id)).toEqual([b.id, a.id, c.id]);
+  } finally {
+    await db.end();
+  }
+  await page.reload();
+  await expect.poll(order).toEqual([b.title, a.title, c.title]);
+  await page.goto("/");
+  await page.goto(`/pages/${a.id}`);
+  await expect.poll(order).toEqual([b.title, a.title, c.title]);
+});
+
 for (const theme of ["studio-graphite", "studio-atelier"]) {
   test(`${theme}: page rows drag without handles, accidental navigation or action conflicts`, async ({ page, browser }, info) => {
     test.setTimeout(120_000);const { create, section } = await setup(page);const a = await create("Открытая страница"), b = await create("Перетаскиваемая страница"), c = await create("Последняя страница");
@@ -46,9 +108,10 @@ for (const theme of ["studio-graphite", "studio-atelier"]) {
     await page.mouse.move(source.x + 70, source.y + source.height / 2);await page.mouse.down();await page.mouse.move(source.x + 72, source.y + source.height / 2 + 2);expect(orders).toHaveLength(0);await page.mouse.move(destination.x + 70, destination.y + destination.height - 4, { steps: 12 });
     await expect(select(b.title)).toHaveAttribute("aria-pressed", "true");await page.mouse.up();await expect.poll(() => orders.length).toBe(1);await expect(page).toHaveURL(new RegExp(`/pages/${a.id}`));
     const titles = () => list.locator("[data-page-title]").evaluateAll(nodes => nodes.map(node => node.getAttribute("data-page-title")));await expect.poll(titles).toEqual([a.title, c.title, b.title]);
+    const savedOrder = page.waitForResponse(response => new URL(response.url()).pathname === "/api/reorder/pages" && response.request().postDataJSON()?.ids?.[1] === b.id);
     await select(b.title).focus();await page.keyboard.press("Space");await expect(select(b.title)).toHaveAttribute("aria-pressed", "true");await page.keyboard.press("ArrowUp");await expect(row(c.title)).toHaveAttribute("data-drop-target", "true");await page.keyboard.press("Space");await expect.poll(titles).toEqual([a.title, b.title, c.title]);await expect(page).toHaveURL(new RegExp(`/pages/${a.id}`));
     await expect.poll(() => orders.length).toBe(2);await row(b.title).getByRole("button", { name: `Действия страницы ${b.title}`, exact: true }).click();expect(orders).toHaveLength(2);await page.keyboard.press("Escape");
-    await page.reload();await expect.poll(titles).toEqual([a.title, b.title, c.title]);await page.screenshot({ path: info.outputPath(`${theme}-page-rows.png`), animations: "disabled" });
+    expect((await savedOrder).ok()).toBe(true);await page.reload();await expect.poll(titles).toEqual([a.title, b.title, c.title]);await page.screenshot({ path: info.outputPath(`${theme}-page-rows.png`), animations: "disabled" });
     const result = await page.request.get(`/api/pages?sectionId=${section.id}`);expect(result.ok()).toBe(true);
     for (let i = 0; i < 12; i++) await create(`Scroll fixture ${i}`);
     for (const width of [360, 840]) {
@@ -70,20 +133,20 @@ for (const theme of ["studio-graphite", "studio-atelier"]) {
     const a = await create(`BlockDrag${Date.now()}`, [{ id: "drag-one", type: "paragraph", content: text("Первый блок для выделения текста") }, { id: "drag-two", type: "paragraph", content: text("Второй блок") }, { id: "drag-three", type: "paragraph", content: text("Третий блок") }, { id: "drag-callout", type: "callout", props: { kind: "info" }, content: text("Callout"), children: [{ type: "bulletListItem", content: text("Вложенный список") }] }, { id: "drag-toggle", type: "toggleListItem", content: text("Toggle"), children: [{ type: "paragraph", content: text("Hidden child") }] }, { type: "columns", props: { count: 2 }, children: [{ type: "columnPanel", children: [table] }, { type: "columnPanel", children: [{ type: "paragraph", content: text("Соседняя колонка") }] }] }]);
     const upload = await page.request.post("/api/uploads", { multipart: { pageId: a.id, file: { name: "synthetic.png", mimeType: "image/png", buffer: Buffer.from("iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+jvX8AAAAASUVORK5CYII=", "base64") } } });expect(upload.ok()).toBe(true);const { url } = z.object({ url: z.string() }).parse(await upload.json());const mediaBase = await get(a.id);expect((await page.request.patch(`/api/pages/${a.id}`, { data: { expectedRevision: mediaBase.revision, content: [...mediaBase.content, { id: "drag-image", type: "image", props: { url, name: "Synthetic image", previewWidth: 80 } }, { id: "drag-file", type: "file", props: { url, name: "Synthetic file" } }] } })).ok()).toBe(true);
     await setTestTheme(page, theme);await page.setViewportSize({ width: 1920, height: 1000 });await page.goto(`/pages/${a.id}`);const editor = page.locator(".notebook-editor").first();
-    await page.getByTestId("desktop-app-header").hover();await expect(editor.locator(".notebook-block-handle")).not.toBeVisible();const beforeBox = (await editor.locator('[data-id="drag-one"]').first().boundingBox())!;
-    await blockMenu(page, "drag-one");await expect(editor.locator(".bn-side-menu button")).toHaveCount(1);await expect(page.locator('[data-test="dragHandleAdd"]')).toHaveCount(0);await expect(page.getByRole("menuitem", { name: "Добавить блок выше", exact: true })).toBeVisible();await page.screenshot({ path: info.outputPath(`${theme}-block-menu-1920.png`), animations: "disabled" });
+    await page.getByTestId("desktop-app-header").hover();await expect(blockMenuHost(editor).locator(".notebook-block-handle")).not.toBeVisible();const beforeBox = (await editor.locator('[data-id="drag-one"]').first().boundingBox())!;
+    await blockMenu(page, "drag-one");await expect(blockMenuHost(editor).locator(".bn-side-menu button")).toHaveCount(1);await expect(page.locator('[data-test="dragHandleAdd"]')).toHaveCount(0);await expect(page.getByRole("menuitem", { name: "Добавить блок выше", exact: true })).toBeVisible();await page.screenshot({ path: info.outputPath(`${theme}-block-menu-1920.png`), animations: "disabled" });
     await page.getByRole("menuitem", { name: "Добавить блок выше", exact: true }).click();await expect.poll(async () => (await get(a.id)).content[0]!.id).not.toBe("drag-one");await page.keyboard.press("Control+z");await expect.poll(async () => (await get(a.id)).content[0]!.id).toBe("drag-one");await page.keyboard.press("Control+y");await expect.poll(async () => (await get(a.id)).content[0]!.id).not.toBe("drag-one");await page.keyboard.press("Control+z");
     await blockMenu(page, "drag-one");await page.getByRole("menuitem", { name: "Добавить блок ниже", exact: true }).click();await expect.poll(async () => (await get(a.id)).content[1]!.id).not.toBe("drag-two");await page.keyboard.press("Control+z");
     await blockMenu(page, "drag-one");await page.getByRole("menuitem", { name: "Дублировать", exact: true }).click();await expect.poll(async () => (await get(a.id)).content.filter(block => JSON.stringify(block.content ?? []).includes("Первый блок")).length).toBe(2);const duplicate = (await get(a.id)).content.find(block => block.id !== "drag-one" && JSON.stringify(block.content ?? []).includes("Первый блок"))!;await blockMenu(page, String(duplicate.id));await page.getByRole("menuitem", { name: "Удалить", exact: true }).click();await expect.poll(async () => (await get(a.id)).content.filter(block => JSON.stringify(block.content ?? []).includes("Первый блок")).length).toBe(1);
     await blockMenu(page, "drag-one");await page.getByRole("menuitem", { name: "Копировать как текст", exact: true }).click();await expect.poll(() => page.evaluate(() => navigator.clipboard.readText())).toContain("Первый блок");
     const inline = editor.locator('[data-id="drag-one"] .bn-inline-content');await inline.click();const box = (await inline.boundingBox())!;await page.mouse.move(box.x + 2, box.y + 8);await page.mouse.down();await page.mouse.move(box.x + 150, box.y + 8, { steps: 10 });await page.mouse.up();expect(await page.evaluate(() => window.getSelection()?.toString().length ?? 0)).toBeGreaterThan(3);expect((await get(a.id)).content.slice(0, 3).map(b => b.id)).toEqual(["drag-one", "drag-two", "drag-three"]);
-    await inline.click();await expect(editor.locator(".bn-toolbar")).not.toBeVisible();await editor.locator('[data-id="drag-one"]').first().hover();const handle = editor.locator(".notebook-block-handle");const h = (await handle.boundingBox())!, target = (await editor.locator('[data-id="drag-three"]').first().boundingBox())!;
+    await inline.click();await expect(editor.locator(".bn-toolbar")).not.toBeVisible();await editor.locator('[data-id="drag-one"]').first().hover();const handle = blockMenuHost(editor).locator(".notebook-block-handle");const h = (await handle.boundingBox())!, target = (await editor.locator('[data-id="drag-three"]').first().boundingBox())!;
     await page.evaluate(() => { for (const type of ["pointerdown", "mousedown", "dragstart", "dragover", "drop"]) document.addEventListener(type, event => { const target = event.target as HTMLElement;const log = JSON.parse(document.documentElement.dataset.dragDiagnostic ?? "[]") as unknown[];log.push({ type, target: target.tagName, className: target.className, prevented: event.defaultPrevented });document.documentElement.dataset.dragDiagnostic = JSON.stringify(log.slice(-20)); }); });
     await page.mouse.move(h.x + h.width / 2, h.y + h.height / 2);await page.mouse.down();await page.mouse.move(target.x + 80, target.y + target.height - 2, { steps: 15 });await page.mouse.move(target.x + 82, target.y + target.height - 1);await info.attach("native-drag-events", { body: await page.evaluate(() => document.documentElement.dataset.dragDiagnostic ?? "[]"), contentType: "application/json" });await expect(page.locator(".prosemirror-dropcursor-block, .prosemirror-dropcursor-inline").first()).toBeVisible();await page.mouse.up();await expect.poll(async () => (await get(a.id)).content.slice(0, 3).map(b => b.id)).toEqual(["drag-two", "drag-three", "drag-one"]);await inline.click();await page.keyboard.press("Control+z");await expect.poll(async () => (await get(a.id)).content[0]!.id).toBe("drag-one");
     const nestedBefore = (await get(a.id)).content.find(block => block.id === "drag-callout")!.children;await dragBlock(page, "drag-callout", "drag-one", editor, "before");await expect.poll(async () => (await get(a.id)).content[0]!.id).toBe("drag-callout");expect((await get(a.id)).content[0]!.children).toEqual(nestedBefore);await inline.click();await page.keyboard.press("Control+z");await expect.poll(async () => (await get(a.id)).content[0]!.id).toBe("drag-one");
     await inline.click();await page.keyboard.press("Alt+Shift+b");await expect(page.getByRole("menuitem", { name: "Добавить блок выше", exact: true })).toBeVisible();await page.keyboard.press("Escape");await expect(editor.locator(".bn-editor")).toBeFocused();expect((await inline.boundingBox())!.x).toBe(beforeBox.x);
     await page.setViewportSize({ width: 1440, height: 900 });await blockMenu(page, "drag-callout");await page.screenshot({ path: info.outputPath(`${theme}-block-menu-1440.png`), animations: "disabled" });await page.keyboard.press("Escape");
-    for (const blockId of ["drag-toggle", "drag-table", "drag-image", "drag-file"]) { await blockMenu(page, blockId);await expect(editor.locator(".notebook-block-handle")).toHaveAttribute("data-block-id", blockId);await page.keyboard.press("Escape"); }
+    for (const blockId of ["drag-toggle", "drag-table", "drag-image", "drag-file"]) { await blockMenu(page, blockId);await expect(blockMenuHost(editor).locator(".notebook-block-handle")).toHaveAttribute("data-block-id", blockId);await page.keyboard.press("Escape"); }
     const buddy = await create(`DragBuddy${Date.now()}`, [{ id: "buddy-block", type: "paragraph", content: text("Independent editor") }]);await page.locator('.workspace-editor-slot[data-pane="left"]').getByRole("button", { name: "Split View", exact: true }).click();await page.keyboard.press("Control+k");await page.getByRole("combobox", { name: "Быстрый поиск", exact: true }).fill(buddy.title);await page.getByRole("region", { name: "Быстрый поиск документов" }).getByRole("option").filter({ hasText: buddy.title }).click();
     const left = page.locator('.workspace-editor-slot[data-pane="left"]'), right = page.locator('.workspace-editor-slot[data-pane="right"]');const rightBefore = await get(buddy.id);await blockMenu(page, "drag-one", left.locator(".notebook-editor"));await page.getByRole("menuitem", { name: "Дублировать", exact: true }).click();await expect.poll(async () => (await get(a.id)).content.filter(b => JSON.stringify(b.content ?? []).includes("Первый блок")).length).toBe(2);expect(await get(buddy.id)).toEqual(rightBefore);await left.locator('[data-id="drag-one"] .bn-inline-content').click();await page.keyboard.press("Control+z");await expect.poll(async () => (await get(a.id)).content.filter(b => JSON.stringify(b.content ?? []).includes("Первый блок")).length).toBe(1);const leftBefore = await get(a.id);
     await blockMenu(page, "buddy-block", right.locator(".notebook-editor"));await page.getByRole("menuitem", { name: "Добавить блок ниже", exact: true }).click();await expect.poll(async () => (await get(buddy.id)).content.length).toBe(2);expect(await get(a.id)).toEqual(leftBefore);await page.screenshot({ path: info.outputPath(`${theme}-split-blocks.png`), animations: "disabled" });

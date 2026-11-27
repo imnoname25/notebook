@@ -52,7 +52,7 @@ export function TypographySettings() {
     <button type="button" className="input" onClick={() => {
       setCustomMode(false);
       setSizeDraft(null);
-      update({ ...DEFAULT_APPEARANCE, theme: preferences.theme });
+      update({ ...DEFAULT_APPEARANCE, theme: preferences.theme, formattingToolbarMode: preferences.formattingToolbarMode });
     }}>Сбросить типографику к теме</button>
     <p role="status" className="text-xs text-muted-foreground">{saving ? "Сохранение оформления…" : error ? "Оформление не синхронизировано" : !loaded ? "Загрузка оформления…" : "Оформление сохранено в аккаунте"}</p>
     <p className="text-xs text-muted-foreground"><a href="/font-licenses.txt" target="_blank" rel="noreferrer" className="underline">Лицензии локальных шрифтов</a></p>

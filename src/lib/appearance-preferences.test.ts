@@ -11,7 +11,7 @@ describe("Studio appearance preferences", () => {
   });
   it("falls back per unknown field and retains valid overrides", () => {
     expect(normalizeAppearance({ theme: "removed", uiFont: "inter", editorFont: "removed", editorSize: 22, lineHeight: "relaxed" }))
-      .toEqual({ theme: "system", uiFont: "inter", editorFont: "theme", editorSize: 22, lineHeight: "relaxed" });
+      .toEqual({ theme: "system", uiFont: "inter", editorFont: "theme", editorSize: 22, lineHeight: "relaxed", formattingToolbarMode: "full" });
     expect(normalizeAppearance(null)).toEqual(DEFAULT_APPEARANCE);
   });
   it.each([{ editorSize: 11 }, { editorSize: 29 }, { editorSize: 15.5 }, { uiFont: "url(https://example.test)" }, { theme: "removed" }, { lineHeight: "500" }])("rejects invalid presentation input %#", value => {

@@ -23,16 +23,27 @@ for (const [name, change] of [
   ["extra mount", c => { c.services.notebook.volumes.push({ type: "bind", source: "/var/run/docker.sock", target: "/var/run/docker.sock" }); }],
 ]) test(`rejects ${name}`, () => { const config = structuredClone(compose);change(config);assert.throws(() => validateStaging(config)); });
 test("staging publication cannot write production tags", () => {
-  assert.deepEqual(workflow.on.push.branches, ["main", "staging/studio-4.4-e"]);
+  assert.deepEqual(workflow.on.push.branches, ["main", "staging/studio-4.4-e", "staging/editor-release-g"]);
   assert.equal(workflow.jobs.publish.if, "github.event_name == 'workflow_dispatch' && inputs.promote_production && (github.ref == 'refs/heads/main' || startsWith(github.ref, 'refs/tags/v'))");
   const job = workflow.jobs["publish-staging"];
-  assert.equal(job.if, "github.event_name != 'pull_request' && github.ref == 'refs/heads/staging/studio-4.4-e'");
+  assert.equal(job.if, "(github.ref == 'refs/heads/staging/studio-4.4-e' && github.event_name != 'pull_request') || (github.ref == 'refs/heads/staging/editor-release-g' && github.event_name == 'push')");
   assert.equal(job.needs, "smoke");assert.equal(workflow.jobs.smoke.needs, "validate");
   const commands = job.steps.map(s => s.run ?? "").join("\n");
   assert.ok(commands.includes("docker load") && commands.includes("PRISMA_SCHEMA_ENGINE_BINARY"));
-  assert.ok(commands.includes('for tag in staging-4.4-g "staging-4.4-g-$GITHUB_SHA"'));
+  assert.ok(commands.includes('tags=(staging-4.4-g "$revision_tag")'));
+  assert.match(commands, /refs\/heads\/staging\/editor-release-g\)[\s\S]*?revision_tag="staging-editor-g-\$GITHUB_SHA"\s+tags=\("\$revision_tag"\)\s+;;/);
   assert.ok(!/docker (?:tag|push)[^\n]*(?::main|:edge|:latest)/.test(commands));
   assert.ok(commands.includes("org.opencontainers.image.revision") && commands.includes("linux/amd64"));
+});
+
+test("editor staging must accept the container before exporting it for publication", () => {
+  const steps = workflow.jobs.smoke.steps;
+  const acceptance = steps.findIndex(step => step.name === "Accept production container with PostgreSQL and Chromium");
+  const exported = steps.findIndex(step => step.name === "Export tested staging image");
+  assert.ok(acceptance >= 0 && acceptance < exported);
+  assert.equal(steps[acceptance].if, "github.event_name == 'push' && github.ref == 'refs/heads/staging/editor-release-g'");
+  assert.equal(steps[acceptance]["continue-on-error"], undefined);
+  assert.equal(steps[acceptance].run, "bash docker/editor-staging-acceptance.sh notebook:smoke");
 });
 
 test("CLI failures do not disclose config or secret operands", () => {

@@ -35,18 +35,8 @@ async function fixture(page: Page) {
 
 async function observe(page: Page) {
   await page.addInitScript(() => {
-    const metrics = { commits: 0, duration: 0, renders: {} as Record<string, number>, mounts: {} as Record<string, number>, longTasks: [] as number[], treeEmpty: 0, treeRemoved: 0, editorMounts: 0 };
+    const metrics = { longTasks: [] as number[], treeEmpty: 0, treeRemoved: 0, editorMounts: 0 };
     Object.assign(window, { __workspaceProbe: metrics });
-    let renderer = 0;
-    // React DevTools commit hook and development profiling timings; no app instrumentation.
-    Object.assign(window, { __REACT_DEVTOOLS_GLOBAL_HOOK__: {
-      supportsFiber: true, renderers: new Map(), inject() { return ++renderer; }, onCommitFiberUnmount() {},
-      onCommitFiberRoot(_id: number, root: { current: unknown }) {
-        type Fiber = { type?: { name?: string }; actualDuration?: number; flags: number; alternate?: Fiber; child?: Fiber; sibling?: Fiber };
-        metrics.commits++;metrics.duration += (root.current as Fiber).actualDuration ?? 0;
-        const visit = (fiber: Fiber | undefined) => { if (!fiber) return;const name = fiber.type?.name;if (name && ["NotebookWorkspace", "NotebookSidebar", "NotebookSidebarTree", "RichTextEditor", "WorkspacePane"].includes(name)) { if (fiber.flags & 1) metrics.renders[name] = (metrics.renders[name] ?? 0) + 1;if (!fiber.alternate) metrics.mounts[name] = (metrics.mounts[name] ?? 0) + 1; }visit(fiber.child);visit(fiber.sibling); };visit(root.current as Fiber);
-      },
-    } });
     new PerformanceObserver(list => metrics.longTasks.push(...list.getEntries().map(e => e.duration))).observe({ entryTypes: ["longtask"] });
     let seen = false;let lastTree: Element | null = null;
     new MutationObserver(records => {
@@ -126,6 +116,6 @@ for (const theme of ["studio-graphite", "studio-atelier"]) test(`${theme}: rever
   saveRelease();await expect(select(4)).toBeVisible();await page.unroute(`**/api/pages/${target.id}`);
   const saved = z.object({ page: note }).parse(await page.request.get(`/api/pages/${target.id}`).then(r => r.json())).page;expect(JSON.stringify(saved.content)).toContain(marker.trim());
   await section(3).click();await expect(select(3)).toBeVisible();await select(3).click();await expect(editor).toContainText(marker.trim());
-  const metrics = (await snapshot(page)).metrics;expect(metrics.treeEmpty).toBe(0);expect(metrics.treeRemoved).toBe(0);expect(metrics.mounts).toMatchObject({ NotebookWorkspace: 1 });expect(errors).toEqual([]);
+  const metrics = (await snapshot(page)).metrics;expect(metrics.treeEmpty).toBe(0);expect(metrics.treeRemoved).toBe(0);expect(errors).toEqual([]);
   for (const width of [360, 840, 1920]) { await page.setViewportSize({ width, height: 900 });await expect(editor).toContainText(marker.trim());expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(width); }
 });

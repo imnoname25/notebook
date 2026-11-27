@@ -48,4 +48,16 @@ describe.skipIf(!enabled)("user appearance persistence and isolation", () => {
     expect(row.appearance).toEqual({});
     expect(normalizeAppearance(row.appearance).theme).toBe("system");
   });
+  it("persists toolbar presentation without changing documents or another account", async () => {
+    const before = await db.page.findUniqueOrThrow({ where: { id: pageId } });
+    const second = await update(other, { appearance: { formattingToolbarMode: "full", theme: "paper-coffee" } });
+    await Promise.all([
+      update(owner, { appearance: { formattingToolbarMode: "compact" } }),
+      update(owner, { appearance: { editorSize: 19 } }),
+    ]);
+    const saved = normalizeAppearance((await db.userSettings.findUniqueOrThrow({ where: { userId: owner } })).appearance);
+    expect(saved).toMatchObject({ formattingToolbarMode: "compact", editorSize: 19 });
+    expect(await db.page.findUniqueOrThrow({ where: { id: pageId } })).toEqual(before);
+    expect(await db.userSettings.findUniqueOrThrow({ where: { userId: other } })).toEqual(second);
+  });
 });

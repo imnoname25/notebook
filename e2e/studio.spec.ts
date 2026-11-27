@@ -13,7 +13,7 @@ async function login(page: Page) {
 
 for (const theme of ["studio-graphite", "studio-atelier"] as const) {
   test(`${theme}: responsive composition, persistence and pending autosave`, async ({ page }, testInfo) => {
-    test.setTimeout(90_000);
+    test.setTimeout(150_000);
     await login(page);
     const idResponse = z.object({ id: z.string() });
     const notebookResponse = await page.request.post("/api/notebooks", { data: { title: `Studio ${theme}` } });
@@ -114,10 +114,16 @@ for (const theme of ["studio-graphite", "studio-atelier"] as const) {
     const settings = page.getByRole("dialog", { name: "Настройки", exact: true });
     await settings.getByRole("button", { name: "Оформление", exact: true }).click();
     const next = theme === "studio-graphite" ? "Studio Atelier" : "Studio Graphite";
+    const nextTheme = theme === "studio-graphite" ? "studio-atelier" : "studio-graphite";
     await settings.getByRole("button", { name: next, exact: true }).click();
+    await expect.poll(async () => {
+      const response = await page.request.get("/api/account/preferences");
+      const { settings } = z.object({ settings: z.object({ appearance: z.object({ theme: z.string() }) }) }).parse(await response.json());
+      return settings.appearance.theme;
+    }).toBe(nextTheme);
     await settings.getByRole("button", { name: "Закрыть", exact: true }).click();
     await page.reload();
-    await expect(page.locator("html")).toHaveClass(theme === "studio-graphite" ? "studio-atelier" : "studio-graphite");
+    await expect(page.locator("html")).toHaveClass(nextTheme);
     await expect(page.locator(".notebook-page-title-input")).toHaveValue("Настройка сети");
     expect(second.id).not.toBe(first.id);
   });

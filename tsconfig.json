@@ -31,7 +31,8 @@
     "**/*.mts"
   ],
   "exclude": [
-  "node_modules",
-  "android-client"
-]
+    "node_modules",
+    "android-client",
+    "data"
+  ]
 }

@@ -1,21 +1,13 @@
 "use client";
 
-import { createContext, useCallback, useContext, useEffect, useLayoutEffect, useRef, useState, type ReactNode } from "react";
+import { useCallback, useContext, useEffect, useLayoutEffect, useRef, useState, type ReactNode } from "react";
 import { useTheme } from "next-themes";
 import { fontFamilies } from "@/app/fonts";
 import { api, jsonOptions } from "@/lib/client-api";
 import { DEFAULT_APPEARANCE, normalizeAppearance, THEME_FONTS, type AppearancePreferences } from "@/lib/appearance-preferences";
+import { AppearanceContext } from "./appearance-context";
 import { THEMES, themeDefinition, type NotebookTheme } from "@/lib/themes";
 
-type AppearanceContextValue = {
-  preferences: AppearancePreferences;
-  update(patch: Partial<AppearancePreferences>): void;
-  saving: boolean;
-  loaded: boolean;
-  error: string;
-  retry(): void;
-};
-const AppearanceContext = createContext<AppearanceContextValue | null>(null);
 const legacySans = '"Segoe UI", -apple-system, BlinkMacSystemFont, Arial, sans-serif';
 const legacyMono = 'ui-monospace, SFMono-Regular, Consolas, monospace';
 const cacheKey = (userId: string) => `notebook:appearance:${userId}`;
@@ -150,11 +142,7 @@ export function AppearanceProvider({ userId, children }: { userId: string; child
   return <AppearanceContext.Provider value={{ preferences, update, saving, loaded, error, retry: () => { if (failedWrite.current) update(current.current); else void refresh(); } }}>{children}</AppearanceContext.Provider>;
 }
 
-export function useAppearance() {
-  const value = useContext(AppearanceContext);
-  if (!value) throw new Error("Appearance settings require an authenticated workspace");
-  return value;
-}
+export { useAppearance } from "./appearance-context";
 export function useNotebookTheme() {
   const theme = useTheme();
   const appearance = useContext(AppearanceContext);

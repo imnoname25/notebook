@@ -286,11 +286,24 @@ describe.skipIf(!enabled)("portable data and attachment integration", () => {
     }
   });
   it("restores backup content, trash and versions without sessions", async () => {
+    const legacyContent = [
+      {
+        id: "legacy-soft-breaks",
+        type: "paragraph",
+        content: [
+          { type: "text", text: "Before\n\n", styles: { bold: true } },
+          { type: "link", href: "https://example.test/fixture", content: [{ type: "text", text: "Visible label", styles: {} }] },
+          { type: "text", text: "\n  After\t\uFFFC  ", styles: { italic: true } },
+        ],
+        children: [{ id: "legacy-child", type: "paragraph", content: "Nested text", children: [] }],
+      },
+      { id: "variables", type: "pageVariables", props: { data: "[]" }, children: [] },
+    ];
     await db.pageVersion.create({
       data: {
         pageId: ids.page,
         title: "Old",
-        content: [{ type: "paragraph", content: [] }],
+        content: legacyContent,
         contentHash: "old",
         reason: "manual",
       },
@@ -298,6 +311,7 @@ describe.skipIf(!enabled)("portable data and attachment integration", () => {
     await db.page.update({
       where: { id: ids.page },
       data: {
+        content: legacyContent,
         deletedAt: new Date(),
         deletionGroupId: "trash",
         isDeletionRoot: true,
@@ -339,6 +353,12 @@ describe.skipIf(!enabled)("portable data and attachment integration", () => {
           where: { page: { section: { notebook: { userId: ids.user } } } },
         }),
       ).toBe(1);
+      const restored = await db.page.findFirstOrThrow({
+        where: { section: { notebook: { userId: ids.user } }, deletedAt: { not: null } },
+        include: { versions: true },
+      });
+      expect(restored.content).toEqual(legacyContent);
+      expect(restored.versions[0]?.content).toEqual(legacyContent);
       expect(await db.session.count({ where: { userId: ids.user } })).toBe(0);
     } finally {
       await imports.disposePreparedImport(prepared);

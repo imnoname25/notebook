@@ -29,6 +29,7 @@ export function TemplateEditDialog({ template, onClose, onSaved, onNavigate, reg
   const [initial, setInitial] = useState(() => templateEditorFingerprint({ name, description, icon, content: editor.document }));
   const [ready, setReady] = useState(false);
   const [fingerprint, setFingerprint] = useState(initial);const [busy, setBusy] = useState(false), [error, setError] = useState("");const [pending, setPending] = useState<(() => void) | null>(null);
+  const [formattingHost, setFormattingHost] = useState<HTMLDivElement | null>(null);
   const [blockActionsHost, setBlockActionsHost] = useState<HTMLDivElement | null>(null);
   const [picker, setPicker] = useState(false);const openPicker = useCallback(() => setPicker(true), []);
   const dirty = initial !== templateEditorFingerprint({ name, description, icon, content: JSON.parse(fingerprint).content as unknown[] });
@@ -58,10 +59,11 @@ export function TemplateEditDialog({ template, onClose, onSaved, onNavigate, reg
         <label className="text-xs text-muted-foreground">Иконка шаблона<select className="input mt-1" value={icon} disabled={busy || !ready} onChange={event => setIcon(event.target.value as TemplateIcon)}>{TEMPLATE_ICONS.map(id => <option key={id} value={id}>{id}</option>)}</select></label>
       </div>
       {error && <div className="shrink-0 px-4 py-2"><p role="alert" className="text-sm text-destructive">{error}</p>{template && <Button variant="outline" disabled={busy} onClick={() => void save(undefined, true)}>Сохранить как новый шаблон</Button>}</div>}
+      <div ref={setFormattingHost} className="editor-formatting-host"/>
       <div ref={setRoot} className="notebook-editor min-h-0 flex-1 overflow-y-auto" onKeyDownCapture={handleEditorControlKeyDown} onPasteCapture={event => handleSharedEditorPaste(event, editor, true, error => setError(error instanceof Error ? error.message : "Вставка отменена"))} onDropCapture={event => { if (event.dataTransfer.files.length) { event.preventDefault();event.stopPropagation();setError("Загрузка файлов в шаблон недоступна"); } }} onClickCapture={event => { if (handleCodeControlClick(event)) return;const anchor = (event.target as HTMLElement).closest("a");if (anchor && !anchor.closest('[data-inline-content-type="pageLink"]')) { event.preventDefault();const url = new URL(anchor.href, location.origin);const pageId = url.origin === location.origin ? pageIdFromPath(url.pathname) : null;if (pageId) requestClose(() => { onClose();onNavigate(pageId); });else if (["http:", "https:"].includes(url.protocol)) window.open(url.href, "_blank", "noopener,noreferrer");else setError("Небезопасная или недоступная ссылка"); } }}>
         <PageLinksProvider ids={[...internalPageIdsInContent(editor.document)]} adjacent={false} navigate={async id => { requestClose(() => { onClose();onNavigate(id); }); }}>
-          <div ref={setBlockActionsHost} className="notebook-block-actions-host"/><BlockNoteView editor={editor} editable={ready && !busy} theme={isDarkTheme(resolvedTheme) ? "dark" : "light"} slashMenu={false} sideMenu={false} tableHandles={false} formattingToolbar={false} filePanel={false} onChange={() => setFingerprint(templateEditorFingerprint({ name, description, icon, content: editor.document }))}>
-            <SharedEditorMenus disabled={busy || !ready} blockActionsHost={blockActionsHost} editor={editor} mode="template" onPagePicker={openPicker}/>
+          <div ref={setBlockActionsHost} className="notebook-block-actions-host"/><BlockNoteView portalElements={formattingHost ? { default: formattingHost } : undefined} editor={editor} editable={ready && !busy} theme={isDarkTheme(resolvedTheme) ? "dark" : "light"} slashMenu={false} sideMenu={false} tableHandles={false} formattingToolbar={false} linkToolbar={false} filePanel={false} onChange={() => setFingerprint(templateEditorFingerprint({ name, description, icon, content: editor.document }))}>
+            <SharedEditorMenus formattingHost={formattingHost} disabled={busy || !ready} blockActionsHost={blockActionsHost} editor={editor} mode="template" onPagePicker={openPicker}/>
           </BlockNoteView>
         </PageLinksProvider>
       </div>
