@@ -1,0 +1,244 @@
+name: Verify approved production editor
+
+on:
+  push:
+    branches: [codex/verify-production-editor-9702858]
+
+permissions:
+  contents: read
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v7
+        with:
+          ref: 97028585b757b76de0711fc2e5f4246b6b47a427
+          fetch-depth: 0
+      - name: Verify checked out source revision
+        run: test "$(git rev-parse HEAD)" = "97028585b757b76de0711fc2e5f4246b6b47a427"
+      - name: Set up Node.js
+        uses: actions/setup-node@v6
+        with:
+          node-version: "24"
+          cache: npm
+      - name: Install dependencies
+        run: npm ci --legacy-peer-deps
+      - name: Check new commits for secrets
+        env:
+          SCAN_BASE: 8f070e6ccbd1a25a67beed2aad8f32a3a42e383a
+        run: |
+          set -Eeuo pipefail
+          range="-1"
+          if [[ "$SCAN_BASE" =~ ^[0-9a-f]{40}$ ]]; then
+            if [[ "$SCAN_BASE" == "0000000000000000000000000000000000000000" ]]; then
+              if [[ "$GITHUB_REF" == "refs/heads/staging/studio-4.4-e" || "$GITHUB_REF" == "refs/heads/staging/editor-release-g" ]]; then
+                range="$(git merge-base HEAD origin/main)..HEAD"
+              else
+                range="HEAD"
+              fi
+            else
+              range="$SCAN_BASE..HEAD"
+            fi
+          fi
+          docker run --rm -v "$PWD:/repo" ghcr.io/gitleaks/gitleaks:v8.24.3 git /repo --redact --no-banner --gitleaks-ignore-path=/repo/.gitleaksignore --log-opts="$range"
+      - name: Lint, typecheck, unit tests and production build
+        run: npm run check
+      - name: Verify shared application version
+        run: npm run version:check
+      - name: Verify release tag and shared application version
+        if: startsWith(github.ref, 'refs/tags/')
+        run: node scripts/check-release-version.mjs "$GITHUB_REF_NAME"
+      - name: Validate Unraid templates
+        run: npm run validate:unraid
+      - name: Validate Docker packaging
+        run: npm run validate:docker
+      - name: Validate Compose configuration (synthetic example, no deployment)
+        run: docker compose --env-file .env.example config --quiet
+      - name: Validate staging isolation and publication guards
+        run: node --test scripts/staging-config-check.mjs
+      - name: Validate isolated staging Compose (synthetic values, no deployment)
+        env:
+          STAGING_IMAGE: ghcr.io/imnoname25/notebook@sha256:1111111111111111111111111111111111111111111111111111111111111111
+          STAGING_DB_PASSWORD: "2222222222222222222222222222222222222222222222222222222222222222"
+          STAGING_SETTINGS_KEY: "1111111111111111111111111111111111111111111111111111111111111111"
+        run: |
+          set -Eeuo pipefail
+          docker compose -f docker-compose.staging.yml --env-file .env.staging.example config --quiet
+          docker compose -f docker-compose.staging.yml --env-file .env.staging.example config --format json | node scripts/check-staging-deployment.mjs
+      - name: Test Unraid deployment safeguards without Docker access
+        run: python3 -m unittest discover -s unraid -p 'test_*.py'
+      - name: Test PowerShell deployment launcher without SSH access
+        shell: pwsh
+        run: ./unraid/test-windows-runner.ps1
+      - name: Record source and migration identity
+        run: node scripts/create-image-manifest.mjs > image-source.json
+      - uses: actions/upload-artifact@v6
+        with:
+          name: notebook-source-97028585b757b76de0711fc2e5f4246b6b47a427
+          path: image-source.json
+          if-no-files-found: error
+
+  smoke:
+    needs: validate
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v7
+        with:
+          ref: 97028585b757b76de0711fc2e5f4246b6b47a427
+      - name: Verify checked out source revision
+        run: test "$(git rev-parse HEAD)" = "97028585b757b76de0711fc2e5f4246b6b47a427"
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v4
+      - name: Build amd64 smoke image
+        uses: docker/build-push-action@v7
+        with:
+          context: .
+          load: true
+          tags: notebook:smoke
+          platforms: linux/amd64
+          build-args: |
+            NOTEBOOK_VERSION=main
+            NOTEBOOK_GIT_SHA=97028585b757b76de0711fc2e5f4246b6b47a427
+            NOTEBOOK_CHANNEL=edge
+            OCI_SOURCE=https://github.com/${{ github.repository }}
+          cache-from: type=gha,scope=notebook-smoke
+          cache-to: type=gha,mode=max,scope=notebook-smoke
+      - name: Verify image runtime dependencies and permissions
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+          test "$(docker image inspect notebook:smoke --format '{{.Os}}/{{.Architecture}}')" = linux/amd64
+          test "$(docker image inspect notebook:smoke --format '{{index .Config.Labels "org.opencontainers.image.revision"}}')" = 97028585b757b76de0711fc2e5f4246b6b47a427
+          docker run --rm --network none --entrypoint sh notebook:smoke -c '
+            test "$(id -u)" = 0
+            test -f /app/docker/preflight.mjs
+            test ! -e /usr/local/lib/notebook/preflight.mjs
+            cd /app
+            node --input-type=module -e "
+              import { createRequire } from \"node:module\";
+              const require = createRequire(new URL(\"file:///app/docker/preflight.mjs\"));
+              require.resolve(\"pg\");
+            "
+            test -x "$PRISMA_SCHEMA_ENGINE_BINARY"
+            timeout --kill-after=5s 20s ./node_modules/.bin/prisma -v >/dev/null
+            test -d /app/node_modules/@prisma/engines
+            gosu 99:100 sh -c "test ! -w /app && test ! -w /app/node_modules && test ! -w /app/node_modules/@prisma/engines"
+          '
+      - name: Test migrations, readiness and restart
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+          cleanup() {
+            status=$?
+            if [ "$status" -ne 0 ]; then
+              docker logs notebook-smoke-app || true
+              docker logs notebook-smoke-postgres || true
+            fi
+            docker rm -f notebook-smoke-app notebook-smoke-postgres >/dev/null 2>&1 || true
+            docker volume rm notebook-smoke-uploads notebook-smoke-backups notebook-smoke-postgres >/dev/null 2>&1 || true
+            docker network rm notebook-smoke >/dev/null 2>&1 || true
+            exit "$status"
+          }
+          trap cleanup EXIT
+
+          docker network create --internal notebook-smoke
+          docker volume create notebook-smoke-uploads
+          docker volume create notebook-smoke-backups
+          docker volume create notebook-smoke-postgres
+
+          docker run -d --name notebook-smoke-postgres \
+            --network notebook-smoke \
+            --health-cmd="pg_isready -U notebook -d notebook" \
+            --health-interval=2s --health-timeout=3s --health-retries=30 \
+            -e POSTGRES_DB=notebook \
+            -e POSTGRES_USER=notebook \
+            -e POSTGRES_PASSWORD=notebook-smoke-password \
+            -v notebook-smoke-postgres:/var/lib/postgresql/data \
+            postgres:17-alpine
+
+          for attempt in $(seq 1 60); do
+            [ "$(docker inspect --format '{{.State.Health.Status}}' notebook-smoke-postgres)" = healthy ] && break
+            [ "$attempt" -eq 60 ] && exit 1
+            sleep 2
+          done
+
+          docker run -d --name notebook-smoke-app \
+            --network notebook-smoke \
+            --init \
+            --cap-drop=ALL \
+            --cap-add=CHOWN --cap-add=DAC_OVERRIDE --cap-add=FOWNER --cap-add=SETGID --cap-add=SETUID \
+            --security-opt=no-new-privileges:true \
+            -e DATABASE_URL='postgresql://notebook:notebook-smoke-password@notebook-smoke-postgres:5432/notebook?schema=public' \
+            -e APP_ORIGIN=http://127.0.0.1:3100 \
+            -e SETTINGS_ENCRYPTION_KEY=1111111111111111111111111111111111111111111111111111111111111111 \
+            -e PUID=99 -e PGID=100 -e UMASK=002 \
+            -v notebook-smoke-uploads:/data/uploads \
+            -v notebook-smoke-backups:/data/backups \
+            notebook:smoke
+
+          for attempt in $(seq 1 90); do
+            docker exec notebook-smoke-app node -e 'fetch("http://127.0.0.1:3000/api/health/ready").then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))' && break
+            [ "$attempt" -eq 90 ] && exit 1
+            sleep 2
+          done
+
+          docker exec notebook-smoke-app sh -c '
+            server_pid=1
+            pid_one_uid=$(awk "/^Uid:/{print \$2}" /proc/1/status)
+            if [ "$pid_one_uid" = "0" ]; then
+              server_pid=""
+              for child_pid in $(cat /proc/1/task/1/children); do
+                [ -r "/proc/$child_pid/status" ] || continue
+                child_uid=$(awk "/^Uid:/{print \$2}" "/proc/$child_pid/status")
+                [ "$child_uid" != "0" ] || continue
+                server_pid=$child_pid
+                break
+              done
+            fi
+            [ -n "$server_pid" ] || { echo "Notebook non-root server process not found" >&2; exit 1; }
+            grep -E "^(Uid|Gid):" "/proc/$server_pid/status"
+            runtime_uid=$(awk "/^Uid:/{print \$2}" "/proc/$server_pid/status")
+            runtime_gid=$(awk "/^Gid:/{print \$2}" "/proc/$server_pid/status")
+            [ "$runtime_uid" != "0" ] || { echo "Notebook Node server is running as root" >&2; exit 1; }
+            [ "$runtime_uid" = "99" ] || { echo "Unexpected Notebook UID: $runtime_uid" >&2; exit 1; }
+            [ "$runtime_gid" = "100" ] || { echo "Unexpected Notebook GID: $runtime_gid" >&2; exit 1; }
+          '
+          docker exec notebook-smoke-app sh -c \
+            'test "$(stat -c %u /data/uploads)" = 99 && test "$(stat -c %g /data/uploads)" = 100 && test "$(stat -c %u /data/backups)" = 99 && test "$(stat -c %g /data/backups)" = 100'
+          docker exec --user 99:100 notebook-smoke-app sh -c \
+            'test -w /data/uploads && test -w /data/backups && test ! -w /app && test ! -w /app/node_modules'
+
+          docker restart notebook-smoke-app
+          for attempt in $(seq 1 90); do
+            docker exec notebook-smoke-app node -e 'fetch("http://127.0.0.1:3000/api/health/ready").then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))' && break
+            [ "$attempt" -eq 90 ] && exit 1
+            sleep 2
+          done
+
+          # Same image and PostgreSQL 17, no public egress: upgrade and failure gates.
+          bash docker/startup-smoke.sh notebook:smoke
+
+      - name: Set up Node.js for editor staging acceptance
+        uses: actions/setup-node@v6
+        with:
+          node-version: "24"
+          cache: npm
+      - name: Install editor staging test dependencies
+        run: |
+          npm ci --legacy-peer-deps
+          npx --no-install playwright install --with-deps chromium
+      - name: Accept production container with PostgreSQL and Chromium
+        run: bash docker/editor-staging-acceptance.sh notebook:smoke
+      - name: Save editor acceptance evidence
+        if: always()
+        uses: actions/upload-artifact@v6
+        with:
+          name: notebook-editor-acceptance-97028585b757b76de0711fc2e5f4246b6b47a427
+          path: editor-ci-logs/
+          retention-days: 14
+          if-no-files-found: ignore
