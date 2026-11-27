@@ -90,6 +90,7 @@ jobs:
         uses: actions/checkout@v7
         with:
           ref: 97028585b757b76de0711fc2e5f4246b6b47a427
+          fetch-depth: 0
       - name: Verify checked out source revision
         run: test "$(git rev-parse HEAD)" = "97028585b757b76de0711fc2e5f4246b6b47a427"
       - name: Set up Docker Buildx
@@ -265,6 +266,35 @@ jobs:
           INTEGRATION
           done < "$source" > "$1"
           BASH
+          git show "$GITHUB_SHA:.github/workflows/editor-toolbar-probe.ts" > e2e/editor-toolbar-probe.ts
+          python3 - "$acceptance" <<'PY'
+          from pathlib import Path
+          import sys
+          spec = Path("e2e/link-copy-and-row-actions.spec.ts")
+          text = spec.read_text()
+          start = 'import { setTestTheme } from "./theme-fixture";'
+          reset = '  await setTestTheme(page, "studio-graphite");'
+          assert text.count(start) == text.count(reset) == 1
+          text = text.replace(start, start + '\nimport { recordInheritedToolbarPreferences } from "./editor-toolbar-probe";')
+          text = text.replace(reset, '  await recordInheritedToolbarPreferences(page);\n' + reset)
+          spec.write_text(text)
+
+          script = Path(sys.argv[1])
+          text = script.read_text()
+          full = "npx --no-install playwright test --output=editor-ci-logs/playwright-full | tee editor-ci-logs/playwright-full.log"
+          result = "  --output=editor-ci-logs/playwright-repeat | tee editor-ci-logs/playwright-repeat.log"
+          assert text.count(full) == text.count(result) == 1
+          text = text.replace(full, "set +e")
+          text = text.replace(result, result + """\ncontext_status=$?
+          npx --no-install playwright test e2e/link-copy-and-row-actions.spec.ts \\
+            --grep 'preserves the styled link' --repeat-each 10 --workers 1 --retries 0 \\
+            --output=editor-ci-logs/playwright-toolbar-ten | tee editor-ci-logs/playwright-toolbar-ten.log
+          ten_status=$?
+          set -e""")
+          text = text.replace("SAVED_ITEM_TITLE_ORIGINS=1 npx", "set +e\nSAVED_ITEM_TITLE_ORIGINS=1 npx")
+          text += '\nflag_status=$?\nset -e\nprintf "Context run: %s, ten repeats: %s, feature flag: %s\\n" "$context_status" "$ten_status" "$flag_status"\n(( context_status == 0 && ten_status == 0 && flag_status == 0 ))\n'
+          script.write_text(text)
+          PY
           bash -n "$acceptance"
           bash "$acceptance" notebook:smoke
       - name: Save editor acceptance evidence
